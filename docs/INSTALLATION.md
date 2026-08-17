@@ -18,6 +18,12 @@ Writable settings, playlist state, cache, and logs are stored separately under `
 
 YOMI can install the functionality needed for normal player use or the fuller streamer/OBS feature set. Core playback uses mpv and yt-dlp. Deno compatibility and FFmpeg media tools are optional components that can also be installed or removed later through Settings → Components.
 
+## Optional Windows Defender performance setting
+
+The installer offers an unchecked option named **Reduce Windows Defender CPU spikes during track changes**. If selected, it adds only `C:\Program Files\YOMI\runtime\yt-dlp\yt-dlp.exe` as a Defender process exclusion. This slightly reduces antivirus coverage for files opened by yt-dlp. YOMI does not exclude PowerShell, `%TEMP%`, mpv, Deno, or the entire user profile.
+
+The uninstaller removes an exclusion created by YOMI. If that exact exclusion existed before installation, YOMI leaves it under the user's control.
+
 ## Updating
 
 New YOMI versions can be installed over the existing installation. User configuration is stored separately from Program Files.
