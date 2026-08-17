@@ -1,0 +1,184 @@
+{
+  "version": "v4.0.9.4",
+  "product": "YOMI - YouTube Playlist Randomizer & Player",
+  "features": [
+    "Player-first architecture with optional Streamer/OBS mode",
+    "optional installer profiles before prerequisite downloads",
+    "optional Deno and FFmpeg components with install/remove UI",
+    "font selector with 12 curated styles and live preview",
+    "text/outline color, opacity, glow and alignment controls",
+    "media border/color/corner customization",
+    "style presets Classic/Minimal/Retro/Neon/Pastel/Arcade",
+    "solid/rainbow/horizontal-or-vertical-gradient visualizer",
+    "visualizer direction and layer controls",
+    "one Browser Source with media-edge visualizer alignment",
+    "Player video quality Off/144p/360p/720p/Best",
+    "performance worker counts exposed clearly",
+    "no playlist dedupe",
+    "Shuffle Playlist refresh+shuffle single action",
+    "smart crop with raw-art fallback",
+    "delayed-retry tiny-video compatibility ladder",
+    "mode-aware server overhead elimination",
+    "component-aware feature disabling",
+    "improved uninstaller keep-data semantics",
+    "transparent zoom-to-fill v4 icons",
+    "Open YOMI Data Folder shortcut",
+    "broader curated font grab bag including Segoe Print and Segoe Script",
+    "all FFmpeg-dependent visualizer controls gray out when component is missing",
+    "fixed controller PowerShell mode-label expression for Windows PowerShell 5.1",
+    "fixed Player video rescue flag Lua scope",
+    "settings icon shell/shadow fully removed and design zoomed to fill",
+    "visualizer active-pixel edge normalization",
+    "top-layer media border overlay",
+    "exact proven -loop 1 / 10-frame FFmpeg cropdetect behavior",
+    "8px meaningful-border threshold",
+    "four-edge detected-border logging",
+    "any-color edge-band artwork detector",
+    "JPEG-noise-tolerant border matching",
+    "8px minimum + 30% edge cap + 40% content-preservation safeguards",
+    "fixed Program Files shuffle child quoting",
+    "Settings Shuffle Playlist executes real safe shuffle workflow",
+    "controller-consumed approved shuffle request",
+    "visible shuffle failure status",
+    "Controller X stops playback and exits",
+    "explicit Hide to tray keeps playback running",
+    "Settings Components Uninstall YOMI button",
+    "root-level Uninstall YOMI.cmd",
+    "Start Menu uninstaller uses root launcher",
+    "installer stages root Uninstall YOMI.cmd",
+    "installer preflight checks root uninstaller payload",
+    "Settings uninstall.ps1 fallback",
+    "Balanced 2-worker fresh-install default",
+    "readable overlay close-up live preview",
+    "generic non-playlist preview sample content",
+    "public-release private-content hygiene validation",
+    "exactly two current PNG-compressed ICO assets",
+    "single root INSTALL YOMI.cmd launcher",
+    "internal installer/install.ps1 engine",
+    "development preview/test artifacts removed from public ZIP",
+    "smart-crop thumbnail normalization to lossless PNG",
+    "WebP-safe any-color artwork edge detection",
+    "explicit artwork source/normalize/crop diagnostics",
+    "rewritten scalar-safe any-color artwork detector",
+    "Image.FromFile normalized-PNG detector loading",
+    "detector error line-number diagnostics",
+    "ARTWORK EDGE DETECT V2 runtime marker",
+    "Windows PowerShell 5.1-compatible detector loop syntax",
+    "normalized-PNG any-color crop pipeline",
+    "scalar-safe edge detector math",
+    "canonical Smart Crop track-N.jpg artifact",
+    "one-time Smart Crop cache-v3 artwork migration",
+    "JPG-first artwork HTTP serving",
+    "compiled C# any-color artwork edge detector",
+    "proven FFmpeg black-border cropdetect fallback",
+    "explicit opt-in Defender performance adjustment",
+    "narrow bundled yt-dlp process exclusion only",
+    "YOMI-managed Defender exclusion cleanup during uninstall"
+  ],
+  "files": {
+    "INSTALL YOMI.cmd": {
+      "bytes": 1536,
+      "sha256": "d6429ab26ddd8e079a385e4769a93bdee60e77741424e286c4631a620b826bf7"
+    },
+    "installer/install.ps1": {
+      "bytes": 34975,
+      "sha256": "b8863b63c459bc6b562a7c58892c64a203d8b2dc68564d637516b5983e9031b4"
+    },
+    "payload/README-EASY.txt": {
+      "bytes": 14424,
+      "sha256": "fd1dead3dc7f18ec0f8aa4a7fb7ca836de943f1d8311a8d93abda02fd8bc1559"
+    },
+    "payload/README-TECHNICAL.txt": {
+      "bytes": 12188,
+      "sha256": "3817f4161bf4319e6f5cdf90b37bcd3f8c616209357ed8aebfd3d819a18fe29c"
+    },
+    "payload/THIRD-PARTY.txt": {
+      "bytes": 805,
+      "sha256": "64e5e36ae4cab387d76118259dbaaf9df553da0cb1438abf7eb02323a407c437"
+    },
+    "payload/Uninstall YOMI.cmd": {
+      "bytes": 425,
+      "sha256": "0ca5a9b9c19e27496b98c7642a4d629a687ad076da7a3bdbc33f1067b062763b"
+    },
+    "payload/VERSION.txt": {
+      "bytes": 14,
+      "sha256": "58d1da2678ccbeb9083dba3bf4e7fec130e0d4153c33e34842d78e0471039b80"
+    },
+    "payload/app/ArtworkEdgeDetector.cs": {
+      "bytes": 8193,
+      "sha256": "1708437ba084788d4df37d6e9c9ce143c54163bd10f0efd7d1c820ce49abc6ce"
+    },
+    "payload/app/PriorityRun.cs": {
+      "bytes": 3010,
+      "sha256": "343788fd63ca844ed4e27c38cdde6ae1572cb0e7d3133b98074ad95f94b68438"
+    },
+    "payload/app/YomiLauncher.cs": {
+      "bytes": 1273,
+      "sha256": "6cb5705ad88af1eddf9caa83c32559e131e9ef39e1ea950408f5620faea7cbe9"
+    },
+    "payload/app/common.ps1": {
+      "bytes": 8804,
+      "sha256": "10347c531e1e2cef2ed837bb129a9b949648df709b57e74b78d15552e346875c"
+    },
+    "payload/app/components.ps1": {
+      "bytes": 4443,
+      "sha256": "770ea208e1c49e6610a3acc6ee56af7525c93d5c75f96d0e00b7bdd64c25763f"
+    },
+    "payload/app/controller.ps1": {
+      "bytes": 11914,
+      "sha256": "7e48b390f3e48ee8958a6831e53c5df833b09181534e18ee27ae5088883b76e9"
+    },
+    "payload/app/default-config.json": {
+      "bytes": 1569,
+      "sha256": "6d0b0393eee3c995d270b8b97cb642bd36ab8e0008771b2336e2b1bfaeb24d3a"
+    },
+    "payload/app/diagnostics.ps1": {
+      "bytes": 2035,
+      "sha256": "3d0343a4c407404e929ef3f551b4b499aebb22d6d082948e99e1693a1117aeda"
+    },
+    "payload/app/music.lua": {
+      "bytes": 43096,
+      "sha256": "6471ad539d63a70cc736f63bd61f395dfccb0d4983a61e94fb79064eb62ec6cd"
+    },
+    "payload/app/playlist-refresh.ps1": {
+      "bytes": 186,
+      "sha256": "e87eb477c6ec0a19d8264bb1bf42078948c89447b690795d090ccca9f029a1f8"
+    },
+    "payload/app/server.ps1": {
+      "bytes": 11338,
+      "sha256": "bcd034fd1fe4a06c0310f7a620c94de4880871b22557517caf7fcdb380245167"
+    },
+    "payload/app/settings.ps1": {
+      "bytes": 48518,
+      "sha256": "e66be03aaaeeb4e968e32b30b0cbbb4875c66cfb6d4145aa2c02f44325d5a55d"
+    },
+    "payload/app/shuffle.ps1": {
+      "bytes": 3040,
+      "sha256": "530c9c8f2481f6d0c24cd6466a9a234e89c84d9112814425b3138453b58d1d06"
+    },
+    "payload/app/supervisor.ps1": {
+      "bytes": 5559,
+      "sha256": "f374bf6b36b537f6e277d76c8094ccf66bb5616c822d941a9ef39dde3731eea2"
+    },
+    "payload/app/uninstall.ps1": {
+      "bytes": 4035,
+      "sha256": "4a23c23aa5ca14e145d2a8a82ce5cc59fb0cf4ff1ddfd7dc2f592575ab7adae6"
+    },
+    "payload/assets/yomi-settings-v408.ico": {
+      "bytes": 36551,
+      "sha256": "faaa8e92c6e6571d9be927fb5362eca03818f64018ddcc106cd6d949cade2989"
+    },
+    "payload/assets/yomi-v408.ico": {
+      "bytes": 28249,
+      "sha256": "6a393dd34870f3ca7d8021076fefbec02b7026e2d61eca84069a5c53313bb511"
+    },
+    "payload/web/overlay.html": {
+      "bytes": 12724,
+      "sha256": "91b17dfe4c4dfbcbdf92c4a245ffc79c351db2e9427e43110d691717e14d2b78"
+    },
+    "payload/web/visualizer.html": {
+      "bytes": 142,
+      "sha256": "2f453debd55b3e715e98e02db886ef2a69ba696e7be5f691c46c17790741cae5"
+    }
+  }
+}

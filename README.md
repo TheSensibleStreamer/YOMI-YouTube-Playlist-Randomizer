@@ -8,9 +8,9 @@ If you were looking for a **YouTube playlist randomizer**, **YouTube playlist pl
 
 ## Download
 
-The current public build is **YOMI v4.0.8**.
+The current public build is **YOMI v4.0.9.4**.
 
-Use the **Releases** section of this repository for packaged Windows downloads. Download the ZIP, fully extract it, then double-click:
+Download [`YOMI-v4.0.9.4.zip`](./YOMI-v4.0.9.4.zip), fully extract it, then double-click:
 
 ```text
 INSTALL YOMI.cmd
@@ -103,6 +103,10 @@ YOMI can detect and remove solid or near-solid padding around YouTube thumbnails
 ## Tiny-video reliability
 
 Tiny OBS video is prepared separately from audio. YOMI uses multiple yt-dlp client/format routes with retries, including low-resolution and progressive fallbacks. If every tiny-video route fails for a particular YouTube item, the rest of the prepared presentation can still play instead of wedging the entire playlist.
+
+## Windows Defender performance option
+
+The installer offers an **unchecked, explicit opt-in** to reduce Windows Defender CPU spikes during track changes. It adds only YOMI's bundled `yt-dlp.exe` as a process exclusion; it never excludes PowerShell, `%TEMP%`, mpv, Deno, or the whole user profile. An exclusion added by YOMI is recorded and removed by the YOMI uninstaller. Pre-existing user-managed exclusions are left alone.
 
 ## Components
 
