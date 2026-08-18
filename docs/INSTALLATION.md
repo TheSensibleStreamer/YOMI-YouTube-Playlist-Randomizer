@@ -2,11 +2,11 @@
 
 ## Download
 
-Use the latest packaged ZIP from this repository's **Releases** section. The packaged release is separate from GitHub's automatically generated source-code ZIP.
+Use the current packaged `YOMI-v4.2.0.x.zip` linked from the repository README. The packaged installer is separate from GitHub's automatically generated source-code ZIP.
 
 ## Install
 
-1. Download the latest `YOMI-vX.X.X.zip` release asset.
+1. Download the latest `YOMI-v4.2.0.x.zip` package.
 2. Fully extract the ZIP to a normal folder.
 3. Double-click `INSTALL YOMI.cmd`.
 4. Approve the Windows administrator prompt. YOMI installs application files under `C:\Program Files\YOMI`.
@@ -26,7 +26,7 @@ The uninstaller removes an exclusion created by YOMI. If that exact exclusion ex
 
 ## Updating
 
-New YOMI versions can be installed over the existing installation. User configuration is stored separately from Program Files.
+YOMI remains on the 4.2.0/“420” line and uses a fourth patch component for compatible improvements. Controller and Settings check the official `update.json` at most once per day; Settings → Components also provides a manual check. YOMI asks before downloading, verifies the ZIP's SHA-256, then opens the normal interactive installer. User configuration is stored separately from Program Files and is preserved by an in-place update.
 
 ## Uninstalling
 

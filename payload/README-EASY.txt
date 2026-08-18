@@ -1,4 +1,4 @@
-YOMI 4.2.0 - DEEP CACHE / NAVIGATOR / 60 FPS
+YOMI 4.2.0.1 - 420 PATCH LINE / PRESETS EVERYWHERE / VISUALIZER RANGE
 ========
 YOMI means YouTube OBS Music Interface.
 YouTube playlist randomizer, player and modular OBS overlay for streamers
@@ -6,6 +6,23 @@ YouTube playlist randomizer, player and modular OBS overlay for streamers
 Created and designed by TheSensibleStreamer
 Powered by mpv | yt-dlp | FFmpeg
 Development assistance by ChatGPT
+
+WHAT IS NEW IN 4.2.0.1
+----------------------
+- YOMI stays on the 4.2.0 / "420" generation. Compatible public updates use a
+  fourth patch number such as 4.2.0.1.
+- General / Player, OBS Overlay, Text & Style, Visualizer, Performance,
+  Director Mode and Outputs 1-6 now provide Default, named presets and Custom.
+- Changing an individual setting marks only its page Custom. Existing 4.2.0
+  installations keep their settings and migrate newly tracked pages as Custom.
+- Outputs presets can instantly build Minimal, Split Essentials, Broadcast Desk
+  or Full Studio Browser Source arrangements across all six rows.
+- Visualizer resolution now runs from Monolith 12x4 and Mega Blocks 16x5 through
+  Microscopic 160x40 and Maximum Detail 192x48.
+- The Visualizer page reports exact generated pixels, relative cost, FPS and a
+  plain-language detail classification before you save.
+- OBS Browser Source version queries follow the complete installed patch number,
+  which makes future updater-installed pages less likely to remain stale.
 
 WHAT IS NEW IN 4.2
 ------------------
@@ -20,10 +37,10 @@ WHAT IS NEW IN 4.2
   resolution. YOMI does not fake 60 FPS by duplicating 30 FPS frames.
 - Browser Source Auto FPS follows the highest enabled video/visualizer rate.
 - Maximum caching adds an opt-in 8-worker mode.
-- Visualizer resolution now ranges from Giant Blocks (20x6) through Ultra Fine
-  (128x32), with lower-resolution choices reducing normal generation/cache cost.
-- Text & Style, Visualizer and Performance pages include Default, named presets
-  and Custom tracking. Touching an individual option marks that page Custom.
+- Visualizer resolution originally ranged from Giant Blocks (20x6) through
+  Ultra Fine (128x32); v4.2.0.1 expands both ends of that ladder.
+- Text & Style, Visualizer and Performance introduced Default, named presets
+  and Custom tracking; v4.2.0.1 extends that behavior to every useful page.
 - Controller/Settings perform at most one automatic update check per day. A new
   build prompts before downloading; Settings -> Components also has Check for
   Updates. Downloaded ZIPs must match the public SHA-256 manifest before YOMI

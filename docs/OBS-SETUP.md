@@ -1,52 +1,52 @@
 # YOMI OBS Setup
 
-YOMI can run as a normal YouTube playlist randomizer/player without OBS. OBS integration is optional and is enabled through **Streamer / OBS** mode.
+YOMI — YouTube OBS Music Interface can run as a normal playlist randomizer/player without OBS. OBS integration is optional and is enabled through **Streamer / OBS** mode.
 
-## Quick setup
+## Classic combined overlay
+
+The original combined overlay remains the default and normally needs one Browser Source.
 
 1. Open **YOMI Settings**.
-2. Set the application mode to **Streamer / OBS**.
-3. Enable the overlay modules you want: artwork, tiny video, song title, channel name, and/or visualizer.
-4. Save the settings.
-5. Open **OBS Setup** from YOMI Settings or the YOMI Controller.
-6. Add a single **Browser Source** in OBS using the URL and dimensions YOMI shows for the current configuration.
+2. Choose a General / Player preset or set the application mode to **Streamer / OBS**.
+3. On **OBS Overlay**, choose a page preset or configure artwork, tiny video, title, channel, and visualizer individually.
+4. Save.
+5. Open **OBS Setup** from Settings or Controller.
+6. Add a Browser Source using the exact URL, dimensions, and FPS YOMI provides.
 
-YOMI intentionally uses **one Browser Source** for the complete music overlay instead of requiring separate browser sources for artwork, video, text, and the visualizer.
+Classic overlay page presets include Default, Gaming Light, Artwork Radio, Full Strip, and Video Showcase. Editing an underlying field marks that page Custom.
 
-## Overlay modules
+## Director Mode and split sources
 
-- Artwork / YouTube thumbnail
-- Tiny synchronized video
-- Song title
-- Channel / uploader name
-- Retro pixel audio visualizer
+Director Mode is opt-in. It exposes `/source/1` through `/source/6` for configurable groups plus fixed one-module routes such as `/source/artwork`, `/source/video`, `/source/title`, and `/source/stats`.
 
-Disabled modules do not perform their normal preparation work.
+Outputs presets can configure all six rows at once:
 
-## Layout
+- Minimal — one title/channel source
+- Split Essentials — artwork, video, title card, visualizer, culture, and stats sources
+- Broadcast Desk — joined now-playing strip plus information/culture/engineering panels
+- Full Studio — six enabled broadcast surfaces including a timeline and mission control
 
-YOMI supports Top Left, Top Right, Bottom Left, and Bottom Right placement. Right-side layouts mirror the presentation order so the text and media remain visually coherent.
+All sources share one local clock and one downloaded media cache. Splitting video into multiple Browser Sources does not redownload it, but every video source makes OBS perform another decode.
 
-Canvas size and media size are independent. Common canvas presets include 1280×720, 1920×1080, 2560×1440, and 3840×2160, with custom dimensions available.
+## Layout and source FPS
 
-## Browser Source FPS
+Canvas presets include 1280×720, 1920×1080, 2560×1440, and 3840×2160. Media sizes and four screen corners are independently configurable.
 
-- Auto
-- 15 FPS
-- 30 FPS
+Browser Source FPS choices are Auto, 15, 30, and 60 FPS. Auto resolves to the highest enabled video or visualizer rate. YOMI prefers genuine 60 FPS video only when YouTube provides it; it does not fabricate frames.
 
-Auto uses 30 FPS when the visualizer is enabled in Streamer mode and 15 FPS otherwise.
+## Visualizer
+
+Generated visualizer resolutions range from Monolith 12×4 to Maximum Detail 192×48. Lower choices stretch enormous blocks and reduce normal preparation/cache cost; higher choices provide progressively finer output. The Settings page shows exact generated pixels and their relative cost before saving.
 
 ## Performance
 
-YOMI prepares upcoming media in the background:
-
 - Gaming / Lowest overhead — 1 worker
-- Balanced — 2 workers, default
+- Balanced — 2 workers (default)
 - Fast caching — 4 workers
+- Maximum caching — 8 workers
 
-Balanced is intended to be the best general-purpose choice for streamers who want useful preloading without unnecessary background pressure.
+Maximum can fill a deep cache quickly but can hammer CPU, network, disk, and Defender together. Balanced is the intended general streaming default.
 
-## No browser or OBS WebSocket dependency
+## No external browser or OBS WebSocket dependency
 
-YOMI does not require Chrome to remain open and does not require OBS WebSocket. The overlay is served locally to the OBS Browser Source.
+YOMI does not require Chrome to remain open and does not require OBS WebSocket. Browser Sources read YOMI's local HTTP server only.

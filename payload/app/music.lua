@@ -380,8 +380,8 @@ local function viz_filter()
     elseif activity == "Normal" then averaging,win,boost = 2,1024,6
     elseif activity == "Punchy" then averaging,win,boost = 1,512,12 end
 
-    local w = math.max(16,math.min(192,tonumber(cfg.visualizer_internal_width) or 40))
-    local h = math.max(6,math.min(48,tonumber(cfg.visualizer_internal_height) or 10))
+    local w = math.max(12,math.min(192,tonumber(cfg.visualizer_internal_width) or 40))
+    local h = math.max(4,math.min(48,tonumber(cfg.visualizer_internal_height) or 10))
     local fps = tostring(cfg.visualizer_fps or "30 FPS"):find("60",1,true) and 60 or 30
 
     local fscale = tostring(cfg.visualizer_frequency_scale or "Logarithmic") == "Linear" and "lin" or "log"
