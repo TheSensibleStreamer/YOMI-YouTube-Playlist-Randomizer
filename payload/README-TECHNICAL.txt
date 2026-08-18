@@ -1,4 +1,4 @@
-YOMI 4.2.0 - TECHNICAL NOTES / DEEP CACHE + NAVIGATOR
+YOMI 4.2.0.1 - TECHNICAL NOTES / 420 PATCH LINE + PRESET SYSTEM
 ==========================
 Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI
@@ -38,18 +38,28 @@ failure writes a small status marker and cannot delay, skip or stop a track.
 
 PAGE PRESETS
 ------------
-Text & Style, Visualizer and Performance expose Default, named presets and
-Custom. Event guards allow a preset to populate all of its controls without
-renaming itself; changing any underlying control outside that guarded operation
-marks only that page Custom. Existing pre-4.2 visualizer/performance values
-migrate as Custom so hand-tuned settings are never mislabeled as factory values.
+General / Player, OBS Overlay, Text & Style, Visualizer, Performance, Director
+Mode and Outputs 1-6 expose Default, named presets and Custom. Event guards let
+a preset populate all controls without renaming itself; changing any underlying
+control outside the guarded operation marks only that page Custom. Existing
+installations missing a page tracker migrate that page as Custom, preserving
+hand-tuned values rather than falsely labeling them as factory settings.
+
+The Outputs page applies six rows atomically while the guard is active. Minimal,
+Split Essentials, Broadcast Desk and Full Studio are configuration templates;
+they do not duplicate downloads because every source retains the shared media
+cache and clock architecture.
 
 VISUALIZER GENERATION RESOLUTION
 --------------------------------
-The preset ladder maps to 20x6, 28x8, 40x10, 48x12, 64x18, 96x24 and 128x32
-FFmpeg showfreqs frames. Browser rendering scales those deliberately tiny frames
-to the configured overlay length. The engine clamps arbitrary config input to
-16-192 pixels wide and 6-48 pixels high.
+The preset ladder maps to 12x4, 16x5, 20x6, 28x8, 40x10, 48x12, 64x18, 96x24,
+128x32, 160x40 and 192x48 FFmpeg showfreqs frames. Browser rendering scales
+those deliberately tiny frames to the configured overlay length. The engine
+clamps arbitrary config input to 12-192 pixels wide and 4-48 pixels high.
+
+Settings calculates source pixels relative to the 40x10 default (400 sampled
+pixels per frame). This is an intentionally understandable workload indicator,
+not a claim that total CPU usage scales perfectly linearly with pixel count.
 
 UPDATER
 -------

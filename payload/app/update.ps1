@@ -44,12 +44,12 @@ function Show-UpdateMessage([string]$Text,[System.Windows.Forms.MessageBoxIcon]$
 
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0-Updater' }
-    $manifest = Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20
-
     $versionFile = Join-Path $installRoot 'VERSION.txt'
     $currentText = if (Test-Path $versionFile) { Get-Content $versionFile -Raw } else { '0.0' }
     $current = Get-VersionNumber $currentText
+    $headers = @{ 'User-Agent' = ("YOMI-"+$current.ToString()+"-Updater") }
+    $manifest = Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20
+
     $latest = Get-VersionNumber ([string]$manifest.version)
 
     if ($latest -le $current) {

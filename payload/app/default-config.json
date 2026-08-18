@@ -1,12 +1,14 @@
 {
-  "version": "4.2.0",
+  "version": "4.2.0.1",
   "playlist": "",
+  "general_preset": "Default",
   "app_mode": "Streamer / OBS",
   "player_video_quality": "Off (audio only)",
   "video_preference": "Prefer selected maximum",
   "video_fps": "30 FPS",
   "audio_quality": "Best available",
   "audio_preference": "Prefer selected maximum",
+  "overlay_preset": "Default",
   "canvas_preset": "2560 x 1440",
   "canvas_width": 2560,
   "canvas_height": 1440,
@@ -63,6 +65,7 @@
   "visualizer_fps": "30 FPS",
   "performance_preset": "Default",
   "loudness_normalization": true,
+  "director_preset": "Default",
   "director_mode": false,
   "director_theme": "Classic",
   "director_timeline": "Broadcast Rotation",
@@ -77,6 +80,7 @@
   "history_enabled": false,
   "history_max_entries": 100,
   "stats_detail": "Broadcast",
+  "outputs_preset": "Default",
   "director_outputs": [
     {
       "id": 1,

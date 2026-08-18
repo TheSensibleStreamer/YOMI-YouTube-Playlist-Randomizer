@@ -43,7 +43,7 @@ New-Item -ItemType Directory -Path $temp -Force | Out-Null
 
 function Download($uri,$path) {
     Write-Host "Downloading $uri" -ForegroundColor Cyan
-    Invoke-WebRequest -Uri $uri -OutFile $path -UseBasicParsing -UserAgent 'YOMI-4.2.0-Components'
+    Invoke-WebRequest -Uri $uri -OutFile $path -UseBasicParsing -UserAgent ("YOMI-"+(Get-YomiVersionText)+"-Components")
 }
 
 try {

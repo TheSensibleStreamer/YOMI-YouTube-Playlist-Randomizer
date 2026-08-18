@@ -4,9 +4,10 @@ Add-Type -AssemblyName System.Drawing
 . (Join-Path $PSScriptRoot 'common.ps1')
 Initialize-YomiData
 $config = Get-YomiConfig
+$yomiVersion = Get-YomiVersionText
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'YOMI 4.2.0 - YouTube OBS Music Interface'
+$form.Text = "YOMI $yomiVersion - YouTube OBS Music Interface"
 $form.StartPosition = 'CenterScreen'
 $form.Size = New-Object System.Drawing.Size(1010,850)
 $form.MinimumSize = $form.Size
@@ -84,20 +85,24 @@ function New-Tab($name){$t=New-Object System.Windows.Forms.TabPage;$t.Text=$name
 $general=New-Tab 'General / Player'
 Add-Label $general 'YouTube playlist link or playlist ID:' 18 22 320 | Out-Null
 $playlist=New-Object System.Windows.Forms.TextBox; $playlist.Location=New-Object System.Drawing.Point(18,48); $playlist.Size=New-Object System.Drawing.Size(890,27); $playlist.Text=[string]$config.playlist; $general.Controls.Add($playlist)
-Add-Label $general 'YOMI mode:' 18 100 100 | Out-Null
-$mode=Add-Combo $general 125 96 240 @('Player','Streamer / OBS') ([string]$config.app_mode)
-$modeHint=Add-Label $general 'Player = lightweight playlist randomizer/player. Streamer / OBS adds the one-source overlay and presentation cache.' 385 99 520 42
+Add-Label $general 'Page preset:' 18 100 95 | Out-Null
+$generalPreset=Add-Combo $general 125 96 240 @('Default','Audio-only Player','Efficient Video Player','Quality Video Player','Streamer / OBS','Custom') ([string]$config.general_preset)
+$generalPresetHint=Add-Label $general 'Playlist identity is never part of a preset. Changing mode or Player video marks this page Custom.' 385 99 520 42
+$generalPresetHint.ForeColor=[System.Drawing.Color]::DimGray
+Add-Label $general 'YOMI mode:' 18 150 100 | Out-Null
+$mode=Add-Combo $general 125 146 240 @('Player','Streamer / OBS') ([string]$config.app_mode)
+$modeHint=Add-Label $general 'Player = lightweight playlist randomizer/player. Streamer / OBS adds the one-source overlay and presentation cache.' 385 149 520 42
 $modeHint.ForeColor=[System.Drawing.Color]::DimGray
-Add-Label $general 'Player video:' 18 150 100 | Out-Null
-$playerQuality=Add-Combo $general 125 146 240 @('Off (audio only)','144p','240p','360p','480p','720p','Best') ([string]$config.player_video_quality)
-$playerHint=Add-Label $general 'Audio-only is the lowest-overhead default. Video quality applies only in Player mode and opens an mpv video window.' 385 149 520 44
+Add-Label $general 'Player video:' 18 200 100 | Out-Null
+$playerQuality=Add-Combo $general 125 196 240 @('Off (audio only)','144p','240p','360p','480p','720p','Best') ([string]$config.player_video_quality)
+$playerHint=Add-Label $general 'Audio-only is the lowest-overhead default. Video quality applies only in Player mode and opens an mpv video window.' 385 199 520 44
 $playerHint.ForeColor=[System.Drawing.Color]::DimGray
-$generalNote=Add-Label $general 'Shuffle Playlist is the normal update action: it reloads the current YouTube playlist, preserves duplicate entries, randomizes the whole list, resets cache mapping and starts from the new track 1.' 18 215 885 58
+$generalNote=Add-Label $general 'Shuffle Playlist is the normal update action: it reloads the current YouTube playlist, preserves duplicate entries, randomizes the whole list, resets cache mapping and starts from the new track 1.' 18 265 885 58
 $generalNote.ForeColor=[System.Drawing.Color]::DimGray
-$applyNote=Add-Label $general 'Saving is silent. Browser styling/layout changes refresh automatically. Restart YOMI for player mode, media quality, cache pipeline and generated-visualizer changes.' 18 292 885 48
+$applyNote=Add-Label $general 'Saving is silent. Browser styling/layout changes refresh automatically. Restart YOMI for player mode, media quality, cache pipeline and generated-visualizer changes.' 18 342 885 48
 $applyNote.ForeColor=[System.Drawing.Color]::DarkGoldenrod
-$restoreDefaults=New-Object System.Windows.Forms.Button; $restoreDefaults.Text='RESTORE DEFAULT SETTINGS...'; $restoreDefaults.Location=New-Object System.Drawing.Point(18,360); $restoreDefaults.Size=New-Object System.Drawing.Size(250,38); $general.Controls.Add($restoreDefaults)
-$restoreHint=Add-Label $general 'Restores YOMI options and output layouts while preserving your playlist, playback history, installed components and Defender choice. Media affected by the restored quality/crop/visualizer settings is rebuilt as needed.' 290 357 615 64
+$restoreDefaults=New-Object System.Windows.Forms.Button; $restoreDefaults.Text='RESTORE DEFAULT SETTINGS...'; $restoreDefaults.Location=New-Object System.Drawing.Point(18,410); $restoreDefaults.Size=New-Object System.Drawing.Size(250,38); $general.Controls.Add($restoreDefaults)
+$restoreHint=Add-Label $general 'Restores YOMI options and output layouts while preserving your playlist, playback history, installed components and Defender choice. Media affected by the restored quality/crop/visualizer settings is rebuilt as needed.' 290 407 615 64
 $restoreHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # OBS OVERLAY
@@ -139,6 +144,10 @@ $qualityWarning=Add-Label $obs 'Large-video mode: 720p and Best compatible can t
 $qualityWarning.ForeColor=[System.Drawing.Color]::DarkGoldenrod
 $obsHint=Add-Label $obs '60 FPS video is preferred only when YouTube offers it at the selected resolution; YOMI does not fabricate motion by duplicating 30 FPS frames. Disabled classic modules avoid their work unless an enabled Director output needs it. The visualizer begins at the final media pixel; text keeps separate padding.' 18 360 870 72
 $obsHint.ForeColor=[System.Drawing.Color]::DimGray
+Add-Label $obs 'Page preset:' 18 458 95 | Out-Null
+$overlayPreset=Add-Combo $obs 120 454 210 @('Default','Gaming Light','Artwork Radio','Full Strip','Video Showcase','Custom') ([string]$config.overlay_preset)
+$overlayPresetHint=Add-Label $obs 'Applies the complete classic-overlay page. Touching any canvas, media, module, crop, quality, FPS, zoom or cache option marks it Custom.' 350 457 540 52
+$overlayPresetHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # STYLE
 $style=New-Tab 'Text & Style'
@@ -179,15 +188,15 @@ $styleHint.ForeColor=[System.Drawing.Color]::DimGray
 # VISUALIZER
 $visual=New-Tab 'Visualizer'
 Add-Label $visual 'Page preset:' 18 24 90 | Out-Null
-$vizPreset=Add-Combo $visual 115 20 220 @('Default','Low Overhead Blocks','Broadcast','Smooth 60 FPS','Neon Motion','Custom') ([string]$config.visualizer_preset)
+$vizPreset=Add-Combo $visual 115 20 240 @('Default','Monolith Efficiency','Low Overhead Blocks','Broadcast','Smooth 60 FPS','Signal Analyzer','Neon Motion','Custom') ([string]$config.visualizer_preset)
 
 Add-Label $visual 'Activity:' 18 76 70 | Out-Null
 $activity=Add-Combo $visual 95 72 145 @('Subtle','Normal','Active','Punchy') ([string]$config.visualizer_activity)
 Add-Label $visual 'Opacity %:' 265 76 85 | Out-Null
 $opacityPct=Add-Number $visual 350 72 90 5 80 ([int][Math]::Round(([double]$config.visualizer_opacity)*100))
 Add-Label $visual 'Pixels:' 470 76 60 | Out-Null
-$chunkName=$(if([int]$config.visualizer_internal_width -le 20){'Giant Blocks'}elseif([int]$config.visualizer_internal_width -le 28){'Huge Blocks'}elseif([int]$config.visualizer_internal_width -le 40){'Extra Chunky'}elseif([int]$config.visualizer_internal_width -le 48){'Chunky'}elseif([int]$config.visualizer_internal_width -le 64){'Fine'}elseif([int]$config.visualizer_internal_width -le 96){'Extra Fine'}else{'Ultra Fine'})
-$chunk=Add-Combo $visual 530 72 165 @('Giant Blocks','Huge Blocks','Extra Chunky','Chunky','Fine','Extra Fine','Ultra Fine') $chunkName
+$chunkName=$(if([int]$config.visualizer_internal_width -le 12){'Monolith (12x4)'}elseif([int]$config.visualizer_internal_width -le 16){'Mega Blocks (16x5)'}elseif([int]$config.visualizer_internal_width -le 20){'Giant Blocks (20x6)'}elseif([int]$config.visualizer_internal_width -le 28){'Huge Blocks (28x8)'}elseif([int]$config.visualizer_internal_width -le 40){'Extra Chunky (40x10)'}elseif([int]$config.visualizer_internal_width -le 48){'Chunky (48x12)'}elseif([int]$config.visualizer_internal_width -le 64){'Fine (64x18)'}elseif([int]$config.visualizer_internal_width -le 96){'Extra Fine (96x24)'}elseif([int]$config.visualizer_internal_width -le 128){'Ultra Fine (128x32)'}elseif([int]$config.visualizer_internal_width -le 160){'Microscopic (160x40)'}else{'Maximum Detail (192x48)'})
+$chunk=Add-Combo $visual 530 72 190 @('Monolith (12x4)','Mega Blocks (16x5)','Giant Blocks (20x6)','Huge Blocks (28x8)','Extra Chunky (40x10)','Chunky (48x12)','Fine (64x18)','Extra Fine (96x24)','Ultra Fine (128x32)','Microscopic (160x40)','Maximum Detail (192x48)') $chunkName
 Add-Label $visual 'Length:' 720 76 65 | Out-Null
 $vizLength=Add-Combo $visual 785 72 135 @('Short','Medium','Wide','Extra Wide') $(if([double]$config.visualizer_length_multiplier -le 2.25){'Short'}elseif([double]$config.visualizer_length_multiplier -le 3.25){'Medium'}elseif([double]$config.visualizer_length_multiplier -ge 5.25){'Extra Wide'}else{'Wide'})
 
@@ -219,8 +228,10 @@ Add-Label $visual 'Visualizer FPS:' 18 292 105 | Out-Null
 $vizFps=Add-Combo $visual 125 288 145 @('30 FPS','60 FPS') ([string]$config.visualizer_fps)
 Add-Label $visual 'High-frequency trim %:' 305 292 165 | Out-Null
 $vizHighTrim=Add-Number $visual 475 288 80 0 60 ([int]$config.visualizer_high_frequency_trim)
-$visualHint=Add-Label $visual 'Giant/Huge Blocks lower the generated spectrum resolution and normally reduce preparation/cache cost; Extra/Ultra Fine go the other direction. High-frequency trim remaps the useful range across the full width. Activity, pixels, scale and FPS rebuild cached visualizers. Any individual change marks this page Custom.' 18 344 875 76
+$visualHint=Add-Label $visual 'Monolith/Mega/Giant Blocks deliberately stretch very few generated pixels and minimize visualizer preparation/cache cost. Microscopic/Maximum Detail push in the opposite direction. High-frequency trim remaps useful bins across the full width. Generation-affecting changes rebuild cached visualizers.' 18 344 875 70
 $visualHint.ForeColor=[System.Drawing.Color]::DimGray
+$visualCost=Add-Label $visual '' 18 418 875 48
+$visualCost.BorderStyle='FixedSingle';$visualCost.ForeColor=[System.Drawing.Color]::DimGray
 
 # PERFORMANCE
 $perf=New-Tab 'Performance'
@@ -256,6 +267,8 @@ $defenderStatus.ForeColor=$(if($defenderManaged){[System.Drawing.Color]::DarkGre
 # DIRECTOR MODE
 $director=New-Tab 'Director Mode'
 $directorOn=Add-Check $director 'Enable Director Mode / modular broadcast engine' 18 18 $config.director_mode 390
+Add-Label $director 'Page preset:' 455 22 95 | Out-Null
+$directorPreset=Add-Combo $director 555 18 250 @('Default','Pirate Radio','Culture Desk','Control Room','Full Science','Custom') ([string]$config.director_preset)
 Add-Label $director 'World / theme:' 18 64 115 | Out-Null
 $directorThemes=@('Classic','Pirate Radio','Control Room','Cyberpunk Lab','Record Store','Archive Terminal','Public Access','Museum Label','Arcade','Brutalist Industrial','Spacecraft','Jazz Club')
 $directorTheme=Add-Combo $director 140 60 200 $directorThemes ([string]$config.director_theme)
@@ -294,21 +307,25 @@ $directorUrlHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # MODULAR OUTPUT GROUPS
 $outputsTab=New-Tab 'Outputs 1-6'
-Add-Label $outputsTab 'On' 16 15 32 | Out-Null
-Add-Label $outputsTab 'ID' 48 15 28 | Out-Null
-Add-Label $outputsTab 'Name' 80 15 115 | Out-Null
-Add-Label $outputsTab 'Modules (comma separated, in display order)' 210 15 290 | Out-Null
-Add-Label $outputsTab 'Layout' 510 15 100 | Out-Null
-Add-Label $outputsTab 'Theme' 625 15 125 | Out-Null
-Add-Label $outputsTab 'W' 770 15 55 | Out-Null
-Add-Label $outputsTab 'H' 840 15 55 | Out-Null
+Add-Label $outputsTab 'Page preset:' 16 13 95 | Out-Null
+$outputsPreset=Add-Combo $outputsTab 115 9 240 @('Default','Minimal','Split Essentials','Broadcast Desk','Full Studio','Custom') ([string]$config.outputs_preset)
+$outputsPresetHint=Add-Label $outputsTab 'A preset fills all six rows. Touching any row marks the page Custom.' 380 12 510 28
+$outputsPresetHint.ForeColor=[System.Drawing.Color]::DimGray
+Add-Label $outputsTab 'On' 16 55 32 | Out-Null
+Add-Label $outputsTab 'ID' 48 55 28 | Out-Null
+Add-Label $outputsTab 'Name' 80 55 115 | Out-Null
+Add-Label $outputsTab 'Modules (comma separated, in display order)' 210 55 290 | Out-Null
+Add-Label $outputsTab 'Layout' 510 55 100 | Out-Null
+Add-Label $outputsTab 'Theme' 625 55 125 | Out-Null
+Add-Label $outputsTab 'W' 770 55 55 | Out-Null
+Add-Label $outputsTab 'H' 840 55 55 | Out-Null
 $outputControls=@()
 for($oid=1;$oid -le 6;$oid++) {
     $saved=@($config.director_outputs | Where-Object { [int]$_.id -eq $oid }) | Select-Object -First 1
     if($null -eq $saved) {
         $saved=[PSCustomObject]@{id=$oid;enabled=$false;name=("Output "+$oid);modules='title,channel';layout='Horizontal';theme='Global';width=900;height=180}
     }
-    $y=45+(($oid-1)*66)
+    $y=85+(($oid-1)*66)
     $on=Add-Check $outputsTab '' 16 $y ([bool]$saved.enabled) 28
     Add-Label $outputsTab ([string]$oid) 50 ($y+3) 25 | Out-Null
     $name=Add-Text $outputsTab 80 $y 120 ([string]$saved.name)
@@ -319,7 +336,7 @@ for($oid=1;$oid -le 6;$oid++) {
     $oh=Add-Number $outputsTab 840 $y 60 32 4320 ([int]$saved.height)
     $outputControls += [PSCustomObject]@{Id=$oid;Enabled=$on;Name=$name;Modules=$mods;Layout=$layoutChoice;Theme=$themeChoice;Width=$ow;Height=$oh}
 }
-$outputsHint=Add-Label $outputsTab 'Available modules: artwork, video, title, channel, visualizer, progress, stats, technical, pipeline, comment, history, upnext, mission. Put one module in a source or shovel several together. Multiple video sources share the download but each makes OBS perform another decode.' 18 455 870 70
+$outputsHint=Add-Label $outputsTab 'Available modules: artwork, video, title, channel, visualizer, progress, stats, technical, pipeline, comment, history, upnext, mission. Put one module in a source or shovel several together. Multiple video sources share the download but each makes OBS perform another decode.' 18 500 870 70
 $outputsHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # COMPONENTS
@@ -353,8 +370,31 @@ $credit.TextAlign='MiddleCenter'; $credit.ForeColor=[System.Drawing.Color]::DimG
 $saveResetTimer=New-Object System.Windows.Forms.Timer; $saveResetTimer.Interval=1700
 $saveResetTimer.Add_Tick({$saveResetTimer.Stop();$save.Text='SAVE SETTINGS'})
 
+$script:ApplyingGeneralPreset=$false
+$script:ApplyingOverlayPreset=$false
 $script:ApplyingCanvasPreset=$false
 $script:ApplyingMediaPreset=$false
+$script:ApplyingStylePreset=$false
+$script:ApplyingVisualizerPreset=$false
+$script:ApplyingPerformancePreset=$false
+$script:ApplyingDirectorPreset=$false
+$script:ApplyingOutputsPreset=$false
+
+function Apply-GeneralPreset {
+    if($script:ApplyingGeneralPreset){return}
+    $script:ApplyingGeneralPreset=$true
+    try{
+        switch([string]$generalPreset.SelectedItem){
+            'Default'{$mode.SelectedItem='Streamer / OBS';$playerQuality.SelectedItem='Off (audio only)'}
+            'Audio-only Player'{$mode.SelectedItem='Player';$playerQuality.SelectedItem='Off (audio only)'}
+            'Efficient Video Player'{$mode.SelectedItem='Player';$playerQuality.SelectedItem='240p'}
+            'Quality Video Player'{$mode.SelectedItem='Player';$playerQuality.SelectedItem='720p'}
+            'Streamer / OBS'{$mode.SelectedItem='Streamer / OBS';$playerQuality.SelectedItem='Off (audio only)'}
+        }
+    }finally{$script:ApplyingGeneralPreset=$false}
+    Update-Dependencies;Update-Preview
+}
+
 function Apply-CanvasPreset {
     if($script:ApplyingCanvasPreset){return}
     $script:ApplyingCanvasPreset=$true
@@ -379,9 +419,29 @@ function Apply-MediaPreset {
     }finally{$script:ApplyingMediaPreset=$false}
 }
 
-$script:ApplyingStylePreset=$false
-$script:ApplyingVisualizerPreset=$false
-$script:ApplyingPerformancePreset=$false
+function Apply-OverlayPreset {
+    if($script:ApplyingOverlayPreset){return}
+    if([string]$overlayPreset.SelectedItem -eq 'Custom'){return}
+    $script:ApplyingOverlayPreset=$true
+    try{
+        # Every curated classic-overlay bundle keeps the proven 160x90 joined
+        # media geometry. The presets vary workload and presentation instead of
+        # quietly moving a user's source around the canvas.
+        $canvasPreset.SelectedItem='2560 x 1440';$corner.SelectedItem='Top Left'
+        $mediaPreset.SelectedItem='Medium';$videoZoom.Value=125
+        $smartCrop.Checked=$true;$titleCheck.Checked=$true;$channel.Checked=$true
+        $overlayVideoQuality.SelectedItem='144p (fastest)';$videoFps.SelectedItem='30 FPS';$videoCacheLimit.Value=512
+        switch([string]$overlayPreset.SelectedItem){
+            'Default'{$art.Checked=$true;$video.Checked=$true;$viz.Checked=$true}
+            'Gaming Light'{$art.Checked=$false;$video.Checked=$false;$viz.Checked=$false;$videoCacheLimit.Value=256}
+            'Artwork Radio'{$art.Checked=$true;$video.Checked=$false;$viz.Checked=$true;$videoCacheLimit.Value=256}
+            'Full Strip'{$art.Checked=$true;$video.Checked=$true;$viz.Checked=$true}
+            'Video Showcase'{$art.Checked=$true;$video.Checked=$true;$viz.Checked=$true;$overlayVideoQuality.SelectedItem='360p';$videoFps.SelectedItem='60 FPS when available';$videoCacheLimit.Value=1024}
+        }
+    }finally{$script:ApplyingOverlayPreset=$false}
+    Update-Dependencies;Update-QualityWarning;Update-Preview
+}
+
 function Apply-StylePreset {
     if($script:ApplyingStylePreset){return}
     $script:ApplyingStylePreset=$true
@@ -399,19 +459,46 @@ function Apply-StylePreset {
     Update-Preview
 }
 
+function Get-VisualizerPixelSize([string]$Name) {
+    switch($Name){
+        'Monolith (12x4)'{return [PSCustomObject]@{Width=12;Height=4;Class='minimum generation cost'}}
+        'Mega Blocks (16x5)'{return [PSCustomObject]@{Width=16;Height=5;Class='extremely low generation cost'}}
+        'Giant Blocks (20x6)'{return [PSCustomObject]@{Width=20;Height=6;Class='very low generation cost'}}
+        'Huge Blocks (28x8)'{return [PSCustomObject]@{Width=28;Height=8;Class='low generation cost'}}
+        'Chunky (48x12)'{return [PSCustomObject]@{Width=48;Height=12;Class='moderate detail'}}
+        'Fine (64x18)'{return [PSCustomObject]@{Width=64;Height=18;Class='fine detail'}}
+        'Extra Fine (96x24)'{return [PSCustomObject]@{Width=96;Height=24;Class='high detail'}}
+        'Ultra Fine (128x32)'{return [PSCustomObject]@{Width=128;Height=32;Class='very high detail'}}
+        'Microscopic (160x40)'{return [PSCustomObject]@{Width=160;Height=40;Class='extreme detail'}}
+        'Maximum Detail (192x48)'{return [PSCustomObject]@{Width=192;Height=48;Class='maximum supported detail'}}
+        default{return [PSCustomObject]@{Width=40;Height=10;Class='default balanced detail'}}
+    }
+}
+
+function Update-VisualizerResolutionInfo {
+    $r=Get-VisualizerPixelSize ([string]$chunk.SelectedItem)
+    $pixels=[int]$r.Width*[int]$r.Height
+    $fps=$(if([string]$vizFps.SelectedItem -match '^60'){60}else{30})
+    $samplesPerSecond=$pixels*$fps
+    $relative=[int][Math]::Round(($samplesPerSecond/12000.0)*100)
+    $visualCost.Text="Generated source: $($r.Width)x$($r.Height) = $pixels pixels/frame x $fps FPS = $samplesPerSecond samples/sec ($relative% of Default 40x10 @ 30).  Profile: $($r.Class)."
+}
+
 function Apply-VisualizerPreset {
     if($script:ApplyingVisualizerPreset){return}
     $script:ApplyingVisualizerPreset=$true
     try{
         switch([string]$vizPreset.SelectedItem){
-            'Default'{$activity.SelectedItem='Active';$opacityPct.Value=30;$chunk.SelectedItem='Extra Chunky';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
-            'Low Overhead Blocks'{$activity.SelectedItem='Normal';$opacityPct.Value=28;$chunk.SelectedItem='Giant Blocks';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=25}
-            'Broadcast'{$activity.SelectedItem='Active';$opacityPct.Value=38;$chunk.SelectedItem='Chunky';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Sunset';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
-            'Smooth 60 FPS'{$activity.SelectedItem='Active';$opacityPct.Value=34;$chunk.SelectedItem='Fine';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Cyan';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=20}
-            'Neon Motion'{$activity.SelectedItem='Punchy';$opacityPct.Value=48;$chunk.SelectedItem='Extra Fine';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Mirrored';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Particle Field';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Strong';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=16}
+            'Default'{$activity.SelectedItem='Active';$opacityPct.Value=30;$chunk.SelectedItem='Extra Chunky (40x10)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
+            'Monolith Efficiency'{$activity.SelectedItem='Normal';$opacityPct.Value=30;$chunk.SelectedItem='Monolith (12x4)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=28}
+            'Low Overhead Blocks'{$activity.SelectedItem='Normal';$opacityPct.Value=28;$chunk.SelectedItem='Giant Blocks (20x6)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=25}
+            'Broadcast'{$activity.SelectedItem='Active';$opacityPct.Value=38;$chunk.SelectedItem='Chunky (48x12)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Sunset';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
+            'Smooth 60 FPS'{$activity.SelectedItem='Active';$opacityPct.Value=34;$chunk.SelectedItem='Fine (64x18)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Cyan';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=20}
+            'Signal Analyzer'{$activity.SelectedItem='Active';$opacityPct.Value=42;$chunk.SelectedItem='Maximum Detail (192x48)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Vertical';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Oscilloscope';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Linear';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=0}
+            'Neon Motion'{$activity.SelectedItem='Punchy';$opacityPct.Value=48;$chunk.SelectedItem='Extra Fine (96x24)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Mirrored';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Particle Field';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Strong';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=16}
         }
     }finally{$script:ApplyingVisualizerPreset=$false}
-    Update-Preview
+    Update-Dependencies;Update-VisualizerResolutionInfo;Update-Preview
 }
 
 function Apply-PerformancePreset {
@@ -428,23 +515,95 @@ function Apply-PerformancePreset {
     Update-Preview
 }
 
+function Apply-DirectorPreset {
+    if($script:ApplyingDirectorPreset){return}
+    if([string]$directorPreset.SelectedItem -eq 'Custom'){return}
+    $script:ApplyingDirectorPreset=$true
+    try{
+        # Establish complete values first so switching from an extravagant preset
+        # back to a restrained one never leaves an expensive hidden toggle behind.
+        $directorOn.Checked=$true;$directorTheme.SelectedItem='Classic';$directorTimeline.SelectedItem='Broadcast Rotation';$directorMotion.SelectedItem='Subtle';$directorPalette.SelectedItem='Track identity';$statsDetail.SelectedItem='Broadcast';$directorVizShape.SelectedItem='Use global'
+        $commentOn.Checked=$false;$commentChars.Value=220;$commentFilter.SelectedItem='Basic safety';$telemetryOn.Checked=$false;$probeOn.Checked=$false;$historyOn.Checked=$false;$historyMax.Value=100
+        switch([string]$directorPreset.SelectedItem){
+            'Default'{$directorOn.Checked=$false}
+            'Pirate Radio'{$directorTheme.SelectedItem='Pirate Radio';$directorTimeline.SelectedItem='Rapid Rotation';$directorMotion.SelectedItem='Full';$commentOn.Checked=$true;$historyOn.Checked=$true}
+            'Culture Desk'{$directorTheme.SelectedItem='Record Store';$directorTimeline.SelectedItem='Cinematic';$directorMotion.SelectedItem='Subtle';$commentOn.Checked=$true;$historyOn.Checked=$true}
+            'Control Room'{$directorTheme.SelectedItem='Control Room';$directorPalette.SelectedItem='Theme fixed';$statsDetail.SelectedItem='Stats for Nerds';$telemetryOn.Checked=$true;$probeOn.Checked=$true;$historyOn.Checked=$true}
+            'Full Science'{$directorTheme.SelectedItem='Cyberpunk Lab';$directorTimeline.SelectedItem='Rapid Rotation';$directorMotion.SelectedItem='Full';$statsDetail.SelectedItem='Completely Unhinged';$directorVizShape.SelectedItem='Particle Field';$commentOn.Checked=$true;$telemetryOn.Checked=$true;$probeOn.Checked=$true;$historyOn.Checked=$true}
+        }
+    }finally{$script:ApplyingDirectorPreset=$false}
+    Update-Dependencies;Update-Preview
+}
+
+function Set-OutputRow($row,[bool]$enabled,[string]$name,[string]$modules,[string]$layout,[string]$theme,[int]$width,[int]$height) {
+    $row.Enabled.Checked=$enabled;$row.Name.Text=$name;$row.Modules.Text=$modules;$row.Layout.SelectedItem=$layout;$row.Theme.SelectedItem=$theme;$row.Width.Value=$width;$row.Height.Value=$height
+}
+
+function Apply-OutputsPreset {
+    if($script:ApplyingOutputsPreset){return}
+    if([string]$outputsPreset.SelectedItem -eq 'Custom'){return}
+    $script:ApplyingOutputsPreset=$true
+    try{
+        $rows=@($outputControls)
+        switch([string]$outputsPreset.SelectedItem){
+            'Default'{
+                Set-OutputRow ($rows[0]) $true 'Now Playing' 'artwork,video,title,channel,visualizer' 'Broadcast Strip' 'Global' 2560 90
+                Set-OutputRow ($rows[1]) $false 'Information' 'stats,technical,progress' 'Cards' 'Global' 900 260
+                Set-OutputRow ($rows[2]) $false 'Culture' 'comment,history,upnext' 'Stack' 'Global' 900 420
+                Set-OutputRow ($rows[3]) $false 'Engineering' 'technical,pipeline,mission' 'Terminal' 'Archive Terminal' 900 420
+                Set-OutputRow ($rows[4]) $false 'Director Timeline' 'artwork,video,title,channel,visualizer,comment,stats,technical,progress,history,upnext,mission' 'Timeline' 'Global' 1920 1080
+                Set-OutputRow ($rows[5]) $false 'Custom' 'title,channel' 'Horizontal' 'Global' 900 180
+            }
+            'Minimal'{
+                Set-OutputRow ($rows[0]) $true 'Now Playing' 'title,channel' 'Horizontal' 'Global' 900 180
+                for($i=1;$i -lt 6;$i++){Set-OutputRow ($rows[$i]) $false ("Output "+($i+1)) 'title,channel' 'Horizontal' 'Global' 900 180}
+            }
+            'Split Essentials'{
+                Set-OutputRow ($rows[0]) $true 'Artwork' 'artwork' 'Single' 'Global' 320 180
+                Set-OutputRow ($rows[1]) $true 'Video' 'video' 'Single' 'Global' 320 180
+                Set-OutputRow ($rows[2]) $true 'Title Card' 'title,channel' 'Stack' 'Global' 900 180
+                Set-OutputRow ($rows[3]) $true 'Visualizer' 'visualizer' 'Single' 'Global' 900 180
+                Set-OutputRow ($rows[4]) $true 'Culture' 'comment,history,upnext' 'Stack' 'Global' 900 420
+                Set-OutputRow ($rows[5]) $true 'Stats Lab' 'stats,technical,pipeline,mission' 'Cards' 'Control Room' 1200 420
+            }
+            'Broadcast Desk'{
+                Set-OutputRow ($rows[0]) $true 'Now Playing' 'artwork,video,title,channel,visualizer' 'Broadcast Strip' 'Global' 2560 90
+                Set-OutputRow ($rows[1]) $true 'Information' 'stats,technical,progress' 'Cards' 'Global' 900 260
+                Set-OutputRow ($rows[2]) $true 'Culture' 'comment,history,upnext' 'Stack' 'Global' 900 420
+                Set-OutputRow ($rows[3]) $true 'Engineering' 'technical,pipeline,mission' 'Terminal' 'Archive Terminal' 900 420
+                Set-OutputRow ($rows[4]) $false 'Director Timeline' 'artwork,video,title,channel,visualizer,comment,stats,technical,progress,history,upnext,mission' 'Timeline' 'Global' 1920 1080
+                Set-OutputRow ($rows[5]) $false 'Custom' 'title,channel' 'Horizontal' 'Global' 900 180
+            }
+            'Full Studio'{
+                Set-OutputRow ($rows[0]) $true 'Now Playing' 'artwork,video,title,channel,visualizer' 'Broadcast Strip' 'Global' 2560 90
+                Set-OutputRow ($rows[1]) $true 'Telemetry Wall' 'stats,technical,pipeline,mission' 'Cards' 'Control Room' 1200 500
+                Set-OutputRow ($rows[2]) $true 'Culture Desk' 'comment,history,upnext' 'Stack' 'Record Store' 900 500
+                Set-OutputRow ($rows[3]) $true 'Engineering' 'technical,pipeline,mission' 'Terminal' 'Archive Terminal' 900 420
+                Set-OutputRow ($rows[4]) $true 'Director Timeline' 'artwork,video,title,channel,visualizer,comment,stats,technical,progress,history,upnext,mission' 'Timeline' 'Global' 1920 1080
+                Set-OutputRow ($rows[5]) $true 'Mission Control' 'upnext,progress,stats,mission' 'Horizontal' 'Spacecraft' 1600 260
+            }
+        }
+    }finally{$script:ApplyingOutputsPreset=$false}
+    Update-Preview
+}
+
 function Get-UiConfig {
     $o=Get-YomiConfig
-    $o.app_mode=[string]$mode.SelectedItem; $o.player_video_quality=[string]$playerQuality.SelectedItem
+    $o.general_preset=[string]$generalPreset.SelectedItem; $o.app_mode=[string]$mode.SelectedItem; $o.player_video_quality=[string]$playerQuality.SelectedItem
     $o.video_preference=[string]$videoPreference.SelectedItem; $o.audio_quality=[string]$audioQuality.SelectedItem; $o.audio_preference=[string]$audioPreference.SelectedItem
-    $o.canvas_preset=[string]$canvasPreset.SelectedItem; $o.canvas_width=[int]$canvasW.Value; $o.canvas_height=[int]$canvasH.Value; $o.corner=[string]$corner.SelectedItem
+    $o.overlay_preset=[string]$overlayPreset.SelectedItem; $o.canvas_preset=[string]$canvasPreset.SelectedItem; $o.canvas_width=[int]$canvasW.Value; $o.canvas_height=[int]$canvasH.Value; $o.corner=[string]$corner.SelectedItem
     $o.media_size_preset=[string]$mediaPreset.SelectedItem; $o.media_width=[int]$mediaW.Value; $o.media_height=[int]$mediaH.Value; $o.video_zoom=[Math]::Round(([double]$videoZoom.Value/100.0),2)
     $o.overlay_video_quality=[string]$overlayVideoQuality.SelectedItem; $o.video_fps=[string]$videoFps.SelectedItem; $o.video_cache_limit_mb=[int]$videoCacheLimit.Value
     $o.artwork_enabled=[bool]$art.Checked; $o.smart_artwork_crop=[bool]$smartCrop.Checked; $o.video_enabled=[bool]$video.Checked; $o.title_enabled=[bool]$titleCheck.Checked; $o.channel_enabled=[bool]$channel.Checked; $o.visualizer_enabled=[bool]$viz.Checked
     $o.style_preset=[string]$stylePreset.SelectedItem; $o.text_font=[string]$font.SelectedItem; $o.text_color=Map-Color ([string]$textColor.SelectedItem); $o.outline_color=Map-Color ([string]$outlineColor.SelectedItem); $o.text_outline=[int]$outlinePx.Value; $o.text_opacity=[Math]::Round(([double]$textOpacity.Value/100.0),2); $o.text_size=[int]$textSize.Value; $o.text_alignment=[string]$textAlign.SelectedItem; $o.title_channel_spacing=[string]$textSpacing.SelectedItem; $o.text_glow=[bool]$glow.Checked
     $o.media_border_enabled=[bool]$borderOn.Checked; $o.media_border_px=[int]$borderPx.Value; $o.media_border_color=Map-Color ([string]$borderColor.SelectedItem); $o.media_corner_style=[string]$cornerStyle.SelectedItem
     $o.visualizer_preset=[string]$vizPreset.SelectedItem; $o.visualizer_activity=[string]$activity.SelectedItem; $o.visualizer_opacity=[Math]::Round(([double]$opacityPct.Value/100.0),2)
-    switch([string]$chunk.SelectedItem){'Giant Blocks'{$o.visualizer_internal_width=20;$o.visualizer_internal_height=6}'Huge Blocks'{$o.visualizer_internal_width=28;$o.visualizer_internal_height=8}'Chunky'{$o.visualizer_internal_width=48;$o.visualizer_internal_height=12}'Fine'{$o.visualizer_internal_width=64;$o.visualizer_internal_height=18}'Extra Fine'{$o.visualizer_internal_width=96;$o.visualizer_internal_height=24}'Ultra Fine'{$o.visualizer_internal_width=128;$o.visualizer_internal_height=32}default{$o.visualizer_internal_width=40;$o.visualizer_internal_height=10}}
+    $vizPixels=Get-VisualizerPixelSize ([string]$chunk.SelectedItem);$o.visualizer_internal_width=[int]$vizPixels.Width;$o.visualizer_internal_height=[int]$vizPixels.Height
     switch([string]$vizLength.SelectedItem){'Short'{$o.visualizer_length_multiplier=2.0}'Medium'{$o.visualizer_length_multiplier=3.0}'Extra Wide'{$o.visualizer_length_multiplier=6.0}default{$o.visualizer_length_multiplier=4.0}}
     $o.visualizer_color_mode=[string]$vizColorMode.SelectedItem; $o.visualizer_solid_color=Map-Color ([string]$vizSolid.SelectedItem); $o.visualizer_gradient_preset=[string]$vizGradient.SelectedItem; $o.visualizer_gradient_orientation=[string]$gradientOrientation.SelectedItem; $o.visualizer_direction=[string]$vizDirection.SelectedItem; $o.visualizer_layer=[string]$vizLayer.SelectedItem
     $o.visualizer_shape=[string]$vizShape.SelectedItem; $o.visualizer_vertical_anchor=[string]$vizAnchor.SelectedItem; $o.visualizer_bar_spacing=[string]$vizSpacing.SelectedItem; $o.visualizer_peak_glow=[string]$vizPeakGlow.SelectedItem; $o.visualizer_frequency_scale=[string]$vizFrequency.SelectedItem; $o.visualizer_high_frequency_trim=[int]$vizHighTrim.Value; $o.visualizer_fps=[string]$vizFps.SelectedItem
     $o.performance_preset=[string]$performancePreset.SelectedItem; $o.browser_fps_mode=[string]$browserFps.SelectedItem; $o.loudness_normalization=[bool]$loudness.Checked; $o.prefetch_ahead=[int]$prefetch.Value; $o.video_prefetch_ahead=[int]$prefetch.Value
-    $o.director_mode=[bool]$directorOn.Checked; $o.director_theme=[string]$directorTheme.SelectedItem; $o.director_timeline=[string]$directorTimeline.SelectedItem; $o.director_motion=[string]$directorMotion.SelectedItem; $o.director_palette=[string]$directorPalette.SelectedItem; $o.director_visualizer_shape=[string]$directorVizShape.SelectedItem; $o.stats_detail=[string]$statsDetail.SelectedItem
+    $o.director_preset=[string]$directorPreset.SelectedItem; $o.director_mode=[bool]$directorOn.Checked; $o.director_theme=[string]$directorTheme.SelectedItem; $o.director_timeline=[string]$directorTimeline.SelectedItem; $o.director_motion=[string]$directorMotion.SelectedItem; $o.director_palette=[string]$directorPalette.SelectedItem; $o.director_visualizer_shape=[string]$directorVizShape.SelectedItem; $o.stats_detail=[string]$statsDetail.SelectedItem
     $o.featured_comment_enabled=[bool]$commentOn.Checked; $o.comment_max_chars=[int]$commentChars.Value; $o.comment_filter_mode=[string]$commentFilter.SelectedItem
     $o.telemetry_enabled=[bool]$telemetryOn.Checked; $o.telemetry_probe_enabled=[bool]$probeOn.Checked
     $o.history_enabled=[bool]$historyOn.Checked; $o.history_max_entries=[int]$historyMax.Value
@@ -461,7 +620,7 @@ function Get-UiConfig {
             height=[int]$row.Height.Value
         }
     }
-    $o.director_outputs=$outs
+    $o.outputs_preset=[string]$outputsPreset.SelectedItem;$o.director_outputs=$outs
     switch([string]$performance.SelectedItem){'Balanced (2 workers)'{$o.performance_mode='Balanced';$o.cache_workers=2;$o.cache_priority='idle'}'Fast caching (4 workers)'{$o.performance_mode='Fast caching';$o.cache_workers=4;$o.cache_priority='below'}'Maximum caching (8 workers)'{$o.performance_mode='Maximum caching';$o.cache_workers=8;$o.cache_priority='below'}default{$o.performance_mode='Gaming / Lowest overhead';$o.cache_workers=1;$o.cache_priority='idle'}}
     return $o
 }
@@ -478,12 +637,18 @@ function Update-Dependencies {
     $streamer=([string]$mode.SelectedItem -eq 'Streamer / OBS')
     $ff=Test-YomiComponent 'ffmpeg'
     $playerQuality.Enabled=(-not $streamer)
-    foreach($c in @($canvasPreset,$canvasW,$canvasH,$corner,$mediaPreset,$mediaW,$mediaH,$videoZoom,$overlayVideoQuality,$videoFps,$videoCacheLimit,$art,$video,$titleCheck,$channel,$font,$textColor,$outlineColor,$outlinePx,$textOpacity,$textSize,$textAlign,$textSpacing,$glow,$borderOn,$borderPx,$borderColor,$cornerStyle,$vizPreset,$activity,$opacityPct,$chunk,$vizLength,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$vizHighTrim,$browserFps)){ $c.Enabled=$streamer }
+    foreach($c in @($overlayPreset,$canvasPreset,$canvasW,$canvasH,$corner,$mediaPreset,$mediaW,$mediaH,$videoZoom,$overlayVideoQuality,$videoFps,$videoCacheLimit,$art,$video,$titleCheck,$channel,$font,$textColor,$outlineColor,$outlinePx,$textOpacity,$textSize,$textAlign,$textSpacing,$glow,$borderOn,$borderPx,$borderColor,$cornerStyle,$vizPreset,$activity,$opacityPct,$chunk,$vizLength,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$vizHighTrim,$browserFps)){ $c.Enabled=$streamer }
     $viz.Enabled=($streamer -and $ff)
     foreach($c in @($vizPreset,$activity,$opacityPct,$chunk,$vizLength,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$vizHighTrim)) { $c.Enabled=($streamer -and $ff) }
+    $vizActive=($streamer -and $ff)
+    $colorMode=[string]$vizColorMode.SelectedItem
+    $vizSolid.Enabled=($vizActive -and $colorMode -eq 'Solid')
+    $vizGradient.Enabled=($vizActive -and $colorMode -eq 'Gradient')
+    $gradientOrientation.Enabled=($vizActive -and ($colorMode -eq 'Gradient' -or $colorMode -eq 'Rainbow'))
     $smartCrop.Enabled=($streamer -and $ff)
     $loudness.Enabled=$ff
     $directorOn.Enabled=$streamer
+    $directorPreset.Enabled=$streamer
     $directorActive=($streamer -and $directorOn.Checked)
     foreach($c in @($directorTheme,$directorTimeline,$directorMotion,$directorPalette,$directorVizShape,$statsDetail,$commentOn,$telemetryOn,$historyOn,$copySources,$openObsGuide)){ $c.Enabled=$directorActive }
     $commentChars.Enabled=($directorActive -and $commentOn.Checked)
@@ -493,6 +658,7 @@ function Update-Dependencies {
     foreach($row in $outputControls) {
         foreach($c in @($row.Enabled,$row.Name,$row.Modules,$row.Layout,$row.Theme,$row.Width,$row.Height)) { $c.Enabled=$directorActive }
     }
+    $outputsPreset.Enabled=$directorActive
     $copyOverlay.Enabled=$streamer; $obsSetup.Enabled=$streamer
     Update-QualityWarning
 }
@@ -880,11 +1046,15 @@ $preview.Add_Paint({
     }
 })
 
+$generalPreset.Add_SelectedIndexChanged({Apply-GeneralPreset})
+$overlayPreset.Add_SelectedIndexChanged({Apply-OverlayPreset})
 $canvasPreset.Add_SelectedIndexChanged({Apply-CanvasPreset;if([string]$mediaPreset.SelectedItem -eq 'Auto'){Apply-MediaPreset};Update-Preview})
 $mediaPreset.Add_SelectedIndexChanged({Apply-MediaPreset;Update-Preview})
 $stylePreset.Add_SelectedIndexChanged({Apply-StylePreset})
 $vizPreset.Add_SelectedIndexChanged({Apply-VisualizerPreset})
 $performancePreset.Add_SelectedIndexChanged({Apply-PerformancePreset})
+$directorPreset.Add_SelectedIndexChanged({Apply-DirectorPreset})
+$outputsPreset.Add_SelectedIndexChanged({Apply-OutputsPreset})
 $mode.Add_SelectedIndexChanged({Update-Dependencies;Update-Preview})
 foreach($c in @($corner,$font,$textColor,$outlineColor,$textAlign,$textSpacing,$cornerStyle,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$browserFps,$performance,$playerQuality,$videoPreference,$videoFps,$audioQuality,$audioPreference,$activity,$chunk,$vizLength,$directorTheme,$directorTimeline,$directorMotion,$directorPalette,$directorVizShape,$statsDetail,$commentFilter)){ $c.Add_SelectedIndexChanged({Update-Preview}) }
 $overlayVideoQuality.Add_SelectedIndexChanged({Update-QualityWarning;Update-Preview})
@@ -895,6 +1065,9 @@ $directorOn.Add_CheckedChanged({Update-Dependencies;Update-Preview})
 $commentOn.Add_CheckedChanged({Update-Dependencies})
 $telemetryOn.Add_CheckedChanged({Update-Dependencies})
 $historyOn.Add_CheckedChanged({Update-Dependencies})
+$vizColorMode.Add_SelectedIndexChanged({Update-Dependencies})
+$chunk.Add_SelectedIndexChanged({Update-VisualizerResolutionInfo})
+$vizFps.Add_SelectedIndexChanged({Update-VisualizerResolutionInfo})
 foreach($row in $outputControls) {
     $row.Enabled.Add_CheckedChanged({Update-Preview})
     $row.Layout.Add_SelectedIndexChanged({Update-Preview})
@@ -904,6 +1077,18 @@ foreach($row in $outputControls) {
 # Page presets are intentionally honest: touching any underlying field turns
 # that page into Custom. Programmatic preset application is guarded so it keeps
 # the selected preset name while it fills the controls.
+foreach($c in @($mode,$playerQuality)) {
+    $c.Add_SelectedIndexChanged({if(-not $script:ApplyingGeneralPreset -and [string]$generalPreset.SelectedItem -ne 'Custom'){$generalPreset.SelectedItem='Custom'}})
+}
+foreach($c in @($canvasPreset,$corner,$mediaPreset,$overlayVideoQuality,$videoFps)) {
+    $c.Add_SelectedIndexChanged({if(-not $script:ApplyingOverlayPreset -and [string]$overlayPreset.SelectedItem -ne 'Custom'){$overlayPreset.SelectedItem='Custom'}})
+}
+foreach($n in @($canvasW,$canvasH,$mediaW,$mediaH,$videoZoom,$videoCacheLimit)) {
+    $n.Add_ValueChanged({if(-not $script:ApplyingOverlayPreset -and [string]$overlayPreset.SelectedItem -ne 'Custom'){$overlayPreset.SelectedItem='Custom'}})
+}
+foreach($c in @($art,$video,$titleCheck,$channel,$viz,$smartCrop)) {
+    $c.Add_CheckedChanged({if(-not $script:ApplyingOverlayPreset -and [string]$overlayPreset.SelectedItem -ne 'Custom'){$overlayPreset.SelectedItem='Custom'}})
+}
 foreach($c in @($font,$textColor,$outlineColor,$textAlign,$textSpacing,$cornerStyle,$borderColor)) {
     $c.Add_SelectedIndexChanged({if(-not $script:ApplyingStylePreset -and [string]$stylePreset.SelectedItem -ne 'Custom'){$stylePreset.SelectedItem='Custom'}})
 }
@@ -928,6 +1113,24 @@ foreach($c in @($performance,$browserFps,$videoPreference,$audioQuality,$audioPr
 }
 $prefetch.Add_ValueChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
 $loudness.Add_CheckedChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
+foreach($c in @($directorTheme,$directorTimeline,$directorMotion,$directorPalette,$statsDetail,$directorVizShape,$commentFilter)) {
+    $c.Add_SelectedIndexChanged({if(-not $script:ApplyingDirectorPreset -and [string]$directorPreset.SelectedItem -ne 'Custom'){$directorPreset.SelectedItem='Custom'}})
+}
+foreach($n in @($commentChars,$historyMax)) {
+    $n.Add_ValueChanged({if(-not $script:ApplyingDirectorPreset -and [string]$directorPreset.SelectedItem -ne 'Custom'){$directorPreset.SelectedItem='Custom'}})
+}
+foreach($c in @($directorOn,$commentOn,$telemetryOn,$probeOn,$historyOn)) {
+    $c.Add_CheckedChanged({if(-not $script:ApplyingDirectorPreset -and [string]$directorPreset.SelectedItem -ne 'Custom'){$directorPreset.SelectedItem='Custom'}})
+}
+foreach($row in $outputControls) {
+    $row.Enabled.Add_CheckedChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Name.Add_TextChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Modules.Add_TextChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Layout.Add_SelectedIndexChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Theme.Add_SelectedIndexChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Width.Add_ValueChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+    $row.Height.Add_ValueChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
+}
 
 $refreshComponents.Add_Click({Update-Components})
 $checkUpdates.Add_Click({Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'update'})
@@ -1002,7 +1205,7 @@ $restoreDefaults.Add_Click({
 
     $defaults=Get-Content (Join-Path $PSScriptRoot 'default-config.json') -Raw | ConvertFrom-Json
     $defaults.playlist=$playlist.Text.Trim()
-    $defaults.version='4.2.0'
+    $defaults.version=$yomiVersion
     Save-YomiConfig $defaults
     $stateRoot=Join-Path $DataRoot 'state';New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
     foreach($flag in @('audio-reset.pending','artwork-reset.pending','video-reset.pending','visualizer-reset.pending')){Set-Content (Join-Path $stateRoot $flag) '1' -Encoding ASCII}
@@ -1023,7 +1226,7 @@ $shuffleBtn.Add_Click({
     # Save the current Settings UI first so a newly edited playlist URL is
     # exactly what Shuffle Playlist reloads.
     $new=Get-UiConfig
-    $new.version='4.2.0'
+    $new.version=$yomiVersion
     $new.playlist=$playlist.Text.Trim()
     $metrics=Get-YomiLayoutMetrics $new
     $new.overlay_width=[int]$metrics.OverlayWidth
@@ -1041,7 +1244,7 @@ $shuffleBtn.Add_Click({
 })
 
 $save.Add_Click({
-    $old=Get-YomiConfig; $new=Get-UiConfig; $new.version='4.2.0'; $new.playlist=$playlist.Text.Trim()
+    $old=Get-YomiConfig; $new=Get-UiConfig; $new.version=$yomiVersion; $new.playlist=$playlist.Text.Trim()
     $metrics=Get-YomiLayoutMetrics $new; $new.overlay_width=[int]$metrics.OverlayWidth; $new.overlay_height=[int]$metrics.OverlayHeight; $new.overlay_fps=[int]$metrics.BrowserFps
     $playlistChanged=([string]$old.playlist -ne [string]$new.playlist)
     $vizSigBefore="$($old.visualizer_internal_width)x$($old.visualizer_internal_height)|$($old.visualizer_activity)|$($old.visualizer_frequency_scale)|$($old.visualizer_fps)"; $vizSigAfter="$($new.visualizer_internal_width)x$($new.visualizer_internal_height)|$($new.visualizer_activity)|$($new.visualizer_frequency_scale)|$($new.visualizer_fps)"
@@ -1063,6 +1266,7 @@ $save.Add_Click({
 
 Update-Components
 Update-Dependencies
+Update-VisualizerResolutionInfo
 Update-Preview
 Write-ObsInstructions $config | Out-Null
 $form.Add_Shown({Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'update-auto'})

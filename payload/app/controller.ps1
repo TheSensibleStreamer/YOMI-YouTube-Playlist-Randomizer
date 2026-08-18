@@ -1,6 +1,7 @@
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawing
 . (Join-Path $PSScriptRoot 'common.ps1');Initialize-YomiData
+$yomiVersion=Get-YomiVersionText
 $created=$false;$mutex=New-Object System.Threading.Mutex($true,'Local\YOMI_CONTROLLER_V4',[ref]$created);if(-not $created){exit 0}
 $pipeName='yomi-v4';$supervisor=Join-Path $PSScriptRoot 'supervisor.ps1';$shuffleScript=Join-Path $PSScriptRoot 'shuffle.ps1';$launcher=Join-Path $PSScriptRoot 'YomiLauncher.exe';$iconPath=Join-Path $InstallRoot 'assets\yomi-v408.ico'
 $stateRoot=Join-Path $DataRoot 'state';$enginePidFile=Join-Path $stateRoot 'engine.pid';$serverPidFile=Join-Path $stateRoot 'server.pid';$supervisorPidFile=Join-Path $stateRoot 'supervisor.pid';$engineStatusFile=Join-Path $stateRoot 'engine-status.json';$supervisorStatusFile=Join-Path $stateRoot 'supervisor-status.txt';$currentFile=Join-Path $stateRoot 'current.json';$shuffleStatusFile=Join-Path $stateRoot 'shuffle-status.txt';$shuffleRequestFile=Join-Path $stateRoot 'shuffle-request.txt';$playlistFile=Join-Path $DataRoot 'playlist.txt';$historyFile=Join-Path $stateRoot 'history.jsonl';$metaDir=Join-Path $DataRoot 'cache\meta';$audioDir=Join-Path $DataRoot 'cache\audio';$artDir=Join-Path $DataRoot 'cache\artwork';$videoDir=Join-Path $DataRoot 'cache\video';$vizDir=Join-Path $DataRoot 'cache\visualizer';$gainDir=Join-Path $DataRoot 'cache\gain';$statusDir=Join-Path $DataRoot 'cache\status'
@@ -43,7 +44,7 @@ function BeginApprovedShuffle{
     }
 }
 $compactSize=New-Object System.Drawing.Size(535,375);$expandedSize=New-Object System.Drawing.Size(1120,680)
-$form=New-Object System.Windows.Forms.Form;$form.Text='YOMI 4.2.0 - YouTube OBS Music Interface';$form.StartPosition='CenterScreen';$form.Size=$compactSize;$form.MinimumSize=$compactSize;$form.MaximumSize=$expandedSize;$form.MaximizeBox=$false;$form.Font=New-Object System.Drawing.Font('Segoe UI',10);if(Test-Path $iconPath){try{$form.Icon=New-Object System.Drawing.Icon($iconPath)}catch{}}
+$form=New-Object System.Windows.Forms.Form;$form.Text="YOMI $yomiVersion - YouTube OBS Music Interface";$form.StartPosition='CenterScreen';$form.Size=$compactSize;$form.MinimumSize=$compactSize;$form.MaximumSize=$expandedSize;$form.MaximizeBox=$false;$form.Font=New-Object System.Drawing.Font('Segoe UI',10);if(Test-Path $iconPath){try{$form.Icon=New-Object System.Drawing.Icon($iconPath)}catch{}}
 $brand=New-Object System.Windows.Forms.Label;$brand.Text='YOMI';$brand.Font=New-Object System.Drawing.Font('Segoe UI Semibold',20);$brand.Location=New-Object System.Drawing.Point(18,10);$brand.Size=New-Object System.Drawing.Size(90,38);$form.Controls.Add($brand)
 $modeLabel=New-Object System.Windows.Forms.Label;$modeLabel.Location=New-Object System.Drawing.Point(115,18);$modeLabel.Size=New-Object System.Drawing.Size(390,24);$modeLabel.ForeColor=[System.Drawing.Color]::DimGray;$form.Controls.Add($modeLabel)
 $status=New-Object System.Windows.Forms.Label;$status.Location=New-Object System.Drawing.Point(20,52);$status.Size=New-Object System.Drawing.Size(485,23);$status.Font=New-Object System.Drawing.Font('Segoe UI Semibold',10);$form.Controls.Add($status)

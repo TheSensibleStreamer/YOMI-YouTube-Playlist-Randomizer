@@ -1,5 +1,32 @@
 # YOMI Changelog
 
+## v4.2.0.1
+
+Patch-line expansion on the permanent YOMI 4.2.0/“420” generation.
+
+### Presets everywhere useful
+
+- Added Default, named, and auto-Custom page presets to General / Player
+- Added complete-page presets to the classic OBS Overlay page
+- Added Director Mode presets for Pirate Radio, Culture Desk, Control Room, and Full Science
+- Added six-row Outputs presets for Minimal, Split Essentials, Broadcast Desk, and Full Studio arrangements
+- Existing installations preserve their values and migrate newly tracked preset pages as Custom
+
+### Visualizer range and feedback
+
+- Extended generated resolution below Giant Blocks to Monolith 12×4 and Mega Blocks 16×5
+- Extended high-detail options through Microscopic 160×40 and Maximum Detail 192×48
+- Added live sampled-pixel count, default-relative cost, frame-rate, and detail classification
+- Added Monolith Efficiency and Signal Analyzer visualizer presets
+- Disabled irrelevant solid/gradient controls automatically according to the selected color mode
+
+### Patch-line and interface polish
+
+- Centralized the installed version used by Controller, Settings, diagnostics, status, component downloads, and OBS instructions
+- Browser Source cache-busting URLs now derive from the complete patch version
+- Kept the full **YOMI — YouTube OBS Music Interface** identity throughout the product
+- Refreshed public OBS documentation for Director Mode, 60 FPS, and 8-worker caching
+
 ## v4.2.0
 
 Current public Windows build.

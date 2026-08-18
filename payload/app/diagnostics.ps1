@@ -4,7 +4,7 @@ Initialize-YomiData
 $config=Get-YomiConfig
 $out=New-Object System.Collections.Generic.List[string]
 
-$out.Add('===== YOMI 4.2.0 DIAGNOSTICS =====')
+$out.Add("===== YOMI $(Get-YomiVersionText) DIAGNOSTICS =====")
 $out.Add('')
 $out.Add("Program: $InstallRoot")
 $out.Add("Data: $DataRoot")

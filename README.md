@@ -8,9 +8,9 @@ If you were searching for a **YouTube playlist randomizer**, **lightweight YouTu
 
 ## Download
 
-The current public build is **YOMI v4.2.0**.
+The current public build is **YOMI v4.2.0.1**. YOMI remains on the 4.2.0/“420” line; compatible improvements use the fourth patch component instead of needlessly renaming the product generation.
 
-Download [`YOMI-v4.2.0.zip`](./YOMI-v4.2.0.zip), fully extract it, then double-click:
+Download [`YOMI-v4.2.0.1.zip`](./YOMI-v4.2.0.1.zip), fully extract it, then double-click:
 
 ```text
 INSTALL YOMI.cmd
@@ -55,15 +55,15 @@ The visualizer supports:
 - Bar spacing and peak glow
 - Logarithmic or linear frequency scale
 - Live 0–60% high-frequency trim to remove an inactive far-right tail
-- Generation resolutions from **Giant Blocks (20×6)** to **Ultra Fine (128×32)**
+- Generation resolutions from **Monolith (12×4)** to **Maximum Detail (192×48)**
 
-The lower-resolution Giant/Huge choices produce deliberately enormous pixels and normally reduce visualizer generation and cache cost. Fine, Extra Fine, and Ultra Fine go in the other direction.
+The lower-resolution Monolith/Mega/Giant choices produce deliberately enormous pixels and normally reduce visualizer generation and cache cost. Ultra Fine, Microscopic, and Maximum Detail go aggressively in the other direction. Settings shows the exact sampled-pixel count and its cost relative to the default 40×10 source.
 
 ## Presets and customization
 
-Text & Style, Visualizer, and Performance pages expose **Default**, named presets, and **Custom**. Changing any underlying option automatically marks only that page Custom.
+General / Player, the complete OBS Overlay page, Text & Style, Visualizer, Performance, Director Mode, and Outputs 1–6 expose **Default**, named presets, and **Custom**. Changing any underlying option automatically marks only that page Custom.
 
-Existing canvas and media-size presets also switch to Custom when their numeric dimensions are edited. Director themes and timelines provide broader broadcast-world presets.
+The Outputs presets can build a minimal title source, six split essentials, a broadcast desk, or a full studio in one selection. Existing 4.2.0 installations preserve their hand-tuned values and label newly tracked pages Custom during migration.
 
 ## Complete-track cache
 

@@ -1,6 +1,24 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
+$script:YomiFallbackVersion = '4.2.0.1'
+$script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
+
+function Get-YomiVersionText {
+    $versionPath = Join-Path $script:InstallRoot 'VERSION.txt'
+    if (Test-Path $versionPath) {
+        try {
+            $match = [regex]::Match((Get-Content $versionPath -Raw), '\d+(?:\.\d+){1,3}')
+            if ($match.Success) { return $match.Value }
+        }
+        catch {}
+    }
+    return $script:YomiFallbackVersion
+}
+
+function Get-YomiBrowserCacheKey {
+    return ((Get-YomiVersionText) -replace '[^0-9]','')
+}
 
 function Write-YomiUtf8NoBom {
     param(
@@ -42,8 +60,13 @@ function Initialize-YomiData {
         $changed = $false
 
         $originalVersion = [string]$current.version
+        $targetVersion = Get-YomiVersionText
+        $hadGeneralPreset = $null -ne $current.PSObject.Properties['general_preset']
+        $hadOverlayPreset = $null -ne $current.PSObject.Properties['overlay_preset']
         $hadVisualizerPreset = $null -ne $current.PSObject.Properties['visualizer_preset']
         $hadPerformancePreset = $null -ne $current.PSObject.Properties['performance_preset']
+        $hadDirectorPreset = $null -ne $current.PSObject.Properties['director_preset']
+        $hadOutputsPreset = $null -ne $current.PSObject.Properties['outputs_preset']
 
         foreach ($p in $defaults.PSObject.Properties) {
             if ($null -eq $current.PSObject.Properties[$p.Name]) {
@@ -52,14 +75,30 @@ function Initialize-YomiData {
             }
         }
 
-        # Existing installations predate the page-preset trackers. Their current
-        # hand-tuned values are real custom settings, not the new factory preset.
+        # Existing installations predate some or all page-preset trackers. Their
+        # current values are real custom settings, not the new factory presets.
+        if (-not $hadGeneralPreset) {
+            $current.general_preset = 'Custom'
+            $changed = $true
+        }
+        if (-not $hadOverlayPreset) {
+            $current.overlay_preset = 'Custom'
+            $changed = $true
+        }
         if (-not $hadVisualizerPreset) {
             $current.visualizer_preset = 'Custom'
             $changed = $true
         }
         if (-not $hadPerformancePreset) {
             $current.performance_preset = 'Custom'
+            $changed = $true
+        }
+        if (-not $hadDirectorPreset) {
+            $current.director_preset = 'Custom'
+            $changed = $true
+        }
+        if (-not $hadOutputsPreset) {
+            $current.outputs_preset = 'Custom'
             $changed = $true
         }
 
@@ -88,13 +127,13 @@ function Initialize-YomiData {
         # 4.2 replaces the misleading split audio/video look-ahead controls
         # with one complete-bundle distance. Keep the old property synchronized
         # for downgrade/readability, although the 4.2 engine no longer uses it.
-        if ($originalVersion -ne '4.2.0') {
+        if ($originalVersion -ne $targetVersion) {
             $current.video_prefetch_ahead = [int]$current.prefetch_ahead
             $changed = $true
         }
 
-        if ($changed -or $originalVersion -ne '4.2.0') {
-            $current.version = '4.2.0'
+        if ($changed -or $originalVersion -ne $targetVersion) {
+            $current.version = $targetVersion
             Write-YomiUtf8NoBom -Path $script:ConfigPath -Text ($current | ConvertTo-Json -Depth 12)
         }
     }
@@ -114,16 +153,16 @@ function Save-YomiConfig($Config) {
 }
 
 function Get-OverlayUrl($Config) {
-    return "http://127.0.0.1:$($Config.server_port)/overlay?v=420"
+    return "http://127.0.0.1:$($Config.server_port)/overlay?v=$(Get-YomiBrowserCacheKey)"
 }
 
 function Get-DirectorOutputUrl($Config,[int]$OutputId) {
-    return "http://127.0.0.1:$($Config.server_port)/source/$OutputId?v=420"
+    return "http://127.0.0.1:$($Config.server_port)/source/$OutputId?v=$(Get-YomiBrowserCacheKey)"
 }
 
 function Get-DirectorModuleUrl($Config,[string]$Module) {
     $safe = ([string]$Module).Trim().ToLowerInvariant()
-    return "http://127.0.0.1:$($Config.server_port)/source/$safe?v=420"
+    return "http://127.0.0.1:$($Config.server_port)/source/$safe?v=$(Get-YomiBrowserCacheKey)"
 }
 
 function Clear-YomiCache {
@@ -292,7 +331,7 @@ function Write-ObsInstructions($Config) {
     $m = Get-YomiLayoutMetrics $Config
 
     $text = @"
-YOMI 4.2.0 - YOUTUBE OBS MUSIC INTERFACE
+YOMI $(Get-YomiVersionText) - YOUTUBE OBS MUSIC INTERFACE
 ========================================
 YouTube playlist randomizer, player and modular stream overlay
 
