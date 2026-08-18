@@ -17,6 +17,13 @@ if (-not (Test-Path (Join-Path $payload 'Uninstall YOMI.cmd'))) {
     exit 2
 }
 
+if (-not (Test-Path (Join-Path $payload 'web\director.html'))) {
+    Write-Host ''
+    Write-Host 'ERROR: Director Mode web engine is missing from the installer payload.' -ForegroundColor Red
+    Write-Host 'Fully extract the ZIP before running INSTALL YOMI.cmd.' -ForegroundColor Yellow
+    exit 2
+}
+
 # Relaunch elevated because Program Files is protected.
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -46,6 +53,7 @@ if (-not $isAdmin) {
 
 $installRoot = Join-Path $env:ProgramFiles 'YOMI'
 $dataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
+$defenderMarker = Join-Path $dataRoot 'defender-yt-dlp-process-exclusion.txt'
 $tempRoot = Join-Path $env:TEMP ('YOMI-Install-' + [Guid]::NewGuid().ToString('N'))
 
 # Permanent installer log so a fast-closing admin window can never hide
@@ -58,7 +66,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.0.9.4 =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -111,7 +119,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.0.9.4-Installer'
+    $request.UserAgent = 'YOMI-4.2.0-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -281,64 +289,58 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.0.9.4-Installer' }
-
-    $defenderProcessPath = Join-Path $installRoot 'runtime\yt-dlp\yt-dlp.exe'
-    $defenderMarker = Join-Path $dataRoot 'defender-performance-opt-in.txt'
-    $defenderExclusionAlreadyPresent = $false
-    try {
-        $defenderExclusionAlreadyPresent = @(
-            (Get-MpPreference -ErrorAction Stop).ExclusionProcess
-        ) -contains $defenderProcessPath
-    }
-    catch {}
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.0.9.4 - Choose installation profile'
+    $pf.Text = 'YOMI 4.2.0 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
-    $pf.Size = New-Object System.Drawing.Size(640,480)
+    $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
     $pf.MaximumSize = $pf.Size
     $pf.MaximizeBox = $false
     $pf.Font = New-Object System.Drawing.Font('Segoe UI',10)
     $headline = New-Object System.Windows.Forms.Label
-    $headline.Text = 'Choose what you want YOMI to install:'
+    $headline.Text = 'YOMI - YouTube OBS Music Interface'
     $headline.Font = New-Object System.Drawing.Font('Segoe UI Semibold',13)
     $headline.Location = New-Object System.Drawing.Point(20,18)
     $headline.Size = New-Object System.Drawing.Size(560,30)
     $pf.Controls.Add($headline)
     $full = New-Object System.Windows.Forms.RadioButton
-    $full.Text = 'Full YOMI (recommended) - Player + Streamer/OBS + Deno + FFmpeg'
-    $full.Location = New-Object System.Drawing.Point(25,65); $full.Size = New-Object System.Drawing.Size(570,28); $full.Checked = $true; $pf.Controls.Add($full)
+    $full.Text = 'Full YOMI (recommended) - Player + Streamer/OBS + Director Mode + Deno + FFmpeg'
+    $profilePrompt = New-Object System.Windows.Forms.Label
+    $profilePrompt.Text = 'Choose what you want YOMI to install:'
+    $profilePrompt.Location = New-Object System.Drawing.Point(25,52); $profilePrompt.Size = New-Object System.Drawing.Size(570,24); $pf.Controls.Add($profilePrompt)
+    $full.Location = New-Object System.Drawing.Point(25,82); $full.Size = New-Object System.Drawing.Size(570,28); $full.Checked = $true; $pf.Controls.Add($full)
     $player = New-Object System.Windows.Forms.RadioButton
     $player.Text = 'Player - mpv + yt-dlp + Deno; add streamer media tools later if wanted'
-    $player.Location = New-Object System.Drawing.Point(25,105); $player.Size = New-Object System.Drawing.Size(570,28); $pf.Controls.Add($player)
+    $player.Location = New-Object System.Drawing.Point(25,122); $player.Size = New-Object System.Drawing.Size(570,28); $pf.Controls.Add($player)
     $minimal = New-Object System.Windows.Forms.RadioButton
     $minimal.Text = 'Minimal Player - mpv + yt-dlp only (YouTube format support may be limited)'
-    $minimal.Location = New-Object System.Drawing.Point(25,145); $minimal.Size = New-Object System.Drawing.Size(570,28); $pf.Controls.Add($minimal)
+    $minimal.Location = New-Object System.Drawing.Point(25,162); $minimal.Size = New-Object System.Drawing.Size(570,28); $pf.Controls.Add($minimal)
     $explain = New-Object System.Windows.Forms.Label
     $explain.Text = 'Deno is the recommended JavaScript runtime for modern YouTube extraction. FFmpeg Media Tools power loudness leveling, smart artwork crop and the retro visualizer. Optional components can be installed or removed later from YOMI Settings.'
-    $explain.Location = New-Object System.Drawing.Point(25,195); $explain.Size = New-Object System.Drawing.Size(570,75); $explain.ForeColor = [System.Drawing.Color]::DimGray; $pf.Controls.Add($explain)
-    $defenderOpt = New-Object System.Windows.Forms.CheckBox
-    $defenderOpt.Text = 'Reduce Windows Defender CPU spikes during track changes'
-    $defenderOpt.Location = New-Object System.Drawing.Point(25,278); $defenderOpt.Size = New-Object System.Drawing.Size(570,28); $defenderOpt.Checked = $defenderExclusionAlreadyPresent; $pf.Controls.Add($defenderOpt)
+    $explain.Location = New-Object System.Drawing.Point(25,207); $explain.Size = New-Object System.Drawing.Size(570,64); $explain.ForeColor = [System.Drawing.Color]::DimGray; $pf.Controls.Add($explain)
+    $defender = New-Object System.Windows.Forms.CheckBox
+    $defender.Text = 'OPT IN: Reduce Windows Defender CPU spikes during track changes'
+    $defender.Location = New-Object System.Drawing.Point(25,282); $defender.Size = New-Object System.Drawing.Size(570,28)
+    $defender.Checked = Test-Path $defenderMarker
+    $pf.Controls.Add($defender)
     $defenderExplain = New-Object System.Windows.Forms.Label
-    $defenderExplain.Text = "Optional: adds only YOMI's bundled yt-dlp.exe as a Defender process exclusion. This slightly reduces antivirus coverage for files yt-dlp opens. YOMI removes exclusions it added when uninstalled."
-    $defenderExplain.Location = New-Object System.Drawing.Point(45,307); $defenderExplain.Size = New-Object System.Drawing.Size(545,55); $defenderExplain.ForeColor = [System.Drawing.Color]::DimGray; $pf.Controls.Add($defenderExplain)
-    $ok = New-Object System.Windows.Forms.Button; $ok.Text='INSTALL'; $ok.Location=New-Object System.Drawing.Point(355,382); $ok.Size=New-Object System.Drawing.Size(110,36); $ok.DialogResult=[System.Windows.Forms.DialogResult]::OK; $pf.Controls.Add($ok)
-    $cancel = New-Object System.Windows.Forms.Button; $cancel.Text='CANCEL'; $cancel.Location=New-Object System.Drawing.Point(480,382); $cancel.Size=New-Object System.Drawing.Size(110,36); $cancel.DialogResult=[System.Windows.Forms.DialogResult]::Cancel; $pf.Controls.Add($cancel)
+    $defenderExplain.Text = 'Adds only YOMI''s bundled yt-dlp.exe as a process exclusion. It never excludes PowerShell, TEMP, mpv, Deno, your profile, or broad YOMI folders. Fresh installs leave this unchecked; an existing YOMI-managed choice is preserved.'
+    $defenderExplain.Location = New-Object System.Drawing.Point(45,312); $defenderExplain.Size = New-Object System.Drawing.Size(545,62); $defenderExplain.ForeColor = [System.Drawing.Color]::DimGray; $pf.Controls.Add($defenderExplain)
+    $ok = New-Object System.Windows.Forms.Button; $ok.Text='INSTALL'; $ok.Location=New-Object System.Drawing.Point(355,402); $ok.Size=New-Object System.Drawing.Size(110,36); $ok.DialogResult=[System.Windows.Forms.DialogResult]::OK; $pf.Controls.Add($ok)
+    $cancel = New-Object System.Windows.Forms.Button; $cancel.Text='CANCEL'; $cancel.Location=New-Object System.Drawing.Point(480,402); $cancel.Size=New-Object System.Drawing.Size(110,36); $cancel.DialogResult=[System.Windows.Forms.DialogResult]::Cancel; $pf.Controls.Add($cancel)
     $pf.AcceptButton=$ok; $pf.CancelButton=$cancel
     if ($pf.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { throw 'Installation cancelled.' }
     $installFfmpeg = $false; $installDeno = $false; $initialMode = 'Player'; $profileName = 'Minimal Player'
     if ($full.Checked) { $installFfmpeg=$true; $installDeno=$true; $initialMode='Streamer / OBS'; $profileName='Full YOMI' }
     elseif ($player.Checked) { $installDeno=$true; $initialMode='Player'; $profileName='Player' }
-    $enableDefenderOptimization = $defenderOpt.Checked
+    $enableDefenderExclusion = [bool]$defender.Checked
     Write-Host "      Profile: $profileName" -ForegroundColor Green
-    if ($enableDefenderOptimization) { Write-Host '      Defender performance option: selected' -ForegroundColor Green }
-    else { Write-Host '      Defender performance option: not selected' -ForegroundColor DarkGray }
+    Write-Host ("      Defender performance opt-in: " + $(if($enableDefenderExclusion){'selected'}else{'not selected'})) -ForegroundColor Green
 
     Set-InstallStage 2 8 'Finding current mpv Windows release...'
 
@@ -648,6 +650,66 @@ try {
     }
 
     # ------------------------------------------------------------
+    # Explicit, narrow Windows Defender performance opt-in.
+    # YOMI never adds broad folder, PowerShell, TEMP, mpv or Deno exclusions.
+    # A marker is written only when YOMI itself owns the exact process exclusion.
+    # ------------------------------------------------------------
+
+    $defenderTarget = Join-Path $installRoot 'runtime\yt-dlp\yt-dlp.exe'
+    $markerWasPresent = Test-Path $defenderMarker
+    function Test-ExactDefenderProcessExclusion([string]$Path) {
+        $items = @((Get-MpPreference -ErrorAction Stop).ExclusionProcess)
+        foreach ($item in $items) {
+            $expanded = [Environment]::ExpandEnvironmentVariables([string]$item)
+            if ([string]::Equals($expanded,$Path,[StringComparison]::OrdinalIgnoreCase)) { return $true }
+        }
+        return $false
+    }
+
+    try {
+        if ($enableDefenderExclusion) {
+            if (-not (Test-ExactDefenderProcessExclusion $defenderTarget)) {
+                Add-MpPreference -ExclusionProcess $defenderTarget -ErrorAction Stop
+                if (-not (Test-ExactDefenderProcessExclusion $defenderTarget)) {
+                    throw 'Windows Defender did not retain the requested yt-dlp process exclusion.'
+                }
+                Set-Content $defenderMarker $defenderTarget -Encoding Unicode
+                Write-Host '      Defender performance exclusion: ADDED for YOMI yt-dlp only' -ForegroundColor Green
+            }
+            elseif ($markerWasPresent) {
+                Set-Content $defenderMarker $defenderTarget -Encoding Unicode
+                Write-Host '      Defender performance exclusion: existing YOMI-managed choice preserved' -ForegroundColor Green
+            }
+            else {
+                Write-Host '      Defender performance exclusion: matching user-managed exclusion already exists; YOMI will not claim or remove it' -ForegroundColor DarkYellow
+            }
+        }
+        elseif ($markerWasPresent) {
+            $markedTarget = (Get-Content $defenderMarker -Raw -ErrorAction Stop).Trim()
+            if ([string]::Equals($markedTarget,$defenderTarget,[StringComparison]::OrdinalIgnoreCase)) {
+                if (Test-ExactDefenderProcessExclusion $defenderTarget) {
+                    Remove-MpPreference -ExclusionProcess $defenderTarget -ErrorAction Stop
+                    if (Test-ExactDefenderProcessExclusion $defenderTarget) {
+                        throw 'Windows Defender did not remove the YOMI-managed yt-dlp exclusion.'
+                    }
+                }
+                Remove-Item $defenderMarker -Force -ErrorAction Stop
+                Write-Host '      Defender performance exclusion: removed by user choice' -ForegroundColor Green
+            }
+            else {
+                throw 'The YOMI Defender ownership marker did not contain the expected yt-dlp path.'
+            }
+        }
+        else {
+            Write-Host '      Defender performance exclusion: not requested' -ForegroundColor DarkGray
+        }
+    }
+    catch {
+        Write-Host ('      Defender performance option could not be applied: ' + $_.Exception.Message) -ForegroundColor DarkYellow
+        Write-Host '      Installation will continue; no broad fallback exclusion will be added.' -ForegroundColor DarkYellow
+    }
+
+    # ------------------------------------------------------------
     # GUI launcher and shortcuts.
     # YomiLauncher.exe is a Windows-subsystem executable: no console window,
     # but the PowerShell WinForms controller/settings remain fully visible.
@@ -712,8 +774,10 @@ try {
         (Join-Path $installRoot 'app\controller.ps1'),
         (Join-Path $installRoot 'app\shuffle.ps1'),
         (Join-Path $installRoot 'app\uninstall.ps1'),
+        (Join-Path $installRoot 'app\update.ps1'),
         (Join-Path $installRoot 'Uninstall YOMI.cmd'),
         (Join-Path $installRoot 'web\overlay.html'),
+        (Join-Path $installRoot 'web\director.html'),
         (Join-Path $installRoot 'assets\yomi-v408.ico'),
         (Join-Path $installRoot 'assets\yomi-settings-v408.ico'),
         (Join-Path $installRoot 'app\components.ps1')
@@ -725,36 +789,6 @@ try {
     if ($installFfmpeg) { foreach ($r in @((Join-Path $installRoot 'runtime\ffmpeg\ffmpeg.exe'),(Join-Path $installRoot 'runtime\ffmpeg\ffprobe.exe'))) { if (-not (Test-Path $r)) { throw "Final verification failed: $r" } } }
     if ($installDeno -and -not (Test-Path (Join-Path $installRoot 'runtime\deno\deno.exe'))) { throw 'Final verification failed: Deno was selected but deno.exe is missing.' }
 
-    # Optional, explicit Defender performance adjustment. The official
-    # single-file yt-dlp.exe extracts temporary _MEI files outside YOMI's
-    # folders. Never exclude PowerShell, TEMP, or a broad user directory.
-    if ($enableDefenderOptimization) {
-        if ($defenderExclusionAlreadyPresent) {
-            Write-Host '      Defender performance exclusion: already present' -ForegroundColor DarkGray
-        }
-        else {
-            try {
-                Add-MpPreference -ExclusionProcess $defenderProcessPath -ErrorAction Stop
-                Set-Content $defenderMarker $defenderProcessPath -Encoding ASCII
-                Write-Host '      Defender performance exclusion: added' -ForegroundColor Green
-            }
-            catch {
-                Remove-Item $defenderMarker -Force -ErrorAction SilentlyContinue
-                Write-Host ('      WARNING: Defender exclusion was not added: ' + $_.Exception.Message) -ForegroundColor DarkYellow
-                Write-Host '      YOMI installation will continue normally.' -ForegroundColor DarkYellow
-            }
-        }
-    }
-    elseif (Test-Path $defenderMarker) {
-        try {
-            Remove-MpPreference -ExclusionProcess $defenderProcessPath -ErrorAction Stop
-            Remove-Item $defenderMarker -Force -ErrorAction SilentlyContinue
-            Write-Host '      Previous YOMI-managed Defender exclusion: removed' -ForegroundColor Green
-        }
-        catch {
-            Write-Host ('      WARNING: Previous Defender exclusion could not be removed: ' + $_.Exception.Message) -ForegroundColor DarkYellow
-        }
-    }
 
     Write-Host ''
     Set-Content (Join-Path $dataRoot 'install-status.txt') `

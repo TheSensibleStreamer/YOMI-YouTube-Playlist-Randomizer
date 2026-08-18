@@ -1,5 +1,6 @@
-YOMI 4.0 - TECHNICAL NOTES
+YOMI 4.2.0 - TECHNICAL NOTES / DEEP CACHE + NAVIGATOR
 ==========================
+Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI
 Writable data: %LOCALAPPDATA%\YOMI
 IPC pipe: \\.\pipe\yomi-v4
@@ -15,6 +16,49 @@ Audio-only playback uses the prepared local audio cache. Optional player video l
 Streamer mode:
 Controller -> Supervisor -> mpv/music.lua + range-enabled local HTTP server -> one Browser Source.
 Presentation bundles are prepared before playback: audio/meta/gain, artwork, tiny video, visualizer. Future tracks are prefetched as complete bundles.
+The unified prefetch_ahead value is clamped to 1-20 and applies to every enabled
+essential requirement; video_prefetch_ahead remains only as a synchronized
+legacy config field for older-version readability.
+
+Director mode (opt-in):
+The same server exposes /source/1 through /source/6 plus fixed module routes.
+All Browser Sources poll one current.json state object and one sampled mpv IPC
+clock. Audio/art/video/visualizer assets are prepared once and shared by URL.
+Each Browser Source owns its own decoder/render surface, so duplicate video
+sources increase OBS decoding but never trigger duplicate downloads.
+
+Essential bundle gate:
+audio + metadata + gain + enabled artwork/video/visualizer
+
+Decorative queue (never part of bundle_ready):
+comment extraction + FFprobe telemetry
+
+Decorative jobs receive very low priority after future playback bundles. A
+failure writes a small status marker and cannot delay, skip or stop a track.
+
+PAGE PRESETS
+------------
+Text & Style, Visualizer and Performance expose Default, named presets and
+Custom. Event guards allow a preset to populate all of its controls without
+renaming itself; changing any underlying control outside that guarded operation
+marks only that page Custom. Existing pre-4.2 visualizer/performance values
+migrate as Custom so hand-tuned settings are never mislabeled as factory values.
+
+VISUALIZER GENERATION RESOLUTION
+--------------------------------
+The preset ladder maps to 20x6, 28x8, 40x10, 48x12, 64x18, 96x24 and 128x32
+FFmpeg showfreqs frames. Browser rendering scales those deliberately tiny frames
+to the configured overlay length. The engine clamps arbitrary config input to
+16-192 pixels wide and 6-48 pixels high.
+
+UPDATER
+-------
+Controller and Settings launch the console-free update helper, which rate-limits
+automatic checks to once per 24 hours. Manual checks bypass the timer. The helper
+reads update.json only from the official public YOMI repository, accepts package
+URLs only from that repository, verifies the downloaded ZIP against the manifest
+SHA-256 and then opens the normal interactive installer. It never silently
+replaces running program files.
 
 COMPONENTS
 ----------
@@ -25,9 +69,12 @@ Deno path is explicitly supplied to yt-dlp subprocesses with --js-runtimes. The 
 
 VIDEO RETRY LADDER
 ------------------
-Route 1: player_client=web_embedded,default, format 160, 3 delayed attempts (compatibility behavior).
-Route 2: default,-web_safari low MP4 selector, 2 attempts.
-Route 3: automatic/progressive <=360/480 fallback, 2 attempts.
+Route 1 follows the requested 144/240/360/480/720/Best ceiling and maximum or
+lowest-compatible policy. The default 144p route retains three delayed itag 160
+attempts with player_client=web_embedded,default.
+Higher ladders use known H.264 MP4 format IDs plus filtered MP4 selectors.
+Every ladder can recover through 360p, the proven 144p route and a final
+automatic/progressive <=360/480 selector.
 Permanent unavailable/private/removed errors do not burn every retry.
 
 OPTIONAL FEATURES
@@ -36,7 +83,7 @@ No FFmpeg: gain scan writes 0 dB, smart crop is disabled, visualizer jobs are di
 
 OVERLAY
 -------
-Text styling and visualizer recoloring happen in-browser. Visualizer source remains a small white pixel video; solid/rainbow/gradient colors are applied to decoded pixels live, so changing color does not regenerate cache.
+Text styling and visualizer recoloring happen in-browser. Visualizer source remains a small white pixel video; solid/rainbow/gradient colors, seven shapes, anchor normalization, spacing, glow and 0-60% high-frequency trimming are applied to decoded pixels live. Activity, internal resolution, logarithmic/linear frequency scale or 30/60 FPS changes regenerate the cached source.
 
 SECURITY / ISOLATION
 --------------------
@@ -270,18 +317,85 @@ Changes:
   artwork-only migration.
 
 
-V4.0.9.4 DEFENDER PERFORMANCE OPT-IN
--------------------------------------
-Defender Performance Analyzer traces showed the bundled yt-dlp process causing
-nearly all scan time during concurrent artwork/video preparation. The official
-single-file yt-dlp executable expands runtime files beneath TEMP, so excluding
-only YOMI's Program Files and LocalAppData directories does not cover that work.
+V4.1 DIRECTOR MODE ARCHITECTURE
+-------------------------------
+ROUTES
+  /overlay              original combined compatibility overlay
+  /source/1..6          configured modular output groups
+  /source/<module>      fixed single-module sources
+  /state                clock + enriched current track state
+  /history              bounded JSON-lines broadcast history
 
-The installer now presents an unchecked, explicit performance option. When the
-user selects it, the elevated installer adds exactly one process exclusion:
-    C:\Program Files\YOMI\runtime\yt-dlp\yt-dlp.exe
+MODULES
+  artwork video title channel visualizer progress stats technical pipeline
+  comment history upnext mission
 
-YOMI never excludes PowerShell, TEMP, Deno, mpv, or the entire user profile.
-Newly added exclusions are marked in LocalAppData and removed by the elevated
-uninstaller. Pre-existing user-managed exclusions are detected but not claimed
-or removed by YOMI.
+STATE ENRICHMENT
+current.json now exposes selected yt-dlp metadata, media byte counts, gain,
+playlist position/count, next-track metadata, worker/queue state, ready-ahead,
+per-stage preparation timings, optional featured comment and optional FFprobe
+audio/video JSON.
+
+COMMENTS
+yt-dlp runs with skip-download, write-info-json, write-comments, YouTube
+comment_sort=top and max_comments=1,1,0,0,1. YOMI retains only one sanitized,
+length-limited parent comment. Comment work is opt-in, cached and decorative.
+Basic/Strict/Off local filters run before the comment enters current.json. The
+controller's yomi-hide-comment script message persists a per-track hidden marker.
+
+TELEMETRY
+FFprobe uses selective stream/format fields for codec, profile, dimensions,
+frame rate, pixel format, sample rate, channel layout, bitrate, duration and
+container. Raw compact probe JSON is cached separately for audio and video.
+
+VIDEO QUALITY / DISK BUDGET
+Quality ladders start at 144p, 240p, 360p, 480p, 720p or Best compatible MP4
+and retain a proven 144p recovery route. video_preference independently chooses
+the selected maximum or lowest compatible stream. video_fps chooses <=30 FPS or
+prefers >30 through 60 FPS when YouTube exposes it, then falls back safely.
+prefetch_ahead schedules every enabled bundle requirement for 1-20 future
+tracks. video_cache_limit_mb evicts the farthest prepared video first while
+preserving the playing track and its immediate successor.
+
+audio_quality applies approximate 64/128/160 kbps targets or Best available,
+with a reliability fallback when the requested metadata/format is unavailable.
+audio_preference independently chooses the selected maximum or lowest compatible
+audio-only format. A changed audio selector schedules a safe next-start reset of
+audio, metadata, gain, audio telemetry and dependent visualizer caches.
+
+PRESENTATION ENGINE
+director.html implements layout groups, twelve theme worlds, deterministic
+track palette hashing, scene phases, rule badges, transitions, seven render
+shapes from the cached audio-reactive visualizer, persistent history, Up Next,
+technical/pipeline panels and derived/fictional metrics. Text is assigned with
+textContent; featured comments are never injected as HTML.
+
+BROADCAST STRIP
+Broadcast Strip uses the configured media height as its exact row height.
+Artwork/video share their configured frame seam, title/channel form one stacked
+information group, and the visualizer uses the configured length. The original
+4.1 prototype Output 1 is migrated from 2560x180 Horizontal to 2560x90 Broadcast
+Strip only when every identifying field still matches the untouched prototype.
+
+
+V4.2 DEEP CACHE / NAVIGATOR / 60 FPS
+------------------------------------
+- One complete-bundle prefetch distance (1-20) replaces the split video-ahead
+  behavior. Audio/meta/gain/art/video/visualizer follow the same track window.
+- The Controller records a bounded lightweight play history even when the
+  Director history module is hidden. Show queue displays previous plays,
+  current/resume state and 20 upcoming positions. yomi-jump accepts an exact
+  shuffled playlist occurrence index.
+- Cache readiness in Controller mirrors enabled classic and Director modules.
+- cache_workers is clamped to 1-8; the 8-worker preset stays opt-in and below
+  normal priority.
+- showfreqs rate is configurable at 30/60. Browser render loops follow the same
+  configured rate and Auto Browser FPS resolves to the highest enabled visual
+  rate.
+- visualizer_high_frequency_trim is a live 0-60% browser remap of the frequency
+  X axis. It removes quiet upper bins without modifying audio.
+- video_fps prefers >30 to 60 FPS formats when requested and available; the
+  compatibility ladder still recovers through reliable 30 FPS MP4 routes.
+- Restore Defaults preserves playlist/history/components and schedules safe
+  next-start rebuilds of media affected by restored settings.
+- Ordinary Save Settings no longer opens a modal dialog.

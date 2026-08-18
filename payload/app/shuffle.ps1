@@ -63,6 +63,10 @@ try {
     $temp = Join-Path $DataRoot 'playlist.shuffle.tmp'
     $items | Set-Content $temp -Encoding ASCII
     Clear-YomiCache
+    # Navigator history stores exact shuffled occurrence indices. A new shuffle
+    # creates a new index map, so retaining old rows would make jumps point at
+    # unrelated tracks.
+    Remove-Item (Join-Path $DataRoot 'state\history.jsonl') -Force -ErrorAction SilentlyContinue
     Move-Item $temp $final -Force
     Set-Content (Join-Path $DataRoot 'state\resume-track.txt') '1' -Encoding ASCII
 

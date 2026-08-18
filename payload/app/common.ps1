@@ -22,6 +22,8 @@ function Initialize-YomiData {
         (Join-Path $script:DataRoot 'cache\meta'),
         (Join-Path $script:DataRoot 'cache\gain'),
         (Join-Path $script:DataRoot 'cache\status'),
+        (Join-Path $script:DataRoot 'cache\comments'),
+        (Join-Path $script:DataRoot 'cache\telemetry'),
         (Join-Path $script:DataRoot 'state'),
         (Join-Path $script:DataRoot 'logs')
     )) {
@@ -39,6 +41,10 @@ function Initialize-YomiData {
         $current = Get-Content $script:ConfigPath -Raw | ConvertFrom-Json
         $changed = $false
 
+        $originalVersion = [string]$current.version
+        $hadVisualizerPreset = $null -ne $current.PSObject.Properties['visualizer_preset']
+        $hadPerformancePreset = $null -ne $current.PSObject.Properties['performance_preset']
+
         foreach ($p in $defaults.PSObject.Properties) {
             if ($null -eq $current.PSObject.Properties[$p.Name]) {
                 $current | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value
@@ -46,8 +52,49 @@ function Initialize-YomiData {
             }
         }
 
-        if ($changed -or [double]$current.version -lt 4.093) {
-            $current.version = 4.093
+        # Existing installations predate the page-preset trackers. Their current
+        # hand-tuned values are real custom settings, not the new factory preset.
+        if (-not $hadVisualizerPreset) {
+            $current.visualizer_preset = 'Custom'
+            $changed = $true
+        }
+        if (-not $hadPerformancePreset) {
+            $current.performance_preset = 'Custom'
+            $changed = $true
+        }
+
+        # The first 4.1 Director prototype shipped Output 1 as a loose 180px
+        # Horizontal row. Migrate only that exact untouched prototype preset;
+        # never trample a user's customized output.
+        $firstOutput = @($current.director_outputs | Where-Object { [int]$_.id -eq 1 }) | Select-Object -First 1
+        if ($originalVersion -eq '4.1' -and $null -ne $firstOutput -and
+            [string]$firstOutput.name -eq 'Now Playing' -and
+            [string]$firstOutput.modules -eq 'artwork,video,title,channel,visualizer' -and
+            [string]$firstOutput.layout -eq 'Horizontal' -and
+            [int]$firstOutput.width -eq 2560 -and [int]$firstOutput.height -eq 180) {
+            $firstOutput.layout = 'Broadcast Strip'
+            $firstOutput.height = 90
+            $changed = $true
+        }
+
+        # "Use global" is visually identical to the old Spectrum default on
+        # migration, while allowing the expanded Visualizer tab to control both
+        # the classic overlay and Director outputs unless explicitly overridden.
+        if ($originalVersion -eq '4.1' -and [string]$current.director_visualizer_shape -eq 'Spectrum') {
+            $current.director_visualizer_shape = 'Use global'
+            $changed = $true
+        }
+
+        # 4.2 replaces the misleading split audio/video look-ahead controls
+        # with one complete-bundle distance. Keep the old property synchronized
+        # for downgrade/readability, although the 4.2 engine no longer uses it.
+        if ($originalVersion -ne '4.2.0') {
+            $current.video_prefetch_ahead = [int]$current.prefetch_ahead
+            $changed = $true
+        }
+
+        if ($changed -or $originalVersion -ne '4.2.0') {
+            $current.version = '4.2.0'
             Write-YomiUtf8NoBom -Path $script:ConfigPath -Text ($current | ConvertTo-Json -Depth 12)
         }
     }
@@ -67,12 +114,21 @@ function Save-YomiConfig($Config) {
 }
 
 function Get-OverlayUrl($Config) {
-    return "http://127.0.0.1:$($Config.server_port)/overlay"
+    return "http://127.0.0.1:$($Config.server_port)/overlay?v=420"
+}
+
+function Get-DirectorOutputUrl($Config,[int]$OutputId) {
+    return "http://127.0.0.1:$($Config.server_port)/source/$OutputId?v=420"
+}
+
+function Get-DirectorModuleUrl($Config,[string]$Module) {
+    $safe = ([string]$Module).Trim().ToLowerInvariant()
+    return "http://127.0.0.1:$($Config.server_port)/source/$safe?v=420"
 }
 
 function Clear-YomiCache {
     Initialize-YomiData
-    foreach ($name in @('audio','artwork','video','visualizer','meta','gain','status')) {
+    foreach ($name in @('audio','artwork','video','visualizer','meta','gain','status','comments','telemetry')) {
         $path = Join-Path $script:DataRoot ("cache\" + $name)
         Get-ChildItem $path -Force -ErrorAction SilentlyContinue |
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -136,7 +192,21 @@ function Get-YomiResolvedFps($Config) {
     $mode = [string]$Config.browser_fps_mode
     if ($mode -eq '15 FPS') { return 15 }
     if ($mode -eq '30 FPS') { return 30 }
-    if ([bool]$Config.visualizer_enabled -and ([string]$Config.app_mode -eq 'Streamer / OBS')) { return 30 }
+    if ($mode -eq '60 FPS') { return 60 }
+
+    if ([string]$Config.app_mode -ne 'Streamer / OBS') { return 15 }
+    $modules = @()
+    if ([bool]$Config.director_mode) {
+        foreach ($output in @($Config.director_outputs)) {
+            if ([bool]$output.enabled) {
+                $modules += @(([string]$output.modules).ToLowerInvariant().Split(',') | ForEach-Object { $_.Trim() })
+            }
+        }
+    }
+    $videoOn = [bool]$Config.video_enabled -or $modules -contains 'video'
+    $vizOn = [bool]$Config.visualizer_enabled -or $modules -contains 'visualizer'
+    if (($videoOn -and [string]$Config.video_fps -match '^60') -or ($vizOn -and [string]$Config.visualizer_fps -match '^60')) { return 60 }
+    if ($videoOn -or $vizOn) { return 30 }
     return 15
 }
 
@@ -222,10 +292,9 @@ function Write-ObsInstructions($Config) {
     $m = Get-YomiLayoutMetrics $Config
 
     $text = @"
-YOMI 4.0 - OBS SETUP
-====================
-YouTube Playlist Randomizer & Player
-Optional OBS integration for streamers
+YOMI 4.2.0 - YOUTUBE OBS MUSIC INTERFACE
+========================================
+YouTube playlist randomizer, player and modular stream overlay
 
 YOMI uses ONE Browser Source for artwork, tiny video, title, channel and visualizer.
 
@@ -248,6 +317,43 @@ $($Config.corner)
 
 No second visualizer source is needed.
 "@
+
+    if ([bool]$Config.director_mode) {
+        $text += @"
+
+
+DIRECTOR MODE / MODULAR SOURCES
+===============================
+Every source uses the same YOMI state and playback clock. Media is downloaded
+once and shared; adding the same video to several Browser Sources does make OBS
+decode that video several times.
+
+Single-module URLs:
+Artwork:    $(Get-DirectorModuleUrl $Config 'artwork')
+Video:      $(Get-DirectorModuleUrl $Config 'video')
+Title:      $(Get-DirectorModuleUrl $Config 'title')
+Channel:    $(Get-DirectorModuleUrl $Config 'channel')
+Visualizer: $(Get-DirectorModuleUrl $Config 'visualizer')
+Progress:   $(Get-DirectorModuleUrl $Config 'progress')
+Stats:      $(Get-DirectorModuleUrl $Config 'stats')
+Technical:  $(Get-DirectorModuleUrl $Config 'technical')
+Pipeline:   $(Get-DirectorModuleUrl $Config 'pipeline')
+Comment:    $(Get-DirectorModuleUrl $Config 'comment')
+History:    $(Get-DirectorModuleUrl $Config 'history')
+Up Next:    $(Get-DirectorModuleUrl $Config 'upnext')
+Mission:    $(Get-DirectorModuleUrl $Config 'mission')
+
+Configured outputs:
+"@
+
+        foreach ($output in @($Config.director_outputs)) {
+            if (-not [bool]$output.enabled) { continue }
+            $text += "`r`nOutput $($output.id) - $($output.name)`r`n"
+            $text += "URL: $(Get-DirectorOutputUrl $Config ([int]$output.id))`r`n"
+            $text += "Browser: $($output.width) x $($output.height)`r`n"
+            $text += "Modules: $($output.modules)`r`n"
+        }
+    }
 
     Set-Content $path $text -Encoding UTF8
     return $path

@@ -23,17 +23,22 @@ using System.Globalization;
 public static class MpvObsMusicServer
 {
     private static readonly object StateLock = new object();
+    private static readonly object TrackLock = new object();
     private static double Position = 0.0;
     private static bool Paused = true;
     private static double Speed = 1.0;
     private static bool Connected = false;
     private static long SampleStamp = 0;
     private static string Prefix, WebRoot, DataRoot, StateFile, PipeName;
+    private static string CachedTrack = "null";
+    private static long CachedTrackStamp = -1;
+    private static long CachedTrackLength = -1;
 
     private static readonly Regex RequestIdRegex = new Regex(@"""request_id""\s*:\s*(-?\d+)", RegexOptions.Compiled);
     private static readonly Regex NumberDataRegex = new Regex(@"""data""\s*:\s*(-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)", RegexOptions.Compiled);
     private static readonly Regex BoolDataRegex = new Regex(@"""data""\s*:\s*(true|false)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex MediaRegex = new Regex(@"^/media/(artwork|video|visualizer)/(\d+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex SourceRegex = new Regex(@"^/(?:source/[^/]+|director)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static void Start(string prefix,string webRoot,string dataRoot,string stateFile,string pipeName)
     {
@@ -54,19 +59,34 @@ public static class MpvObsMusicServer
         }
     }
 
+    private static string TrackJson()
+    {
+        lock(TrackLock)
+        {
+            try
+            {
+                var file = new FileInfo(StateFile);
+                if(!file.Exists)
+                {
+                    CachedTrack="null";CachedTrackStamp=-1;CachedTrackLength=-1;
+                    return CachedTrack;
+                }
+                long stamp=file.LastWriteTimeUtc.Ticks;
+                if(stamp!=CachedTrackStamp || file.Length!=CachedTrackLength)
+                {
+                    string raw=File.ReadAllText(StateFile,Encoding.UTF8).Trim();
+                    CachedTrack=raw.StartsWith("{")?raw:"null";
+                    CachedTrackStamp=stamp;CachedTrackLength=file.Length;
+                }
+            }
+            catch { }
+            return CachedTrack;
+        }
+    }
+
     private static string StateJson()
     {
-        string track = "null";
-        try
-        {
-            if(File.Exists(StateFile))
-            {
-                string raw = File.ReadAllText(StateFile, Encoding.UTF8).Trim();
-                if(raw.StartsWith("{")) track = raw;
-            }
-        }
-        catch { }
-        return "{\"clock\":" + ClockJson() + ",\"track\":" + track + "}";
+        return "{\"clock\":" + ClockJson() + ",\"track\":" + TrackJson() + "}";
     }
 
     private static void HttpLoop()
@@ -93,6 +113,12 @@ public static class MpvObsMusicServer
 
             if(path=="/health") { Text(res,"OK","text/plain"); return; }
             if(path=="/state") { Text(res,StateJson(),"application/json"); return; }
+            if(path=="/history")
+            {
+                string f=Path.Combine(DataRoot,"state","history.jsonl");
+                if(!File.Exists(f)){Text(res,"","text/plain; charset=utf-8");return;}
+                FileSimple(res,f,"text/plain; charset=utf-8",req.HttpMethod); return;
+            }
             if(path=="/config")
             {
                 string f=Path.Combine(DataRoot,"config.json");
@@ -101,6 +127,7 @@ public static class MpvObsMusicServer
             }
             if(path=="/" || path=="/overlay") { FileSimple(res,Path.Combine(WebRoot,"overlay.html"),"text/html; charset=utf-8",req.HttpMethod); return; }
             if(path=="/visualizer") { FileSimple(res,Path.Combine(WebRoot,"visualizer.html"),"text/html; charset=utf-8",req.HttpMethod); return; }
+            if(SourceRegex.IsMatch(path)) { FileSimple(res,Path.Combine(WebRoot,"director.html"),"text/html; charset=utf-8",req.HttpMethod); return; }
 
             Match m=MediaRegex.Match(path);
             if(m.Success)

@@ -35,7 +35,7 @@ function applyConfig(){if(!cfg)return;const right=String(cfg.corner||'Top Left')
  title.style.display=cfg.title_enabled?'block':'none';channel.style.display=cfg.channel_enabled?'block':'none';
  const cw=Math.max(320,Number(cfg.canvas_width)||2560),mw=Math.max(20,Number(cfg.media_width)||160),oh=Math.max(24,Number(cfg.overlay_height)||Number(cfg.media_height)||90);let mediaExtent=0;if(cfg.artwork_enabled)mediaExtent+=mw;if(cfg.video_enabled)mediaExtent+=mw;if(cfg.artwork_enabled&&cfg.video_enabled&&bp>0)mediaExtent-=bp;
  let mult=Number(cfg.visualizer_length_multiplier)||4;mult=Math.max(1,Math.min(10,mult));const vw=Math.min(Math.max(80,Math.round(mw*mult)),Math.max(80,cw-mediaExtent)),vx=Math.max(0,right?(cw-mediaExtent-vw):mediaExtent),iw=Math.max(8,Number(cfg.visualizer_internal_width)||40),ih=Math.max(4,Number(cfg.visualizer_internal_height)||10);
- if(viz.width!==iw||viz.height!==ih){viz.width=iw;viz.height=ih;scratch.width=iw;scratch.height=ih;}viz.style.display=cfg.visualizer_enabled?'block':'none';viz.style.left=vx+'px';viz.style.width=vw+'px';viz.style.height=oh+'px';viz.style.opacity=String(Number(cfg.visualizer_opacity)||.3);viz.style.transform=cfg.visualizer_direction==='Mirrored'?'scaleX(-1)':'none';viz.style.zIndex=cfg.visualizer_layer==='Above text'?'8':'1';}
+ if(viz.width!==iw||viz.height!==ih){viz.width=iw;viz.height=ih;scratch.width=iw;scratch.height=ih;}viz.style.display=cfg.visualizer_enabled?'block':'none';viz.style.left=vx+'px';viz.style.width=vw+'px';viz.style.height=oh+'px';viz.style.opacity=String(Number(cfg.visualizer_opacity)||.3);viz.style.transform=cfg.visualizer_direction==='Mirrored'?'scaleX(-1)':'none';const glow=String(cfg.visualizer_peak_glow||'Off');viz.style.filter=glow==='Strong'?'drop-shadow(0 0 7px rgba(255,255,255,.9)) brightness(1.2)':(glow==='Subtle'?'drop-shadow(0 0 3px rgba(255,255,255,.75))':'none');viz.style.zIndex=cfg.visualizer_layer==='Above text'?'8':'1';}
 async function loadConfig(){try{cfg=await(await fetch('/config?t='+Date.now(),{cache:'no-store'})).json();applyConfig();}catch(_){}}
 function stageVideo(url){if(!cfg.video_enabled||!url){currentVideoUrl='';videoBox.dataset.ready='';videoBox.style.visibility='hidden';videos.forEach(v=>{v.pause();v.style.visibility='hidden';v.removeAttribute('src');});return;}if(currentVideoUrl===url)return;currentVideoUrl=url;const next=1-activeVideo,v=videos[next];v.pause();v.style.visibility='hidden';v.src=url+'?t='+Date.now();v.load();let committed=false;const commit=()=>{if(committed)return;committed=true;const tt=targetTime();try{v.currentTime=Math.min(tt,Number.isFinite(v.duration)?Math.max(0,v.duration-.04):tt);}catch(_){}v.play().catch(()=>{});v.style.visibility='visible';videoBox.dataset.ready='1';videoBox.style.visibility='visible';videos[activeVideo].style.visibility='hidden';videos[activeVideo].pause();activeVideo=next;};v.oncanplay=commit;}
 function stageVisualizer(t){const idx=Number(t.index)||0,url=t.visualizer||'';if(!cfg.visualizer_enabled||!url){vizTrack=idx;vizUrl='';vizReady=false;vizSrc.pause();vizSrc.removeAttribute('src');vizSrc.load();vctx.clearRect(0,0,viz.width,viz.height);return;}if(vizTrack===idx&&vizUrl===url)return;vizTrack=idx;vizUrl=url;vizReady=false;vizSrc.pause();vizSrc.src=url+'?t='+Date.now();vizSrc.load();}
@@ -50,65 +50,36 @@ function hsl(h,s,l){h=((h%360)+360)%360/360;const f=n=>{const k=(n+h*12)%12,a=s*
 function gradientColors(){const p=String(cfg.visualizer_gradient_preset||'Sunset');const map={Sunset:['#FF6B6B','#FFA552','#C4A7FF'],Ocean:['#72A7FF','#70E1F5','#9B7BFF'],Pastel:['#FF86C8','#C4A7FF','#70E1F5'],Fire:['#FF6B6B','#FFA552','#FFD166'],Forest:['#2E7D32','#7BE495','#FFD166'],Mono:['#F2F0E8','#8A8A84','#252525']};return(map[p]||map.Sunset).map(hexRgb);}
 function vizColor(x,y,w,h){const mode=String(cfg.visualizer_color_mode||'Solid');if(mode==='Rainbow'){const t=(cfg.visualizer_gradient_orientation==='Vertical'?y/Math.max(1,h-1):x/Math.max(1,w-1));return hsl(t*360,.85,.62);}if(mode==='Gradient'){const cs=gradientColors(),t=(cfg.visualizer_gradient_orientation==='Vertical'?y/Math.max(1,h-1):x/Math.max(1,w-1));return t<.5?mixRgb(cs[0],cs[1],t*2):mixRgb(cs[1],cs[2],(t-.5)*2);}return hexRgb(cfg.visualizer_solid_color||'#8A8A84');}
 function drawVisualizer(now){
- requestAnimationFrame(drawVisualizer);
- if(!cfg||!cfg.visualizer_enabled||now-lastDraw<1000/30)return;
- lastDraw=now;
- if(!vizReady||vizSrc.readyState<2){
-   if(!vizReady)vctx.clearRect(0,0,viz.width,viz.height);
-   return;
- }
+ requestAnimationFrame(drawVisualizer);const fpsMatch=String(cfg&&cfg.visualizer_fps||'30').match(/\d+/),renderFps=Math.max(15,Math.min(60,Number(fpsMatch?fpsMatch[0]:30)||30));if(!cfg||!cfg.visualizer_enabled||now-lastDraw<1000/renderFps)return;lastDraw=now;
+ if(!vizReady||vizSrc.readyState<2){if(!vizReady)vctx.clearRect(0,0,viz.width,viz.height);return}
  try{
-   const w=scratch.width,h=scratch.height;
-   sctx.drawImage(vizSrc,0,0,w,h);
-   const im=sctx.getImageData(0,0,w,h),d=im.data;
-   let minX=w,maxX=-1;
-
-   for(let y=0;y<h;y++){
-     for(let x=0;x<w;x++){
-       const i=(y*w+x)*4,b=(d[i]+d[i+1]+d[i+2])/3;
-       if(b<80){
-         d[i]=d[i+1]=d[i+2]=d[i+3]=0;
-       }else{
-         const c=vizColor(x,y,w,h);
-         d[i]=c[0];d[i+1]=c[1];d[i+2]=c[2];d[i+3]=255;
-         if(x<minX)minX=x;
-         if(x>maxX)maxX=x;
-       }
+   const w=scratch.width,h=scratch.height;sctx.drawImage(vizSrc,0,0,w,h);const d=sctx.getImageData(0,0,w,h).data;
+   const tops=Array(w).fill(h),bottoms=Array(w).fill(-1);let minX=w,maxX=-1,minY=h,maxY=-1;
+   for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,b=(d[i]+d[i+1]+d[i+2])/3;if(b<80)continue;tops[x]=Math.min(tops[x],y);bottoms[x]=Math.max(bottoms[x],y);minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y)}
+   vctx.clearRect(0,0,w,h);if(maxX<0)return;
+   // Frequency is the source X axis. Trimming its often-silent high end and
+   // resampling the retained range across the canvas keeps the full configured
+   // visualizer width useful without inventing fake audio energy.
+   const right=String(cfg.corner||'Top Left').endsWith('Right'),mirrored=String(cfg.visualizer_direction||'Normal')==='Mirrored',alignSourceRight=(right!==mirrored),trim=Math.max(0,Math.min(60,Number(cfg.visualizer_high_frequency_trim)||0));let sourceEnd=Math.max(minX,Math.min(w-1,Math.floor((w-1)*(1-trim/100))));let retained=false;for(let x=minX;x<=sourceEnd;x++)if(bottoms[x]>=0){retained=true;break}if(!retained)sourceEnd=maxX;
+   const anchor=String(cfg.visualizer_vertical_anchor||'Source'),span=maxY-minY+1;let shiftY=0;if(anchor==='Top')shiftY=-minY;else if(anchor==='Bottom')shiftY=h-1-maxY;else if(anchor==='Center')shiftY=Math.floor((h-span)/2)-minY;
+   const shape=String(cfg.visualizer_shape||'Spectrum'),spacing=String(cfg.visualizer_bar_spacing||'None'),out=vctx.createImageData(w,h),od=out.data,edge=alignSourceRight?w-1:0;
+   const spaced=x=>x!==edge&&((spacing==='Light'&&Math.abs(x)%4===3)||(spacing==='Wide'&&Math.abs(x)%2===1));
+   const put=(x,y,c)=>{if(x<0||x>=w||y<0||y>=h)return;const i=(y*w+x)*4;od[i]=c[0];od[i+1]=c[1];od[i+2]=c[2];od[i+3]=255};
+   let previous=null;
+   for(let dx=0;dx<w;dx++){
+     if(spaced(dx))continue;const x=Math.max(minX,Math.min(sourceEnd,Math.round(minX+(sourceEnd-minX)*(w<=1?0:dx/(w-1)))));if(bottoms[x]<0)continue;const amp=Math.max(1,bottoms[x]-tops[x]+1),mid=Math.floor((h-1)/2),baseColor=vizColor(dx,mid,w,h);
+     if(shape==='Center Mirror'){
+       const half=Math.max(1,Math.ceil(amp/2));for(let q=0;q<half;q++){put(dx,mid-q,vizColor(dx,mid-q,w,h));put(dx,mid+q,vizColor(dx,mid+q,w,h))}
+     }else if(shape==='Oscilloscope'){
+       const yy=Math.max(0,Math.min(h-1,Math.round(mid-Math.sin(x*.72)*(amp/h)*mid)));if(previous){const steps=Math.max(1,Math.abs(dx-previous.x));for(let q=0;q<=steps;q++)put(Math.round(previous.x+(dx-previous.x)*q/steps),Math.round(previous.y+(yy-previous.y)*q/steps),baseColor)}else put(dx,yy,baseColor);previous={x:dx,y:yy};
+     }else if(shape==='Particle Field'){
+       for(let y=tops[x];y<=bottoms[x];y++){if(((x*13+y*7)%5)!==0)continue;put(dx,Math.max(0,Math.min(h-1,y+shiftY+(((x+y)%3)-1))),vizColor(dx,y,w,h))}
+     }else if(shape==='Twin Rails'){
+       const rail=Math.max(1,Math.ceil(amp/2));put(dx,mid-rail,baseColor);put(dx,mid+rail,baseColor);
+     }else{
+       const start=shape==='Skyline'?Math.max(0,Math.floor(tops[x]/2)*2):tops[x];for(let y=start;y<=bottoms[x];y++){if(shape!=='Skyline'){const si=(y*w+x)*4,b=(d[si]+d[si+1]+d[si+2])/3;if(b<80)continue}const dy=y+shiftY;if(shape==='Dots'&&((dx+dy)&1))continue;if(shape==='Skyline'&&dy<bottoms[x]+shiftY-1&&((dx*3+dy)%5===0))continue;put(dx,dy,vizColor(dx,dy,w,h))}
      }
    }
-
-   vctx.clearRect(0,0,viz.width,viz.height);
-   if(maxX<0)return;
-
-   // showfreqs can leave blank internal columns at the outer edge.
-   // Extra Chunky is 40 internal pixels stretched across ~640 CSS px, so ONE
-   // blank source column becomes ~16 visible pixels -- almost exactly the old
-   // text padding. Normalize the actual lit pixels to the edge touching media.
-   const right=String(cfg.corner||'Top Left').endsWith('Right');
-   const mirrored=String(cfg.visualizer_direction||'Normal')==='Mirrored';
-
-   // CSS scaleX(-1) reverses which source edge ultimately touches media.
-   const alignSourceRight=(right!==mirrored);
-   const shift=alignSourceRight?(w-1-maxX):(-minX);
-
-   const out=vctx.createImageData(w,h),od=out.data;
-
-   for(let y=0;y<h;y++){
-     for(let x=0;x<w;x++){
-       const si=(y*w+x)*4;
-       if(d[si+3]===0)continue;
-
-       const dx=x+shift;
-       if(dx<0||dx>=w)continue;
-
-       const di=(y*w+dx)*4;
-       od[di]=d[si];
-       od[di+1]=d[si+1];
-       od[di+2]=d[si+2];
-       od[di+3]=d[si+3];
-     }
-   }
-
    vctx.putImageData(out,0,0);
  }catch(_){}
 }

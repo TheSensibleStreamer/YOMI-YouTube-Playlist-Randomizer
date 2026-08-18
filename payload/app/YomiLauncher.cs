@@ -11,7 +11,8 @@ public static class YomiLauncher
         {
             string mode = (args.Length > 0 ? args[0] : "controller").ToLowerInvariant();
             string appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-            string scriptName = mode == "settings" ? "settings.ps1" : "controller.ps1";
+            bool updateMode = mode == "update" || mode == "update-auto";
+            string scriptName = updateMode ? "update.ps1" : (mode == "settings" ? "settings.ps1" : "controller.ps1");
             string script = Path.Combine(appDir, scriptName);
 
             if (!File.Exists(script))
@@ -26,7 +27,8 @@ public static class YomiLauncher
             psi.FileName = powershell;
             psi.Arguments =
                 "-NoProfile -ExecutionPolicy Bypass -STA -File \"" +
-                script.Replace("\"", "\\\"") + "\"";
+                script.Replace("\"", "\\\"") + "\"" +
+                (mode == "update" ? " -Manual" : "");
             psi.WorkingDirectory = appDir;
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;

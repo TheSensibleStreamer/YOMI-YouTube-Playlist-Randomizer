@@ -15,6 +15,7 @@ local playlist_file = data_root .. "\\playlist.txt"
 local resume_file = data_root .. "\\state\\resume-track.txt"
 local current_file = data_root .. "\\state\\current.json"
 local engine_status_file = data_root .. "\\state\\engine-status.json"
+local history_file = data_root .. "\\state\\history.jsonl"
 
 local audio_dir = data_root .. "\\cache\\audio"
 local artwork_dir = data_root .. "\\cache\\artwork"
@@ -23,6 +24,8 @@ local visualizer_dir = data_root .. "\\cache\\visualizer"
 local meta_dir = data_root .. "\\cache\\meta"
 local gain_dir = data_root .. "\\cache\\gain"
 local status_dir = data_root .. "\\cache\\status"
+local comment_dir = data_root .. "\\cache\\comments"
+local telemetry_dir = data_root .. "\\cache\\telemetry"
 
 local ytdlp = install_root .. "\\runtime\\yt-dlp\\yt-dlp.exe"
 local ffmpeg = install_root .. "\\runtime\\ffmpeg\\ffmpeg.exe"
@@ -90,13 +93,40 @@ if cfg.visualizer_enabled == nil then cfg.visualizer_enabled = true end
 if cfg.title_enabled == nil then cfg.title_enabled = true end
 if cfg.channel_enabled == nil then cfg.channel_enabled = true end
 if cfg.loudness_normalization == nil then cfg.loudness_normalization = true end
+if cfg.director_mode == nil then cfg.director_mode = false end
+if cfg.overlay_video_quality == nil then cfg.overlay_video_quality = "144p (fastest)" end
+if cfg.video_preference == nil then cfg.video_preference = "Prefer selected maximum" end
+if cfg.video_fps == nil then cfg.video_fps = "30 FPS" end
+if cfg.audio_quality == nil then cfg.audio_quality = "Best available" end
+if cfg.audio_preference == nil then cfg.audio_preference = "Prefer selected maximum" end
+if cfg.visualizer_frequency_scale == nil then cfg.visualizer_frequency_scale = "Logarithmic" end
+if cfg.visualizer_high_frequency_trim == nil then cfg.visualizer_high_frequency_trim = 20 end
+if cfg.visualizer_fps == nil then cfg.visualizer_fps = "30 FPS" end
+
+local function modules_contain(value, wanted)
+    local hay = "," .. tostring(value or ""):lower():gsub("%s+","") .. ","
+    return hay:find("," .. tostring(wanted):lower() .. ",",1,true) ~= nil
+end
+
+local function director_wants(wanted)
+    if cfg.director_mode ~= true or type(cfg.director_outputs) ~= "table" then return false end
+    for _,output in ipairs(cfg.director_outputs) do
+        if output.enabled == true and modules_contain(output.modules,wanted) then return true end
+    end
+    return false
+end
 
 local streamer_mode = tostring(cfg.app_mode) == "Streamer / OBS"
+local director_mode = streamer_mode and cfg.director_mode == true
 local ffmpeg_available = exists(ffmpeg)
 local deno_available = exists(deno)
-local want_art = streamer_mode and cfg.artwork_enabled == true
-local want_video = streamer_mode and cfg.video_enabled == true
-local want_viz = streamer_mode and cfg.visualizer_enabled == true and ffmpeg_available
+local want_art = streamer_mode and (cfg.artwork_enabled == true or director_wants("artwork"))
+local want_video = streamer_mode and (cfg.video_enabled == true or director_wants("video"))
+local want_viz = streamer_mode and (cfg.visualizer_enabled == true or director_wants("visualizer")) and ffmpeg_available
+local want_comment = director_mode and cfg.featured_comment_enabled == true and director_wants("comment")
+local want_telemetry = director_mode and cfg.telemetry_enabled == true
+local want_probe = want_telemetry and cfg.telemetry_probe_enabled == true and ffmpeg_available
+local want_history = director_mode and cfg.history_enabled == true
 local smart_crop = want_art and cfg.smart_artwork_crop == true and ffmpeg_available
 local loudness_enabled = cfg.loudness_normalization == true and ffmpeg_available
 local player_stream_video = (not streamer_mode) and tostring(cfg.player_video_quality or "Off (audio only)") ~= "Off (audio only)"
@@ -106,16 +136,22 @@ mp.msg.info(
     " art=" .. tostring(want_art) ..
     " video=" .. tostring(want_video) ..
     " visualizer=" .. tostring(want_viz) ..
+    " director=" .. tostring(director_mode) ..
+    " comments=" .. tostring(want_comment) ..
+    " telemetry=" .. tostring(want_telemetry) ..
     " ffmpeg=" .. tostring(ffmpeg_available) ..
     " deno=" .. tostring(deno_available)
 )
 
 local workers = tonumber(cfg.cache_workers) or 1
 if workers < 1 then workers = 1 end
-if workers > 4 then workers = 4 end
+if workers > 8 then workers = 8 end
 
 local prefetch_ahead = tonumber(cfg.prefetch_ahead) or 4
 if prefetch_ahead < 1 then prefetch_ahead = 1 end
+if prefetch_ahead > 20 then prefetch_ahead = 20 end
+local video_prefetch_ahead = prefetch_ahead
+local video_cache_limit = math.max(64,tonumber(cfg.video_cache_limit_mb) or 512) * 1024 * 1024
 local cache_priority = tostring(cfg.cache_priority or "idle")
 
 local urls = {}
@@ -143,6 +179,9 @@ local function meta_path(i) return meta_dir .. "\\track-" .. i .. ".info.json" e
 local function gain_path(i) return gain_dir .. "\\track-" .. i .. ".gain" end
 local function video_path(i) return video_dir .. "\\track-" .. i .. ".mp4" end
 local function viz_path(i) return visualizer_dir .. "\\track-" .. i .. ".mp4" end
+local function comment_path(i) return comment_dir .. "\\track-" .. i .. ".json" end
+local function telemetry_audio_path(i) return telemetry_dir .. "\\track-" .. i .. ".audio.json" end
+local function telemetry_video_path(i) return telemetry_dir .. "\\track-" .. i .. ".video.json" end
 
 local image_exts = {"jpg","jpeg","webp","png"}
 local audio_exts = {"webm","m4a","mp4","opus","ogg","aac","mp3","mka"}
@@ -298,6 +337,22 @@ local function ytdlp_common(client_spec)
     return args
 end
 
+local function audio_format_selector()
+    local quality = tostring(cfg.audio_quality or "Best available")
+    local prefer_low = tostring(cfg.audio_preference or "Prefer selected maximum") == "Prefer lowest compatible"
+    local cap = nil
+    if quality:find("64",1,true) then cap = 64
+    elseif quality:find("128",1,true) then cap = 128
+    elseif quality:find("160",1,true) then cap = 160 end
+
+    if prefer_low then
+        if cap then return "worstaudio[abr<=" .. cap .. "]/worstaudio/best" end
+        return "worstaudio/bestaudio/best"
+    end
+    if cap then return "bestaudio[abr<=" .. cap .. "]/bestaudio/best" end
+    return "bestaudio/best"
+end
+
 local function parse_gain(stderr)
     local gain = tonumber((stderr or ""):match("track_gain%s*=%s*([%+%-]?[%d%.]+)%s*dB")) or 0
     local peak = tonumber((stderr or ""):match("track_peak%s*=%s*([%d%.]+)")) or 0
@@ -325,12 +380,14 @@ local function viz_filter()
     elseif activity == "Normal" then averaging,win,boost = 2,1024,6
     elseif activity == "Punchy" then averaging,win,boost = 1,512,12 end
 
-    local w = tonumber(cfg.visualizer_internal_width) or 40
-    local h = tonumber(cfg.visualizer_internal_height) or 10
+    local w = math.max(16,math.min(192,tonumber(cfg.visualizer_internal_width) or 40))
+    local h = math.max(6,math.min(48,tonumber(cfg.visualizer_internal_height) or 10))
+    local fps = tostring(cfg.visualizer_fps or "30 FPS"):find("60",1,true) and 60 or 30
 
+    local fscale = tostring(cfg.visualizer_frequency_scale or "Logarithmic") == "Linear" and "lin" or "log"
     return string.format(
-        "[0:a]highpass=f=30,volume=%ddB,showfreqs=s=%dx%d:mode=bar:ascale=cbrt:fscale=log:cmode=combined:rate=30:colors=white:averaging=%d:win_size=%d,format=yuv420p[v]",
-        boost,w,h,averaging,win
+        "[0:a]highpass=f=30,volume=%ddB,showfreqs=s=%dx%d:mode=bar:ascale=cbrt:fscale=%s:cmode=combined:rate=%d:colors=white:averaging=%d:win_size=%d,format=yuv420p[v]",
+        boost,w,h,fscale,fps,averaging,win
     )
 end
 
@@ -340,6 +397,16 @@ if current_index < 1 or current_index > #urls then current_index = 1 end
 local desired_index = current_index
 local requested_index = 0
 local playing_index = 0
+local jobs = {}
+local queued = {}
+local active = {}
+local active_count = 0
+local decorative_active_count = 0
+local audio_retries = {}
+local bundle_priority = {}
+local metrics_by_track = {}
+local bundle_cache_hit = {}
+local bundle_ready
 
 local function next_candidate(from,step)
     step = step or 1
@@ -357,17 +424,114 @@ local function read_gain(i)
     return tonumber((read_all(gain_path(i)) or "0"):match("[%+%-]?[%d%.]+")) or 0
 end
 
+local function ready_ahead_count(i)
+    if not bundle_ready then return 0 end
+    local count = 0
+    local cursor = i
+    for _=1,prefetch_ahead do
+        local n = next_candidate(cursor,1)
+        if not n or n == i then break end
+        if bundle_ready(n) then count = count + 1 else break end
+        cursor = n
+    end
+    return count
+end
+
 local function state_for(i)
     local info = load_json(meta_path(i)) or {}
     local art = artwork_path(i)
+    local comment = load_json(comment_path(i)) or {}
+    if exists(status_path(i,"comment.hidden")) then comment={} end
+    local audio_probe = load_json(telemetry_audio_path(i))
+    local video_probe = load_json(telemetry_video_path(i))
+    local next_i = next_candidate(i,1)
+    local next_info = next_i and (load_json(meta_path(next_i)) or {}) or {}
+    local next_art = next_i and artwork_path(next_i) or nil
+    local m = metrics_by_track[i] or {}
+    local prepare_seconds = 0
+    for _,seconds in pairs(m) do prepare_seconds = prepare_seconds + (tonumber(seconds) or 0) end
+    local decorative_active = 0
+    for _,running in pairs(active) do
+        if type(running)=="table" and running.decorative then decorative_active=decorative_active+1 end
+    end
+    local audio_bytes = fsize(audio_path(i))
+    local art_bytes = art and fsize(art) or 0
+    local video_bytes = fsize(video_path(i))
+    local viz_bytes = fsize(viz_path(i))
 
     return {
         index = i,
+        playlist_count = #urls,
+        id = info.id or "",
+        extractor = info.extractor_key or info.extractor or "YouTube",
+        webpage_url = info.webpage_url or info.original_url or urls[i],
         title = info.title or ("Track " .. i),
         channel = info.channel or info.uploader or "",
+        uploader = info.uploader or "",
+        duration = tonumber(info.duration) or 0,
+        upload_date = info.upload_date or info.release_date or "",
+        release_date = info.release_date or "",
+        view_count = tonumber(info.view_count),
+        like_count = tonumber(info.like_count),
+        comment_count = tonumber(info.comment_count),
+        channel_follower_count = tonumber(info.channel_follower_count),
+        channel_is_verified = info.channel_is_verified == true,
+        categories = info.categories or {},
+        tags = info.tags or {},
+        live_status = info.live_status or "",
+        age_limit = tonumber(info.age_limit) or 0,
         artwork = (want_art and art) and ("/media/artwork/" .. i) or "",
         video = (want_video and exists(video_path(i))) and ("/media/video/" .. i) or "",
-        visualizer = (want_viz and exists(viz_path(i))) and ("/media/visualizer/" .. i) or ""
+        visualizer = (want_viz and exists(viz_path(i))) and ("/media/visualizer/" .. i) or "",
+        video_quality = tostring(cfg.overlay_video_quality or "144p (fastest)"),
+        video_preference = tostring(cfg.video_preference or "Prefer selected maximum"),
+        video_fps = tostring(cfg.video_fps or "30 FPS"),
+        audio_quality = tostring(cfg.audio_quality or "Best available"),
+        audio_preference = tostring(cfg.audio_preference or "Prefer selected maximum"),
+        visualizer_fps = tostring(cfg.visualizer_fps or "30 FPS"),
+        visualizer_high_frequency_trim = tonumber(cfg.visualizer_high_frequency_trim) or 20,
+        audio = {
+            ext = info.ext or info.audio_ext or "",
+            format_id = info.format_id or "",
+            format_note = info.format_note or "",
+            acodec = info.acodec or "",
+            abr = tonumber(info.abr),
+            asr = tonumber(info.asr),
+            audio_channels = tonumber(info.audio_channels),
+            gain_db = read_gain(i)
+        },
+        media = {
+            audio_bytes = audio_bytes,
+            artwork_bytes = art_bytes,
+            video_bytes = video_bytes,
+            visualizer_bytes = viz_bytes,
+            total_bytes = audio_bytes + art_bytes + video_bytes + viz_bytes
+        },
+        telemetry = {
+            audio = audio_probe,
+            video = video_probe
+        },
+        comment = comment,
+        up_next = {
+            index = next_i or 0,
+            title = next_info.title or "",
+            channel = next_info.channel or next_info.uploader or "",
+            artwork = (next_i and next_art) and ("/media/artwork/" .. next_i) or ""
+        },
+        pipeline = {
+            bundle_ready = bundle_ready and bundle_ready(i) or false,
+            cache_hit = bundle_cache_hit[i] == true,
+            active_jobs = active_count,
+            decorative_jobs = decorative_active,
+            queued_jobs = #jobs,
+            workers = workers,
+            prefetch_ahead = prefetch_ahead,
+            video_prefetch_ahead = video_prefetch_ahead,
+            complete_prefetch_ahead = prefetch_ahead,
+            ready_ahead = ready_ahead_count(i),
+            prepare_seconds = prepare_seconds,
+            stages = m
+        }
     }
 end
 
@@ -377,12 +541,28 @@ local function write_state(i)
     if ok then write_all(current_file,text) end
 end
 
-local jobs = {}
-local queued = {}
-local active = {}
-local active_count = 0
-local audio_retries = {}
-local bundle_priority = {}
+local function record_history(i)
+    if not i or i<1 then return end
+    local info = load_json(meta_path(i)) or {}
+    local entry = {
+        index = i,
+        id = info.id or "",
+        title = info.title or ("Track " .. i),
+        channel = info.channel or info.uploader or "",
+        duration = tonumber(info.duration) or 0,
+        upload_date = info.upload_date or info.release_date or "",
+        unix = os.time()
+    }
+    local ok,line = pcall(utils.format_json,entry)
+    if not ok then return end
+    local max_entries = math.max(10,math.min(1000,tonumber(cfg.history_max_entries) or 100))
+    local lines = {}
+    local raw = read_all(history_file) or ""
+    for old in raw:gmatch("[^\r\n]+") do table.insert(lines,old) end
+    while #lines >= max_entries do table.remove(lines,1) end
+    table.insert(lines,line)
+    write_all(history_file,table.concat(lines,"\r\n") .. "\r\n")
+end
 
 local function job_key(kind,i)
     return kind .. ":" .. i
@@ -399,7 +579,19 @@ local function optional_done(kind,i)
     return true
 end
 
-local function bundle_ready(i)
+local function decorative_done(kind,i)
+    if kind == "comment" then
+        return (not want_comment) or exists(comment_path(i)) or exists(status_path(i,"comment.failed")) or exists(status_path(i,"comment.hidden"))
+    elseif kind == "probe" then
+        if not want_probe then return true end
+        local audio_done = exists(telemetry_audio_path(i)) or exists(status_path(i,"probe-audio.failed"))
+        local video_done = (not exists(video_path(i))) or exists(telemetry_video_path(i)) or exists(status_path(i,"probe-video.failed"))
+        return audio_done and video_done
+    end
+    return true
+end
+
+bundle_ready = function(i)
     if not i or known_bad(i) then return false end
     if not playback_ready(i) then return false end
     if not optional_done("art",i) then return false end
@@ -421,6 +613,8 @@ local function enqueue(kind,i,priority)
 
     if kind == "audio" then
         if playback_ready(i) or known_bad(i) then return end
+    elseif kind == "comment" or kind == "probe" then
+        if not playback_ready(i) or decorative_done(kind,i) then return end
     else
         if not playback_ready(i) or optional_done(kind,i) then return end
     end
@@ -455,13 +649,23 @@ local schedule_for_current
 local request_bundle
 
 local function job_done(job)
+    if job.started_at then
+        if not metrics_by_track[job.i] then metrics_by_track[job.i] = {} end
+        metrics_by_track[job.i][job.kind] = math.max(0,mp.get_time()-job.started_at)
+    end
     active[job.key] = nil
-    active_count = math.max(0,active_count-1)
+    if job.decorative then decorative_active_count=math.max(0,decorative_active_count-1)
+    else active_count = math.max(0,active_count-1) end
 
     -- Every completed step immediately unlocks the next missing pieces of the
     -- same presentation bundle.
     if request_bundle and bundle_priority[job.i] and not known_bad(job.i) then
         request_bundle(job.i,bundle_priority[job.i])
+    end
+
+    if playing_index>0 then
+        local next_i = next_candidate(playing_index,1)
+        if job.i==playing_index or job.i==next_i then write_state(playing_index) end
     end
 
     -- The desired track is not allowed to start until every enabled visual
@@ -485,16 +689,55 @@ local function job_done(job)
 end
 
 local function cleanup_cache(center)
-    local keep_min = math.max(1,center-2)
-    local keep_max = math.min(#urls,center+prefetch_ahead+3)
-    local dirs = {audio_dir,artwork_dir,video_dir,visualizer_dir,meta_dir,gain_dir,status_dir}
+    local keep = {[center]=true}
+    local cursor = center
+    for _=1,prefetch_ahead+3 do
+        cursor = next_candidate(cursor,1)
+        if not cursor or keep[cursor] then break end
+        keep[cursor] = true
+    end
+    cursor = center
+    for _=1,2 do
+        cursor = next_candidate(cursor,-1)
+        if not cursor or keep[cursor] then break end
+        keep[cursor] = true
+    end
+    local dirs = {audio_dir,artwork_dir,video_dir,visualizer_dir,meta_dir,gain_dir,status_dir,comment_dir,telemetry_dir}
 
     for _,dir in ipairs(dirs) do
         for _,name in ipairs(utils.readdir(dir,"files") or {}) do
             local n = tonumber(name:match("track%-(%d+)"))
-            if n and (n < keep_min or n > keep_max) then
+            if n and not keep[n] then
                 os.remove(dir .. "\\" .. name)
             end
+        end
+    end
+
+    -- A quality-independent hard ceiling prevents 720p/Best mode from turning
+    -- a long playlist window into an unbounded video cache. Preserve the
+    -- playing track and its immediate successor; evict the farthest prepared
+    -- videos first and let the ordinary scheduler recreate them if needed.
+    local video_files = {}
+    local video_total = 0
+    local protected_next = next_candidate(center,1)
+    for _,name in ipairs(utils.readdir(video_dir,"files") or {}) do
+        local n = tonumber(name:match("^track%-(%d+)%.mp4$"))
+        if n then
+            local path = video_dir .. "\\" .. name
+            local size = fsize(path)
+            video_total = video_total + size
+            local direct = math.abs(n-center)
+            table.insert(video_files,{n=n,path=path,size=size,distance=math.min(direct,#urls-direct)})
+        end
+    end
+    table.sort(video_files,function(a,b) return a.distance > b.distance end)
+    for _,item in ipairs(video_files) do
+        if video_total <= video_cache_limit then break end
+        if item.n ~= center and item.n ~= protected_next then
+            os.remove(item.path)
+            os.remove(telemetry_video_path(item.n))
+            video_total = math.max(0,video_total-item.size)
+            log("VIDEO CACHE EVICT track " .. item.n .. " limit " .. math.floor(video_cache_limit/1024/1024) .. " MB")
         end
     end
 end
@@ -603,7 +846,7 @@ local function source_download(job)
 
     table.insert(args,"--ignore-errors")
     table.insert(args,"--format")
-    table.insert(args,"bestaudio/best")
+    table.insert(args,audio_format_selector())
     table.insert(args,"--write-info-json")
     table.insert(args,"--no-write-playlist-metafiles")
     table.insert(args,"--output")
@@ -958,14 +1201,66 @@ local function video_job(job)
     if desired_index == i and playing_index ~= i then set_engine_status("video","Preparing tiny video for track " .. i .. "...",i) end
     local temp = video_dir .. "\\track-" .. i .. ".downloading.mp4"
 
-    -- Route 1 deliberately mirrors the proven compatibility route: itag 160 with
-    -- web_embedded,default and delayed retries. Transient/long-video 403s often
-    -- recover on a fresh extraction. Only after that do we change routes.
-    local routes = {
-        {label="proven 144p route",clients="web_embedded,default",format="160",repeats=3,delay=1.5},
-        {label="default low MP4",clients="default,-web_safari",format="160/133/134/18/bestvideo[height<=240][ext=mp4]/best[height<=360][ext=mp4]",repeats=2,delay=1.0},
-        {label="automatic progressive fallback",clients=false,format="18/best[height<=360][ext=mp4]/bestvideo[height<=360][ext=mp4]/best[height<=480]",repeats=2,delay=1.0}
+    -- Resolution is a ceiling. The independent preference chooses the top or
+    -- bottom of that compatible range. Every ladder retains the battle-tested
+    -- itag 160 route so a fancy request can never make the bundle brittle.
+    local quality = tostring(cfg.overlay_video_quality or "144p (fastest)")
+    local prefer_low = tostring(cfg.video_preference or "Prefer selected maximum") == "Prefer lowest compatible"
+    local cap = 144
+    if quality:find("240p",1,true) then cap = 240
+    elseif quality:find("360p",1,true) then cap = 360
+    elseif quality:find("480p",1,true) then cap = 480
+    elseif quality:find("720p",1,true) then cap = 720
+    elseif quality:find("Best",1,true) then cap = 0 end
+
+    local prefer_60 = tostring(cfg.video_fps or "30 FPS"):find("60",1,true) ~= nil
+    local itag_ladders = {
+        [144]="160",
+        [240]="133/160",
+        [360]="134/18/133/160",
+        [480]="135/134/18/133/160",
+        [720]="136/22/135/134/18/133/160"
     }
+    local function filtered_video(base,height,high_fps_only)
+        local h = height and height > 0 and ("[height<=" .. height .. "]") or ""
+        local fps
+        if prefer_60 then fps = high_fps_only and "[fps>30][fps<=60]" or "[fps<=60]"
+        else fps = "[fps<=30]" end
+        return base .. h .. fps .. "[vcodec^=avc][ext=mp4]/" .. base .. h .. fps .. "[ext=mp4]"
+    end
+    local max_formats = {}
+    for _,height in ipairs({144,240,360,480,720}) do
+        if prefer_60 then
+            max_formats[height] = filtered_video("bestvideo",height,true) .. "/" .. filtered_video("bestvideo",height,false) .. "/" .. itag_ladders[height]
+        else
+            max_formats[height] = itag_ladders[height] .. "/" .. filtered_video("bestvideo",height,false)
+        end
+    end
+    local primary
+    if prefer_low then
+        if prefer_60 then primary = filtered_video("worstvideo",cap,true) .. "/" .. filtered_video("worstvideo",cap,false) .. "/160"
+        else primary = "160/" .. filtered_video("worstvideo",cap,false) end
+    elseif cap > 0 then
+        primary = max_formats[cap]
+    else
+        if prefer_60 then primary = filtered_video("bestvideo",0,true) .. "/" .. filtered_video("bestvideo",0,false)
+        else primary = filtered_video("bestvideo",0,false) end
+    end
+
+    local label_cap = cap > 0 and (tostring(cap) .. "p") or "best"
+    local label_pref = prefer_low and "lowest compatible" or "selected maximum"
+    local label_fps = prefer_60 and "60 FPS when available" or "30 FPS"
+    local routes = {
+        {label=label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",clients=prefer_60 and "default,-web_safari" or ((cap == 144 or prefer_low) and "web_embedded,default" or "default,-web_safari"),format=primary,repeats=(cap == 144 and 3 or 2),delay=(cap == 144 and 1.5 or 1.0)}
+    }
+    if cap == 0 or cap > 360 then
+        table.insert(routes,{label="360p compatibility recovery",clients="default,-web_safari",format=max_formats[360],repeats=2,delay=1.0})
+    end
+    if not (cap == 144 or prefer_low) then
+        table.insert(routes,{label="proven 144p recovery",clients="web_embedded,default",format="160",repeats=3,delay=1.5})
+    end
+    local fallback_fps = prefer_60 and "[fps<=60]" or "[fps<=30]"
+    table.insert(routes,{label="automatic progressive fallback",clients=false,format="18/best[height<=360]"..fallback_fps.."[ext=mp4]/bestvideo[height<=360]"..fallback_fps.."[ext=mp4]/best[height<=480]"..fallback_fps,repeats=2,delay=1.0})
     local last_stderr=""; local try_route
     try_route=function(rn,attempt)
         os.remove(temp); local spec=routes[rn]; local args=ytdlp_common(spec.clients)
@@ -1044,15 +1339,136 @@ local function viz_job(job)
     end)
 end
 
+local function sanitize_comment(text)
+    local s = tostring(text or "")
+    s = s:gsub("https?://%S+","")
+    s = s:gsub("[%z\1-\8\11\12\14-\31]","")
+    s = s:gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
+    local max_chars = math.max(40,math.min(500,tonumber(cfg.comment_max_chars) or 220))
+    local count,cut = 0,nil
+    for pos in s:gmatch("()[%z\1-\127\194-\244]") do
+        count = count + 1
+        if count > max_chars then cut = pos-1; break end
+    end
+    if cut then s = s:sub(1,cut):gsub("%s+%S*$","") .. "…" end
+    return s
+end
+
+local function comment_allowed(text)
+    local mode = tostring(cfg.comment_filter_mode or "Basic safety")
+    if mode == "Off" then return true end
+    local s = tostring(text or ""):lower()
+    local basic_words = {"nigger","faggot","kike","chink","spic"}
+    local strict_words = {"fuck","shit","bitch","cunt","cock","dick","pussy","whore","slut"}
+    for _,word in ipairs(basic_words) do
+        if s:find("%f[%w]" .. word .. "%f[%W]") then return false end
+    end
+    if s:find("kill yourself",1,true) or s:find("rape you",1,true) then return false end
+    if mode == "Strict" then
+        for _,word in ipairs(strict_words) do
+            if s:find("%f[%w]" .. word .. "%f[%W]") then return false end
+        end
+    end
+    return true
+end
+
+local function comment_job(job)
+    local i = job.i
+    if decorative_done("comment",i) then job_done(job); return end
+    log("COMMENT START track " .. i)
+    local temp_info = comment_dir .. "\\track-" .. i .. ".comments.info.json"
+    os.remove(temp_info)
+    local args = ytdlp_common(false)
+    table.insert(args,"--skip-download")
+    table.insert(args,"--write-info-json")
+    table.insert(args,"--write-comments")
+    table.insert(args,"--extractor-retries")
+    table.insert(args,"1")
+    table.insert(args,"--extractor-args")
+    table.insert(args,"youtube:player_client=web_embedded,default;comment_sort=top;max_comments=1,1,0,0,1")
+    table.insert(args,"--output")
+    table.insert(args,comment_dir .. "\\track-" .. i .. ".comments")
+    table.insert(args,urls[i])
+
+    run("idle",ytdlp,args,function(success,result)
+        local info = load_json(temp_info) or {}
+        local comments = info.comments
+        local c = type(comments)=="table" and comments[1] or nil
+        local text = c and sanitize_comment(c.text) or ""
+        if success and result and result.status==0 and c and text~="" and comment_allowed(text) and not exists(status_path(i,"comment.hidden")) then
+            local slim = {
+                text = text,
+                author = c.author or c.author_id or "YouTube viewer",
+                author_id = c.author_id or "",
+                like_count = tonumber(c.like_count),
+                timestamp = tonumber(c.timestamp),
+                source = "YouTube relevance sorting"
+            }
+            local ok,json = pcall(utils.format_json,slim)
+            if ok then write_all(comment_path(i),json) end
+            log("COMMENT READY track " .. i)
+        else
+            if not exists(status_path(i,"comment.hidden")) then mark(status_path(i,"comment.failed")) end
+            log("COMMENT UNAVAILABLE track " .. i)
+        end
+        os.remove(temp_info)
+        if playing_index==i then write_state(i) end
+        job_done(job)
+    end)
+end
+
+local function probe_one(i,label,path,out_path,failed_path,callback)
+    if not exists(path) or fsize(path)<=0 then callback(); return end
+    local ffprobe = install_root .. "\\runtime\\ffmpeg\\ffprobe.exe"
+    run("idle",ffprobe,{
+        "-v","error",
+        "-show_entries","format=format_name,duration,size,bit_rate:stream=index,codec_name,codec_long_name,codec_type,profile,width,height,pix_fmt,level,r_frame_rate,avg_frame_rate,sample_rate,channels,channel_layout,bit_rate",
+        "-of","json",
+        path
+    },function(success,result)
+        local raw = result and result.stdout or ""
+        local parsed = nil
+        if raw~="" then
+            local ok,value = pcall(utils.parse_json,raw)
+            if ok then parsed=value end
+        end
+        if success and result and result.status==0 and parsed then
+            write_all(out_path,raw)
+            log("PROBE " .. label .. " READY track " .. i)
+        else
+            mark(failed_path)
+            log("PROBE " .. label .. " FAILED track " .. i)
+        end
+        callback()
+    end)
+end
+
+local function probe_job(job)
+    local i = job.i
+    if decorative_done("probe",i) then job_done(job); return end
+    log("PROBE START track " .. i)
+    probe_one(i,"AUDIO",audio_path(i),telemetry_audio_path(i),status_path(i,"probe-audio.failed"),function()
+        probe_one(i,"VIDEO",video_path(i),telemetry_video_path(i),status_path(i,"probe-video.failed"),function()
+            if playing_index==i then write_state(i) end
+            job_done(job)
+        end)
+    end)
+end
+
 local function start_job(job)
     queued[job.key] = nil
-    active[job.key] = true
-    active_count = active_count + 1
+    job.decorative = (job.kind=="comment" or job.kind=="probe")
+    active[job.key] = job
+    if job.decorative then decorative_active_count=decorative_active_count+1
+    else active_count = active_count + 1 end
+    job.started_at = mp.get_time()
 
     if job.kind == "audio" then source_download(job)
     elseif job.kind == "art" then art_job(job)
     elseif job.kind == "video" then video_job(job)
     elseif job.kind == "viz" then viz_job(job)
+    elseif job.kind == "comment" then comment_job(job)
+    elseif job.kind == "probe" then probe_job(job)
     else job_done(job) end
 end
 
@@ -1067,6 +1483,10 @@ pump = function()
     while active_count < workers and #jobs > 0 do
         local job = table.remove(jobs,1)
         if queued[job.key] then
+            if (job.kind=="comment" or job.kind=="probe") and decorative_active_count>=2 then
+                table.insert(jobs,1,job)
+                break
+            end
             start_job(job)
         end
     end
@@ -1140,6 +1560,7 @@ start_play = function(i)
 
     desired_index = i
     bundle_priority[i] = 0
+    if bundle_cache_hit[i] == nil then bundle_cache_hit[i] = bundle_ready(i) end
 
     if not bundle_ready(i) then
         local stage = bundle_stage(i)
@@ -1199,12 +1620,29 @@ end
 
 mp.register_script_message("yomi-next",function() advance(1) end)
 mp.register_script_message("yomi-prev",function() advance(-1) end)
+mp.register_script_message("yomi-jump",function(raw_index)
+    local n = math.floor(tonumber(raw_index) or 0)
+    if n < 1 or n > #urls then return end
+    player_rescue_active = false
+    desired_index = n
+    requested_index = 0
+    start_play(n)
+end)
+mp.register_script_message("yomi-hide-comment",function()
+    local i = playing_index>0 and playing_index or current_index
+    if not i or i<1 then return end
+    os.remove(comment_path(i))
+    mark(status_path(i,"comment.hidden"))
+    log("COMMENT HIDDEN track " .. i)
+    if playing_index==i then write_state(i) end
+end)
 
 mp.register_event("file-loaded",function()
     playing_index = current_index
     requested_index = 0
 
     mp.set_property_number("volume-gain",read_gain(current_index))
+    record_history(current_index)
     write_state(current_index)
 
     local info = load_json(meta_path(current_index)) or {}
@@ -1213,6 +1651,9 @@ mp.register_event("file-loaded",function()
 
     log("PLAYING track " .. current_index)
     schedule_for_current(current_index)
+    if want_probe then enqueue("probe",current_index,9000) end
+    if want_comment then enqueue("comment",current_index,9010) end
+    pump()
 end)
 
 mp.observe_property("pause","bool",function(_,paused)
