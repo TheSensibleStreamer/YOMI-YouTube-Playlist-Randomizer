@@ -1149,7 +1149,7 @@ local function art_job(job)
             local detector = install_root .. "\\app\\ArtworkEdgeDetector.exe"
             log("ARTWORK COLOR DETECT track " .. i)
 
-            run("idle",detector,{normalized},function(det_success,det_result)
+            run("idle",detector,{normalized,tostring(w),tostring(h)},function(det_success,det_result)
                 local stdout = det_result and det_result.stdout or ""
                 local stderr = det_result and det_result.stderr or ""
 
@@ -1205,8 +1205,9 @@ local function video_job(job)
     local temp = video_dir .. "\\track-" .. i .. ".downloading.mp4"
 
     -- Resolution is a ceiling. The independent preference chooses the top or
-    -- bottom of that compatible range. Every ladder retains the battle-tested
-    -- itag 160 route so a fancy request can never make the bundle brittle.
+    -- bottom of that compatible range. Each compatibility format is a real
+    -- download route so an in-transit failure advances instead of reselecting
+    -- the same broken stream and then jumping immediately to 144p.
     local quality = tostring(cfg.overlay_video_quality or "144p (fastest)")
     local prefer_low = tostring(cfg.video_preference or "Prefer selected maximum") == "Prefer lowest compatible"
     local cap = 144
@@ -1217,13 +1218,6 @@ local function video_job(job)
     elseif quality:find("Best",1,true) then cap = 0 end
 
     local prefer_60 = tostring(cfg.video_fps or "30 FPS"):find("60",1,true) ~= nil
-    local itag_ladders = {
-        [144]="160",
-        [240]="133/160",
-        [360]="134/18/133/160",
-        [480]="135/134/18/133/160",
-        [720]="136/22/135/134/18/133/160"
-    }
     local function filtered_video(base,height,high_fps_only,exact_height)
         local h = ""
         if height and height > 0 then
@@ -1250,18 +1244,18 @@ local function video_job(job)
                 filtered_video("bestvideo",height,true,false) .. "/" ..
                 labeled_video("bestvideo",height,false) .. "/" ..
                 filtered_video("bestvideo",height,false,true) .. "/" ..
-                filtered_video("bestvideo",height,false,false) .. "/" ..
-                itag_ladders[height]
+                filtered_video("bestvideo",height,false,false)
         else
             -- YouTube's nominal quality label is authoritative here. A video
             -- can be labeled 240p while its stored frame is 352x288, so a
             -- literal height<=240 filter rejects the correct format. Try the
-            -- label first, then literal/capped MP4, then fixed-itag recovery.
+            -- label first, then literal/capped MP4. Fixed itags are separate
+            -- download routes because yt-dlp's slash fallback happens during
+            -- selection, not after a selected stream fails in transit.
             max_formats[height] =
                 labeled_video("bestvideo",height,false) .. "/" ..
                 filtered_video("bestvideo",height,false,true) .. "/" ..
-                filtered_video("bestvideo",height,false,false) .. "/" ..
-                itag_ladders[height]
+                filtered_video("bestvideo",height,false,false)
         end
     end
     local primary
@@ -1278,18 +1272,87 @@ local function video_job(job)
     local label_cap = cap > 0 and (tostring(cap) .. "p") or "best"
     local label_pref = prefer_low and "lowest compatible" or "selected maximum"
     local label_fps = prefer_60 and "60 FPS when available" or "30 FPS"
-    local routes = {
-        {label=label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",clients=prefer_60 and "default,-web_safari" or (((cap > 0 and cap <= 240) or prefer_low) and "web_embedded,default" or "default,-web_safari"),format=primary,repeats=(cap == 144 and 3 or 2),delay=(cap == 144 and 1.5 or 1.0)}
-    }
-    if cap == 0 or cap > 360 then
-        table.insert(routes,{label="360p compatibility recovery",clients="default,-web_safari",format=max_formats[360],repeats=2,delay=1.0})
+    local minimum_heights = {[144]=100,[240]=180,[360]=300,[480]=400,[720]=600}
+    local routes = {}
+    local function add_route(label,clients,format,repeats,delay,min_height)
+        table.insert(routes,{label=label,clients=clients,format=format,repeats=repeats or 1,delay=delay or 1.0,min_height=min_height or 0})
     end
-    if not (cap == 144 or prefer_low) then
-        table.insert(routes,{label="proven 144p recovery",clients="web_embedded,default",format="160",repeats=3,delay=1.5})
+
+    add_route(
+        label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",
+        prefer_60 and "default,-web_safari" or (((cap > 0 and cap <= 240) or prefer_low) and "web_embedded,default" or "default,-web_safari"),
+        primary,
+        (cap == 144 and 3 or 2),
+        (cap == 144 and 1.5 or 1.0),
+        (not prefer_low and cap > 0) and minimum_heights[cap] or 0
+    )
+
+    if not prefer_low then
+        if cap == 240 then
+            add_route("240p fixed-format default-client recovery","default,-web_safari","133",2,1.0,minimum_heights[240])
+            add_route("240p fixed-format embedded-client recovery","web_embedded","133",2,1.0,minimum_heights[240])
+        elseif cap == 360 then
+            add_route("360p progressive compatibility recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
+            add_route("360p adaptive embedded-client recovery","web_embedded,default","134",2,1.0,minimum_heights[360])
+        elseif cap == 480 then
+            add_route("480p fixed-format recovery","default,-web_safari","135",2,1.0,minimum_heights[480])
+            add_route("360p progressive resolution recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
+        elseif cap == 720 then
+            add_route("720p progressive compatibility recovery","default,-web_safari","22",2,1.0,minimum_heights[720])
+            add_route("720p adaptive embedded-client recovery","web_embedded,default","136",2,1.0,minimum_heights[720])
+            add_route("360p progressive resolution recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
+        elseif cap == 0 then
+            add_route("360p progressive compatibility recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
+        end
     end
+
     local fallback_fps = prefer_60 and "[fps<=60]" or "[fps<=30]"
-    table.insert(routes,{label="automatic progressive fallback",clients=false,format="18/best[height<=360]"..fallback_fps.."[ext=mp4]/bestvideo[height<=360]"..fallback_fps.."[ext=mp4]/best[height<=480]"..fallback_fps,repeats=2,delay=1.0})
+    local automatic_cap=cap
+    if automatic_cap==0 then automatic_cap=480 end
+    local automatic_format="best[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]/bestvideo[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]"
+    local automatic_min=0
+    if not prefer_low then
+        if cap==240 then automatic_min=minimum_heights[240]
+        elseif cap==360 then automatic_min=minimum_heights[360]
+        elseif cap==480 or cap==720 or cap==0 then automatic_min=minimum_heights[360]
+        elseif cap==144 then automatic_min=minimum_heights[144] end
+    end
+    add_route("automatic capped compatibility recovery",false,automatic_format,2,1.0,automatic_min)
+    if cap == 144 or prefer_low then
+        add_route("proven 144p compatibility recovery","web_embedded,default","160",3,1.5,100)
+    else
+        add_route("proven 144p final recovery","web_embedded,default","160",3,1.5,100)
+    end
     local last_stderr=""; local try_route
+    local function compact_error(raw)
+        local s=tostring(raw or ""):gsub("[\r\n]+"," "):gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
+        if #s>360 then s=s:sub(1,360).."..." end
+        if s=="" then s="yt-dlp returned no diagnostic text" end
+        return s
+    end
+    local function finish_route_failure(rn,attempt,reason)
+        local spec=routes[rn]
+        os.remove(temp)
+        local detail=compact_error(reason)
+        log("VIDEO ATTEMPT FAILED track "..i.." route "..rn.." try "..attempt.." "..spec.label.." reason "..detail)
+        if permanent_error(reason or "") then mark(status_path(i,"video.failed"));log("VIDEO DEAD track "..i);job_done(job);return end
+        if attempt < spec.repeats then
+            log("VIDEO RETRY track "..i.." same route")
+            if desired_index==i and playing_index~=i then set_engine_status("video","Tiny video retry "..(attempt+1).."/"..spec.repeats.." for track "..i.."...",i) end
+            mp.add_timeout(spec.delay,function() try_route(rn,attempt+1) end);return
+        end
+        if rn < #routes then
+            log("VIDEO FALLBACK track "..i.." route "..(rn+1))
+            mp.add_timeout(0.4,function() try_route(rn+1,1) end);return
+        end
+        mark(status_path(i,"video.failed"));log("VIDEO FAILED track "..i.." after all routes");if detail~="" then mp.msg.warn("YOMI video "..i..": "..detail) end;if playing_index==i then write_state(i) end;job_done(job)
+    end
+    local function accept_video(rn,attempt,selected,height)
+        move_replace(temp,video_path(i))
+        log("VIDEO READY track "..i.." route "..rn.." try "..attempt.." selected "..selected.." verified-height "..tostring(height or "unknown"))
+        if playing_index==i then write_state(i) end
+        job_done(job)
+    end
     try_route=function(rn,attempt)
         os.remove(temp); local spec=routes[rn]; local args=ytdlp_common(spec.clients)
         table.insert(args,"--retries");table.insert(args,"1");table.insert(args,"--fragment-retries");table.insert(args,"1")
@@ -1297,27 +1360,39 @@ local function video_job(job)
         table.insert(args,"--print");table.insert(args,"after_move:YOMI_FORMAT=%(format_id)s|%(height)s|%(fps)s|%(ext)s")
         log("VIDEO ATTEMPT track "..i.." route "..rn.." try "..attempt.."/"..spec.repeats.." "..spec.label)
         run(cache_priority,ytdlp,args,function(success,result)
-            if result and result.stderr then last_stderr=result.stderr end
+            last_stderr=(result and result.stderr) or ""
             if success and result and result.status==0 and exists(temp) and fsize(temp)>0 then
                 mp.add_timeout(0.5,function()
                     if exists(temp) and fsize(temp)>0 then
                         local selected = result and result.stdout and result.stdout:match("YOMI_FORMAT=([^\r\n]+)") or "unknown"
-                        move_replace(temp,video_path(i));log("VIDEO READY track "..i.." route "..rn.." try "..attempt.." selected "..selected);if playing_index==i then write_state(i) end;job_done(job)
+                        local printed_height=tonumber(selected:match("^[^|]*|([^|]+)|"))
+                        if printed_height and printed_height>0 then
+                            if spec.min_height>0 and printed_height<spec.min_height then
+                                finish_route_failure(rn,attempt,"selected stream height "..printed_height.." is below route minimum "..spec.min_height)
+                            else
+                                accept_video(rn,attempt,selected,printed_height)
+                            end
+                        elseif ffmpeg_available then
+                            local ffprobe=install_root.."\\runtime\\ffmpeg\\ffprobe.exe"
+                            run("idle",ffprobe,{"-v","error","-select_streams","v:0","-show_entries","stream=height","-of","default=noprint_wrappers=1:nokey=1",temp},function(probe_ok,probe_result)
+                                local measured=probe_result and probe_result.stdout and tonumber(probe_result.stdout:match("(%d+)")) or nil
+                                if not probe_ok or not probe_result or probe_result.status~=0 or not measured then
+                                    finish_route_failure(rn,attempt,"FFprobe could not validate completed video")
+                                elseif spec.min_height>0 and measured<spec.min_height then
+                                    finish_route_failure(rn,attempt,"completed stream height "..measured.." is below route minimum "..spec.min_height)
+                                else
+                                    accept_video(rn,attempt,selected,measured)
+                                end
+                            end)
+                        else
+                            accept_video(rn,attempt,selected,nil)
+                        end
+                    else
+                        finish_route_failure(rn,attempt,"downloaded temporary file disappeared before validation")
                     end
                 end);return
             end
-            os.remove(temp)
-            if permanent_error(last_stderr) then mark(status_path(i,"video.failed"));log("VIDEO DEAD track "..i);job_done(job);return end
-            if attempt < spec.repeats then
-                log("VIDEO RETRY track "..i.." same route")
-                if desired_index==i and playing_index~=i then set_engine_status("video","Tiny video retry "..(attempt+1).."/"..spec.repeats.." for track "..i.."...",i) end
-                mp.add_timeout(spec.delay,function() try_route(rn,attempt+1) end);return
-            end
-            if rn < #routes then
-                log("VIDEO FALLBACK track "..i.." route "..(rn+1))
-                mp.add_timeout(0.4,function() try_route(rn+1,1) end);return
-            end
-            mark(status_path(i,"video.failed"));log("VIDEO FAILED track "..i.." after all routes");if last_stderr~="" then mp.msg.warn("YOMI video "..i..": "..last_stderr) end;if playing_index==i then write_state(i) end;job_done(job)
+            finish_route_failure(rn,attempt,last_stderr)
         end)
     end
     try_route(1,1)

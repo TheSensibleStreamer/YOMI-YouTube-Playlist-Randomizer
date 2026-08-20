@@ -10,6 +10,10 @@ public static class ArtworkEdgeDetector
     const int MinimumCrop = 8;
     const double MaximumEdgeFraction = 0.30;
     const double MinimumRemainingFraction = 0.40;
+    const int DeepBlackThreshold = 24;
+    const double DeepBlackMaximumEdgeFraction = 0.48;
+    const double DeepBlackMinimumRemainingFraction = 0.20;
+    const double DeepBlackMinimumContentFraction = 0.0025;
     const int SamplesAcross = 72;
     const double TransitionMatchLimit = 0.84;
 
@@ -192,6 +196,127 @@ public static class ArtworkEdgeDetector
         return band;
     }
 
+    static bool IsDeepBlack(Color c)
+    {
+        return c.R <= DeepBlackThreshold &&
+               c.G <= DeepBlackThreshold &&
+               c.B <= DeepBlackThreshold;
+    }
+
+    static bool EdgeIsDeepBlack(Bitmap bmp, string side)
+    {
+        int depth = Math.Min(3, side == "Top" || side == "Bottom" ? bmp.Height : bmp.Width);
+        int matches = 0;
+        int total = 0;
+
+        for (int d = 0; d < depth; d++)
+        {
+            if (side == "Top" || side == "Bottom")
+            {
+                int y = side == "Top" ? d : bmp.Height - 1 - d;
+                for (int x = 0; x < bmp.Width; x++)
+                {
+                    if (IsDeepBlack(bmp.GetPixel(x, y))) matches++;
+                    total++;
+                }
+            }
+            else
+            {
+                int x = side == "Left" ? d : bmp.Width - 1 - d;
+                for (int y = 0; y < bmp.Height; y++)
+                {
+                    if (IsDeepBlack(bmp.GetPixel(x, y))) matches++;
+                    total++;
+                }
+            }
+        }
+
+        return total > 0 && (double)matches / (double)total >= 0.985;
+    }
+
+    static bool TryDeepBlackCrop(Bitmap bmp, double targetAspect, out int left, out int top, out int right, out int bottom)
+    {
+        left = bmp.Width;
+        top = bmp.Height;
+        right = -1;
+        bottom = -1;
+        int contentPixels = 0;
+
+        for (int y = 0; y < bmp.Height; y++)
+        {
+            for (int x = 0; x < bmp.Width; x++)
+            {
+                if (IsDeepBlack(bmp.GetPixel(x, y))) continue;
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+                contentPixels++;
+            }
+        }
+
+        if (right < left || bottom < top) return false;
+        if (contentPixels < (int)Math.Ceiling(bmp.Width * bmp.Height * DeepBlackMinimumContentFraction))
+            return false;
+
+        int cropLeft = left;
+        int cropTop = top;
+        int cropRight = bmp.Width - 1 - right;
+        int cropBottom = bmp.Height - 1 - bottom;
+        int rawW = bmp.Width - cropLeft - cropRight;
+        int rawH = bmp.Height - cropTop - cropBottom;
+
+        bool exceptional =
+            cropLeft > bmp.Width * MaximumEdgeFraction ||
+            cropRight > bmp.Width * MaximumEdgeFraction ||
+            cropTop > bmp.Height * MaximumEdgeFraction ||
+            cropBottom > bmp.Height * MaximumEdgeFraction ||
+            rawW < bmp.Width * MinimumRemainingFraction ||
+            rawH < bmp.Height * MinimumRemainingFraction;
+
+        if (!exceptional) return false;
+
+        // A very wide wordmark on black (for example a title card) would be
+        // destroyed by the later cover-scale if we returned its tight box.
+        // Restore only enough vertical black padding to match the configured
+        // artwork box while still removing most of the original frame.
+        if (targetAspect > 0.1 && (double)rawW / (double)rawH > targetAspect)
+        {
+            int wantedH = (int)Math.Ceiling(rawW / targetAspect);
+            if (wantedH > rawH && wantedH <= bmp.Height)
+            {
+                double center = (top + bottom) / 2.0;
+                int adjustedTop = (int)Math.Floor(center - ((wantedH - 1) / 2.0));
+                if (adjustedTop < 0) adjustedTop = 0;
+                if (adjustedTop + wantedH > bmp.Height) adjustedTop = bmp.Height - wantedH;
+                cropTop = adjustedTop;
+                cropBottom = bmp.Height - adjustedTop - wantedH;
+            }
+        }
+
+        int newW = bmp.Width - cropLeft - cropRight;
+        int newH = bmp.Height - cropTop - cropBottom;
+        if (cropLeft > bmp.Width * DeepBlackMaximumEdgeFraction ||
+            cropRight > bmp.Width * DeepBlackMaximumEdgeFraction ||
+            cropTop > bmp.Height * DeepBlackMaximumEdgeFraction ||
+            cropBottom > bmp.Height * DeepBlackMaximumEdgeFraction ||
+            newW < bmp.Width * DeepBlackMinimumRemainingFraction ||
+            newH < bmp.Height * DeepBlackMinimumRemainingFraction)
+            return false;
+
+        if (cropLeft >= MinimumCrop && !EdgeIsDeepBlack(bmp, "Left")) return false;
+        if (cropRight >= MinimumCrop && !EdgeIsDeepBlack(bmp, "Right")) return false;
+        if (cropTop >= MinimumCrop && !EdgeIsDeepBlack(bmp, "Top")) return false;
+        if (cropBottom >= MinimumCrop && !EdgeIsDeepBlack(bmp, "Bottom")) return false;
+
+        left = cropLeft;
+        top = cropTop;
+        right = cropRight;
+        bottom = cropBottom;
+        return cropLeft >= MinimumCrop || cropRight >= MinimumCrop ||
+               cropTop >= MinimumCrop || cropBottom >= MinimumCrop;
+    }
+
     public static int Main(string[] args)
     {
         try
@@ -207,6 +332,14 @@ public static class ArtworkEdgeDetector
             {
                 int ow = bmp.Width;
                 int oh = bmp.Height;
+                double targetAspect = 0.0;
+                if (args.Length >= 3)
+                {
+                    int targetW, targetH;
+                    if (Int32.TryParse(args[1], out targetW) &&
+                        Int32.TryParse(args[2], out targetH) && targetW > 0 && targetH > 0)
+                        targetAspect = (double)targetW / (double)targetH;
+                }
 
                 if (ow < 16 || oh < 16)
                 {
@@ -216,6 +349,19 @@ public static class ArtworkEdgeDetector
 
                 int[] xs = SamplePositions(ow);
                 int[] ys = SamplePositions(oh);
+
+                int deepLeft, deepTop, deepRight, deepBottom;
+                if (TryDeepBlackCrop(bmp, targetAspect, out deepLeft, out deepTop, out deepRight, out deepBottom))
+                {
+                    int deepW = ow - deepLeft - deepRight;
+                    int deepH = oh - deepTop - deepBottom;
+                    Console.WriteLine(
+                        "CROP {0}:{1}:{2}:{3} L{4} T{5} R{6} B{7} DEEPBLACK",
+                        deepW, deepH, deepLeft, deepTop,
+                        deepLeft, deepTop, deepRight, deepBottom
+                    );
+                    return 0;
+                }
 
                 int left = EdgeBand(bmp, "Left", xs, ys);
                 int right = EdgeBand(bmp, "Right", xs, ys);

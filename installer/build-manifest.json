@@ -1,5 +1,5 @@
 {
-  "version": "v4.2.0.5",
+  "version": "v4.2.0.6",
   "product": "YOMI - YouTube OBS Music Interface / Playlist Randomizer / Director Mode",
   "features": [
     "original combined OBS overlay preserved as the default",
@@ -32,6 +32,8 @@
     "Controller Hide comment command and per-track suppression marker",
     "decorative comment/probe jobs never occupy essential bundle-worker slots",
     "144p, 240p, 360p, 480p, 720p and Best compatible video quality ladders",
+    "separate quality recovery downloads that continue at 240p or 360p after an in-transit stream failure",
+    "completed-video height validation and per-attempt compact failure diagnostics",
     "YouTube quality-label-first MP4 selection before pixel-height and lower-resolution recovery",
     "successful video-cache logs include selected format ID, height, frame rate and container",
     "DPI-safe Sources columns and bounded settings-label overflow protection",
@@ -55,6 +57,7 @@
     "server-side current-state file cache for efficient multi-source polling",
     "versioned OBS setup URLs to avoid stale Browser Source pages",
     "JPG-first canonical Smart Crop pipeline with compiled any-color detector",
+    "confidence-gated exceptional near-black frame removal with aspect-aware wide-wordmark protection",
     "FFmpeg black-border cropdetect fallback with idle-priority FFprobe compatibility inspection",
     "Balanced two-worker fresh-install default",
     "duplicate playlist occurrences preserved with no dedupe",
@@ -65,19 +68,19 @@
   "files": {
     "INSTALL YOMI.cmd": {
       "bytes": 1574,
-      "sha256": "65d0d8478d0726930765a9d6d1886886c506ec8510889b220c11872da8e4b0c3"
+      "sha256": "0bb075a14c25e816d0369a072d9e13bb53263d2be28cc7f1dbfcbea19cd51c62"
     },
     "installer/install.ps1": {
       "bytes": 37084,
-      "sha256": "0c6580d31da57a3ebbc653976cf0c49cef0e900b62e739a9884594174924dcda"
+      "sha256": "b7fdee5d525f2a4f5b8258dd529e60c6191c1e29c50af6ba0a226454e38b4959"
     },
     "payload/app/ArtworkEdgeDetector.cs": {
-      "bytes": 8193,
-      "sha256": "1708437ba084788d4df37d6e9c9ce143c54163bd10f0efd7d1c820ce49abc6ce"
+      "bytes": 14162,
+      "sha256": "5a2e3c4ad8b93f5a982a38b438c0fee8a6b76bc952d4b8d0e512f9501b1d5cc5"
     },
     "payload/app/common.ps1": {
       "bytes": 16356,
-      "sha256": "55fe09d45ad42d91363484abfde9613d12253dba04baace47a366b84558696c8"
+      "sha256": "aec235340d45057a2e50bfd92def2899c80125fd60ebbca342d19f07224a04dc"
     },
     "payload/app/components.ps1": {
       "bytes": 4467,
@@ -89,15 +92,15 @@
     },
     "payload/app/default-config.json": {
       "bytes": 5528,
-      "sha256": "4f9d9844989005e5dd1ebb63942b554e8562ade5594679fced31220b0a9420b0"
+      "sha256": "c6abc1a9ee1d0c15c22c7136feb0bed18b2aa5b167095c70ef146c52292fbe9b"
     },
     "payload/app/diagnostics.ps1": {
       "bytes": 4736,
       "sha256": "c04e9f3a5400b768da34c09dd4292839a3c9c6ec9711eb05c1b38f51217c5c52"
     },
     "payload/app/music.lua": {
-      "bytes": 65580,
-      "sha256": "ba65e6a94920681dd8e2353e428fa770446201b4b2a5b0d4b98d65d6e53fa1fe"
+      "bytes": 70197,
+      "sha256": "72d1aabb32292c3d31eb4fd1d63afbea20779cac34523cc743d9e9a0798a9847"
     },
     "payload/app/playlist-refresh.ps1": {
       "bytes": 186,
@@ -144,12 +147,12 @@
       "sha256": "6a393dd34870f3ca7d8021076fefbec02b7026e2d61eca84069a5c53313bb511"
     },
     "payload/README-EASY.txt": {
-      "bytes": 24602,
-      "sha256": "28a991cd6cae0ed0d21f173fea77a77fe926d83250d3d88fde743daedad94e13"
+      "bytes": 25031,
+      "sha256": "c4e7e5a081393255bc7e9793550dc55ef67c3a296bce7a1f39fe83396902811b"
     },
     "payload/README-TECHNICAL.txt": {
       "bytes": 21031,
-      "sha256": "e0e582069c261beff9523b40a80c7d0895d2832a420ee41119b435953377051e"
+      "sha256": "8de4501c580d11d642790cea34e464f7187005a4d9db9605c212adcd0d1bdfce"
     },
     "payload/THIRD-PARTY.txt": {
       "bytes": 805,
@@ -161,7 +164,7 @@
     },
     "payload/VERSION.txt": {
       "bytes": 14,
-      "sha256": "46c8e846265271d5c89b8fe36dd9e19d1b582a93cfc39ffe4c974adc0a6618bd"
+      "sha256": "7e1f745d3a41184e73daafe30684d1ae66192831849f31815e5d44e4c5415857"
     },
     "payload/web/director.html": {
       "bytes": 32757,

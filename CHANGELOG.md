@@ -1,5 +1,21 @@
 # YOMI Changelog
 
+## v4.2.0.6
+
+### Reliable selected video quality
+
+- Split quality compatibility choices into separate yt-dlp download routes so a stream that fails after selection advances to another stream at the requested resolution instead of immediately collapsing to 144p
+- Added dedicated 240p and 360p recovery routes across default, embedded, progressive and automatic client selection before the final 144p reliability fallback
+- Validate the reported or probed height of every completed quality-sensitive route before accepting it into the cache
+- Log a compact failure reason for every rejected video attempt, plus the verified height of every successful cache file
+
+### Exceptional black-frame Smart Crop
+
+- Added a high-confidence near-black bounding-box pass for borders deeper than the ordinary conservative 30-percent crop limit
+- Allows deep removal only when the exceptional frame is overwhelmingly near-black, each edge remains below 48 percent and at least 20 percent of each image dimension survives
+- Protects extremely wide wordmarks by retaining enough vertical padding for the configured artwork-box aspect ratio
+- Preserves the established conservative color-border detector for ordinary artwork
+
 ## v4.2.0.5
 
 ### Sources header geometry
