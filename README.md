@@ -8,9 +8,9 @@ If you were searching for a **YouTube playlist randomizer**, **lightweight YouTu
 
 ## Download
 
-The current public build is **YOMI v4.2.0.6**. Compatible improvements use the fourth version component while remaining within the 4.2.0 generation.
+The current public build is **YOMI v4.2.0.7**. Compatible improvements use the fourth version component while remaining within the 4.2.0 generation.
 
-Download [`YOMI-v4.2.0.6.zip`](./YOMI-v4.2.0.6.zip), fully extract it, then double-click:
+Download [`YOMI-v4.2.0.7.zip`](./YOMI-v4.2.0.7.zip), fully extract it, then double-click:
 
 ```text
 INSTALL YOMI.cmd

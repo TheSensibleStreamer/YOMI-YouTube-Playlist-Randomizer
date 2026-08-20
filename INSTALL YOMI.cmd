@@ -5,7 +5,7 @@ title Install YOMI
 
 echo.
 echo ========================================
-echo           INSTALL YOMI 4.2.0.6
+echo           INSTALL YOMI 4.2.0.7
 echo ========================================
 echo       YouTube OBS Music Interface
 echo.
@@ -49,7 +49,7 @@ if "%EC%"=="0" (
     echo.
     echo ===== END OF INSTALL LOG =====
     if exist "%LOCALAPPDATA%\YOMI\install.log" powershell.exe -NoProfile -Command "Get-Content -LiteralPath $env:LOCALAPPDATA'\YOMI\install.log' -Tail 18"
+    echo.
+    pause
 )
-echo.
-pause
 exit /b %EC%

@@ -5,6 +5,10 @@ Add-Type -AssemblyName System.Drawing
 Initialize-YomiData
 $config = Get-YomiConfig
 $yomiVersion = Get-YomiVersionText
+$settingsCreated = $false
+$settingsMutex = New-Object System.Threading.Mutex($true,'Local\YOMI_SETTINGS_V4',[ref]$settingsCreated)
+$settingsActivate = New-Object System.Threading.EventWaitHandle($false,[System.Threading.EventResetMode]::AutoReset,'Local\YOMI_SETTINGS_ACTIVATE_V4')
+if(-not $settingsCreated){try{$settingsActivate.Set()}catch{};try{$settingsActivate.Dispose()}catch{};try{$settingsMutex.Dispose()}catch{};exit 0}
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "YOMI $yomiVersion - YouTube OBS Music Interface"
@@ -16,6 +20,15 @@ $form.MaximizeBox = $false
 $form.Font = New-Object System.Drawing.Font('Segoe UI',10)
 $settingsIcon = Join-Path $InstallRoot 'assets\yomi-settings-v408.ico'
 if (Test-Path $settingsIcon) { try { $form.Icon = New-Object System.Drawing.Icon($settingsIcon) } catch {} }
+$activateTimer = New-Object System.Windows.Forms.Timer
+$activateTimer.Interval = 180
+$activateTimer.Add_Tick({
+    if($settingsActivate.WaitOne(0)){
+        if($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized){$form.WindowState=[System.Windows.Forms.FormWindowState]::Normal}
+        $form.Show();$form.Activate();$form.BringToFront()
+    }
+})
+$activateTimer.Start()
 
 $title = New-Object System.Windows.Forms.Label
 $title.Text = 'YOMI'
@@ -1146,13 +1159,13 @@ $preview.Add_Paint({
         }
 
         $spacingScale=[Math]::Max(1.0,[Math]::Min(3.0,([double]$u.media_height/[Math]::Max(1.0,([double]$u.text_size*2.7)))))
-        $lineMult=1.08
-        if([string]$u.title_channel_spacing -eq 'Tight'){$lineMult=0.96}
-        elseif([string]$u.title_channel_spacing -eq 'Loose'){$lineMult=1.22+(0.22*($spacingScale-1.0))}
-        elseif([string]$u.title_channel_spacing -eq 'Extra Loose'){$lineMult=1.50+(0.32*($spacingScale-1.0))}
-        elseif([string]$u.title_channel_spacing -eq 'Maximum'){$lineMult=1.85+(0.45*($spacingScale-1.0))}
+        $textGap=[Math]::Max(0,[int][Math]::Round($fontSize*0.12))
+        if([string]$u.title_channel_spacing -eq 'Tight'){$textGap=0}
+        elseif([string]$u.title_channel_spacing -eq 'Loose'){$textGap=[Math]::Max(0,[int][Math]::Round($fontSize*(0.45+(0.22*($spacingScale-1.0)))))}
+        elseif([string]$u.title_channel_spacing -eq 'Extra Loose'){$textGap=[Math]::Max(0,[int][Math]::Round($fontSize*(0.90+(0.38*($spacingScale-1.0)))))}
+        elseif([string]$u.title_channel_spacing -eq 'Maximum'){$textGap=[Math]::Max(0,[int][Math]::Round($fontSize*(1.50+(0.62*($spacingScale-1.0)))))}
 
-        $lineH=[Math]::Max(13,[int][Math]::Round($fontSize*$lineMult))
+        $lineH=[Math]::Max(13,[int][Math]::Round($fontSize+$textGap))
         $textY=$stripY+4
         $titleRect=New-Object System.Drawing.Rectangle($textX,$textY,$textWidth,[int]($fontSize*1.6))
         $channelRect=New-Object System.Drawing.Rectangle($textX,$textY+$lineH,$textWidth,[int]($fontSize*1.6))
@@ -1453,4 +1466,10 @@ Update-VisualizerResolutionInfo
 Update-Preview
 Write-ObsInstructions $config | Out-Null
 $form.Add_Shown({Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'update-auto'})
-try{[void]$form.ShowDialog()}finally{$saveResetTimer.Stop();$saveResetTimer.Dispose()}
+try{[void]$form.ShowDialog()}finally{
+    $saveResetTimer.Stop();$saveResetTimer.Dispose()
+    $activateTimer.Stop();$activateTimer.Dispose()
+    try{$settingsActivate.Dispose()}catch{}
+    try{$settingsMutex.ReleaseMutex()}catch{}
+    try{$settingsMutex.Dispose()}catch{}
+}

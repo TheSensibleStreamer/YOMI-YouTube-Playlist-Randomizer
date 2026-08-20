@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 
 public static class YomiLauncher
 {
@@ -17,6 +18,24 @@ public static class YomiLauncher
 
             if (!File.Exists(script))
                 return 2;
+
+            // Settings is a single working surface. A second click should
+            // foreground its existing window, not create a stale editor.
+            if (mode == "settings")
+            {
+                try
+                {
+                    using (EventWaitHandle activate = EventWaitHandle.OpenExisting("Local\\YOMI_SETTINGS_ACTIVATE_V4"))
+                    {
+                        activate.Set();
+                        return 0;
+                    }
+                }
+                catch (WaitHandleCannotBeOpenedException)
+                {
+                    // Settings is not running yet; launch the first instance below.
+                }
+            }
 
             string powershell = Path.Combine(
                 Environment.SystemDirectory,

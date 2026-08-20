@@ -66,7 +66,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.6 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.7 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -119,7 +119,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.6-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.7-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -289,13 +289,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.6-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.7-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.6 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.7 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size

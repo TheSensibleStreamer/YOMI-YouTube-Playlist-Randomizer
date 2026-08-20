@@ -1,4 +1,4 @@
-YOMI 4.2.0.6 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
+YOMI 4.2.0.7 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
 ==========================
 Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI

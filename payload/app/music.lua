@@ -1204,10 +1204,10 @@ local function video_job(job)
     if desired_index == i and playing_index ~= i then set_engine_status("video","Preparing tiny video for track " .. i .. "...",i) end
     local temp = video_dir .. "\\track-" .. i .. ".downloading.mp4"
 
-    -- Resolution is a ceiling. The independent preference chooses the top or
-    -- bottom of that compatible range. Each compatibility format is a real
-    -- download route so an in-transit failure advances instead of reselecting
-    -- the same broken stream and then jumping immediately to 144p.
+    -- Each requested overlay quality is tried exactly first. A 240p request
+    -- may use the known-good 360p progressive recovery when YouTube does not
+    -- expose 240p; otherwise video stays optional and audio continues. Do not
+    -- silently replace a deliberately higher setting with a 144p cache file.
     local quality = tostring(cfg.overlay_video_quality or "144p (fastest)")
     local prefer_low = tostring(cfg.video_preference or "Prefer selected maximum") == "Prefer lowest compatible"
     local cap = 144
@@ -1241,21 +1241,18 @@ local function video_job(job)
             max_formats[height] =
                 labeled_video("bestvideo",height,true) .. "/" ..
                 filtered_video("bestvideo",height,true,true) .. "/" ..
-                filtered_video("bestvideo",height,true,false) .. "/" ..
                 labeled_video("bestvideo",height,false) .. "/" ..
-                filtered_video("bestvideo",height,false,true) .. "/" ..
-                filtered_video("bestvideo",height,false,false)
+                filtered_video("bestvideo",height,false,true)
         else
             -- YouTube's nominal quality label is authoritative here. A video
             -- can be labeled 240p while its stored frame is 352x288, so a
             -- literal height<=240 filter rejects the correct format. Try the
-            -- label first, then literal/capped MP4. Fixed itags are separate
+            -- label first, then literal exact-height MP4. Fixed itags are separate
             -- download routes because yt-dlp's slash fallback happens during
             -- selection, not after a selected stream fails in transit.
             max_formats[height] =
                 labeled_video("bestvideo",height,false) .. "/" ..
-                filtered_video("bestvideo",height,false,true) .. "/" ..
-                filtered_video("bestvideo",height,false,false)
+                filtered_video("bestvideo",height,false,true)
         end
     end
     local primary
@@ -1289,8 +1286,8 @@ local function video_job(job)
 
     if not prefer_low then
         if cap == 240 then
-            add_route("240p fixed-format default-client recovery","default,-web_safari","133",2,1.0,minimum_heights[240])
-            add_route("240p fixed-format embedded-client recovery","web_embedded","133",2,1.0,minimum_heights[240])
+            add_route("240p fixed-format default-client recovery","default,-web_safari","133",1,0.4,minimum_heights[240])
+            add_route("240p unavailable -> 360p progressive recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
         elseif cap == 360 then
             add_route("360p progressive compatibility recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
             add_route("360p adaptive embedded-client recovery","web_embedded,default","134",2,1.0,minimum_heights[360])
@@ -1306,21 +1303,21 @@ local function video_job(job)
         end
     end
 
-    local fallback_fps = prefer_60 and "[fps<=60]" or "[fps<=30]"
-    local automatic_cap=cap
-    if automatic_cap==0 then automatic_cap=480 end
-    local automatic_format="best[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]/bestvideo[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]"
-    local automatic_min=0
-    if not prefer_low then
-        if cap==240 then automatic_min=minimum_heights[240]
-        elseif cap==360 then automatic_min=minimum_heights[360]
-        elseif cap==480 or cap==720 or cap==0 then automatic_min=minimum_heights[360]
-        elseif cap==144 then automatic_min=minimum_heights[144] end
+    if cap ~= 240 and cap ~= 360 then
+        local fallback_fps = prefer_60 and "[fps<=60]" or "[fps<=30]"
+        local automatic_cap=cap
+        if automatic_cap==0 then automatic_cap=480 end
+        local automatic_format="best[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]/bestvideo[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]"
+        local automatic_min=0
+        if not prefer_low then
+            if cap==480 or cap==720 or cap==0 then automatic_min=minimum_heights[360]
+            elseif cap==144 then automatic_min=minimum_heights[144] end
+        end
+        add_route("automatic capped compatibility recovery",false,automatic_format,2,1.0,automatic_min)
     end
-    add_route("automatic capped compatibility recovery",false,automatic_format,2,1.0,automatic_min)
     if cap == 144 or prefer_low then
         add_route("proven 144p compatibility recovery","web_embedded,default","160",3,1.5,100)
-    else
+    elseif cap ~= 240 and cap ~= 360 then
         add_route("proven 144p final recovery","web_embedded,default","160",3,1.5,100)
     end
     local last_stderr=""; local try_route
@@ -1336,7 +1333,8 @@ local function video_job(job)
         local detail=compact_error(reason)
         log("VIDEO ATTEMPT FAILED track "..i.." route "..rn.." try "..attempt.." "..spec.label.." reason "..detail)
         if permanent_error(reason or "") then mark(status_path(i,"video.failed"));log("VIDEO DEAD track "..i);job_done(job);return end
-        if attempt < spec.repeats then
+        local unavailable=detail:lower():find("requested format is not available",1,true)~=nil
+        if attempt < spec.repeats and not unavailable then
             log("VIDEO RETRY track "..i.." same route")
             if desired_index==i and playing_index~=i then set_engine_status("video","Tiny video retry "..(attempt+1).."/"..spec.repeats.." for track "..i.."...",i) end
             mp.add_timeout(spec.delay,function() try_route(rn,attempt+1) end);return
@@ -1345,7 +1343,7 @@ local function video_job(job)
             log("VIDEO FALLBACK track "..i.." route "..(rn+1))
             mp.add_timeout(0.4,function() try_route(rn+1,1) end);return
         end
-        mark(status_path(i,"video.failed"));log("VIDEO FAILED track "..i.." after all routes");if detail~="" then mp.msg.warn("YOMI video "..i..": "..detail) end;if playing_index==i then write_state(i) end;job_done(job)
+        mark(status_path(i,"video.failed"));log("VIDEO FAILED track "..i.." after all routes");if desired_index==i and playing_index~=i then set_engine_status("video","Requested tiny-video quality unavailable; continuing audio only.",i) end;if detail~="" then mp.msg.warn("YOMI video "..i..": "..detail) end;if playing_index==i then write_state(i) end;job_done(job)
     end
     local function accept_video(rn,attempt,selected,height)
         move_replace(temp,video_path(i))

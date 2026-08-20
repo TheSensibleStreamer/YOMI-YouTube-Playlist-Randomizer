@@ -1,5 +1,24 @@
 # YOMI Changelog
 
+## v4.2.0.7
+
+### Settings focus and text separation
+
+- Settings is now a true single-instance window: opening it from Controller, the tray menu or its shortcut brings the existing window forward instead of creating a second editor
+- Replaced title/channel separation based on line-height with an explicit gap, so Loose, Extra Loose and Maximum are visibly distinct and become substantially wider on larger layouts
+
+### Exact overlay-video fallback behavior
+
+- A 240p request now tries true 240p routes once, then the known-good 360p progressive stream, then keeps playback audio-only when neither is available
+- A 360p request tries true 360p routes and remains audio-only if the source does not expose a working 360p stream
+- Removed the misleading automatic 144p fallback for deliberate 240p and 360p selections
+- Treats "requested format is not available" as an immediate route advance instead of repeating the same impossible attempt
+
+### Update-install finish
+
+- Successful installs launched by the built-in updater now close their console automatically after opening Settings
+- Failed installs still pause with their failure details and installer-log tail visible
+
 ## v4.2.0.6
 
 ### Reliable selected video quality

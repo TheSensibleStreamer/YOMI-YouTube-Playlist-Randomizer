@@ -1,7 +1,7 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
-$script:YomiFallbackVersion = '4.2.0.6'
+$script:YomiFallbackVersion = '4.2.0.7'
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
 
 function Get-YomiVersionText {
@@ -283,17 +283,17 @@ function Get-YomiLayoutMetrics($Config) {
     if ($channelOn) { $lines++ }
 
     $spacingScale = [Math]::Max(1.0,[Math]::Min(3.0,([double]$mh / [Math]::Max(1.0,([double]$textSize * 2.7)))))
-    $lineMultiplier = 1.08
+    $textGap = [int][Math]::Round($textSize * 0.12)
     switch ([string]$Config.title_channel_spacing) {
-        'Tight' { $lineMultiplier = 0.96 }
-        'Loose' { $lineMultiplier = 1.22 + (0.22 * ($spacingScale - 1.0)) }
-        'Extra Loose' { $lineMultiplier = 1.50 + (0.32 * ($spacingScale - 1.0)) }
-        'Maximum' { $lineMultiplier = 1.85 + (0.45 * ($spacingScale - 1.0)) }
+        'Tight' { $textGap = 0 }
+        'Loose' { $textGap = [int][Math]::Round($textSize * (0.45 + (0.22 * ($spacingScale - 1.0)))) }
+        'Extra Loose' { $textGap = [int][Math]::Round($textSize * (0.90 + (0.38 * ($spacingScale - 1.0)))) }
+        'Maximum' { $textGap = [int][Math]::Round($textSize * (1.50 + (0.62 * ($spacingScale - 1.0)))) }
     }
 
     $textHeight = 1
     if ($lines -gt 0) {
-        $textHeight = [int][Math]::Ceiling(($lines * $textSize * $lineMultiplier) + 6)
+        $textHeight = [int][Math]::Ceiling(($lines * $textSize) + ([Math]::Max(0,$lines-1) * $textGap) + 6)
     }
 
     $visualHeight = 1

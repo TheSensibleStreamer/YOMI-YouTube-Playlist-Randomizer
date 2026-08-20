@@ -1,5 +1,5 @@
 {
-  "version": "v4.2.0.6",
+  "version": "v4.2.0.7",
   "product": "YOMI - YouTube OBS Music Interface / Playlist Randomizer / Director Mode",
   "features": [
     "original combined OBS overlay preserved as the default",
@@ -67,20 +67,20 @@
   ],
   "files": {
     "INSTALL YOMI.cmd": {
-      "bytes": 1574,
-      "sha256": "0bb075a14c25e816d0369a072d9e13bb53263d2be28cc7f1dbfcbea19cd51c62"
+      "bytes": 1582,
+      "sha256": "7a373e47461a94eceba2ad480b67a2c90176a6bf6a80dc057f2a768a25ab62a4"
     },
     "installer/install.ps1": {
       "bytes": 37084,
-      "sha256": "b7fdee5d525f2a4f5b8258dd529e60c6191c1e29c50af6ba0a226454e38b4959"
+      "sha256": "3c12d6d263f31bb933f0ecc75dd257b0284d06a50c5e34443964000899142efe"
     },
     "payload/app/ArtworkEdgeDetector.cs": {
       "bytes": 14162,
       "sha256": "5a2e3c4ad8b93f5a982a38b438c0fee8a6b76bc952d4b8d0e512f9501b1d5cc5"
     },
     "payload/app/common.ps1": {
-      "bytes": 16356,
-      "sha256": "aec235340d45057a2e50bfd92def2899c80125fd60ebbca342d19f07224a04dc"
+      "bytes": 16473,
+      "sha256": "2dc1d5c2c61925679a57335b4485f1adcb496c461037c603f4ea158e44628d04"
     },
     "payload/app/components.ps1": {
       "bytes": 4467,
@@ -92,15 +92,15 @@
     },
     "payload/app/default-config.json": {
       "bytes": 5528,
-      "sha256": "c6abc1a9ee1d0c15c22c7136feb0bed18b2aa5b167095c70ef146c52292fbe9b"
+      "sha256": "1845f85ddb6735e3434a28e0e2f67d1122a4989801bd04f2a4a663dad5aa664d"
     },
     "payload/app/diagnostics.ps1": {
       "bytes": 4736,
       "sha256": "c04e9f3a5400b768da34c09dd4292839a3c9c6ec9711eb05c1b38f51217c5c52"
     },
     "payload/app/music.lua": {
-      "bytes": 70197,
-      "sha256": "72d1aabb32292c3d31eb4fd1d63afbea20779cac34523cc743d9e9a0798a9847"
+      "bytes": 70257,
+      "sha256": "a43a7ba9ac220e40783799e5ece360fbeb437f7ded4829cc8bd4bf8de3aab2cc"
     },
     "payload/app/playlist-refresh.ps1": {
       "bytes": 186,
@@ -115,8 +115,8 @@
       "sha256": "0f20de75bd2bcf4ca2f5824efd56f811941935f37907dd1c6c79c84ce7fd91e5"
     },
     "payload/app/settings.ps1": {
-      "bytes": 111573,
-      "sha256": "7dd083827bb47f6afe683133e1fc940f968353138602f4237d3e27079a37a548"
+      "bytes": 112757,
+      "sha256": "917172481ab1044affd18fb70a964bc3d2b4c1f293b3342fc967c8722d7b66e5"
     },
     "payload/app/shuffle.ps1": {
       "bytes": 3320,
@@ -135,8 +135,8 @@
       "sha256": "280349fdddd5ef2420a943a356245e367d59202414bd3e6c59eb8f5386f56dda"
     },
     "payload/app/YomiLauncher.cs": {
-      "bytes": 1431,
-      "sha256": "3ea5a20fbcfa7762a4448a6dba38d50032c614e45a98d9408a3c5c1d3318406b"
+      "bytes": 2142,
+      "sha256": "1d043d5fbb79581a42961a7aef5d1aada258cc8dc39737709ec6a138df7016bc"
     },
     "payload/assets/yomi-settings-v408.ico": {
       "bytes": 36551,
@@ -147,12 +147,12 @@
       "sha256": "6a393dd34870f3ca7d8021076fefbec02b7026e2d61eca84069a5c53313bb511"
     },
     "payload/README-EASY.txt": {
-      "bytes": 25031,
-      "sha256": "c4e7e5a081393255bc7e9793550dc55ef67c3a296bce7a1f39fe83396902811b"
+      "bytes": 25670,
+      "sha256": "268579eba2d1b0af88f8c25b13b086d6a9184efd55f81cdcb87f1e322be8c417"
     },
     "payload/README-TECHNICAL.txt": {
       "bytes": 21031,
-      "sha256": "8de4501c580d11d642790cea34e464f7187005a4d9db9605c212adcd0d1bdfce"
+      "sha256": "87dca915783fffb0f041e58f621fd6e4f4aeeeb7c7803536d6af24778f972ed7"
     },
     "payload/THIRD-PARTY.txt": {
       "bytes": 805,
@@ -164,15 +164,15 @@
     },
     "payload/VERSION.txt": {
       "bytes": 14,
-      "sha256": "7e1f745d3a41184e73daafe30684d1ae66192831849f31815e5d44e4c5415857"
+      "sha256": "9a54e5ab2dce08223ead89cf6505c0022064fd72122fc896722e9b7d3eeade9c"
     },
     "payload/web/director.html": {
       "bytes": 32757,
       "sha256": "0b4c2e44a918e214f3f3508223756d3c30c2cc0e884216efe9e688cf4f58eb25"
     },
     "payload/web/overlay.html": {
-      "bytes": 15221,
-      "sha256": "62e259284f67bc88082154b503b8c2954daa965f8b359ade151d9ee38215187c"
+      "bytes": 15356,
+      "sha256": "ae4650a7e197b0090a748093a82c472172f864c8b28f6cb77a4a5756fd7bee36"
     },
     "payload/web/visualizer.html": {
       "bytes": 142,
