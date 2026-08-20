@@ -1,9 +1,9 @@
 {
   "product": "YOMI - YouTube OBS Music Interface",
-  "version": "4.2.0.1",
-  "package_name": "YOMI-v4.2.0.1.zip",
-  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.1.zip",
-  "sha256": "279fdc40c097e8b248c4a826716bbd4b804ffd5ba3350379e0ffd41682e330f2",
-  "summary": "Permanent 420 patch line, presets across every useful Settings page, visualizer resolutions from 12x4 through 192x48, live workload feedback, output-layout packs, and patch-derived Browser Source cache refreshes.",
+  "version": "4.2.0.2",
+  "package_name": "YOMI-v4.2.0.2.zip",
+  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.2.zip",
+  "sha256": "e2960aa51100f603df93f4244ea374bb49133256dcd1c3784e1cf69b3dfff3ba",
+  "summary": "Director Source Manager with per-module and per-group Copy/Preview controls, ordered group editing, source presets, correct preparation activation, targeted controlled restarts, and idle-priority FFprobe crop inspection.",
   "changelog_url": "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/blob/main/CHANGELOG.md"
 }

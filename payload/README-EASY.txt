@@ -1,4 +1,4 @@
-YOMI 4.2.0.1 - 420 PATCH LINE / PRESETS EVERYWHERE / VISUALIZER RANGE
+YOMI 4.2.0.2 - DIRECTOR SOURCE MANAGER / 420 PATCH LINE
 ========
 YOMI means YouTube OBS Music Interface.
 YouTube playlist randomizer, player and modular OBS overlay for streamers
@@ -7,22 +7,22 @@ Created and designed by TheSensibleStreamer
 Powered by mpv | yt-dlp | FFmpeg
 Development assistance by ChatGPT
 
-WHAT IS NEW IN 4.2.0.1
+WHAT IS NEW IN 4.2.0.2
 ----------------------
 - YOMI stays on the 4.2.0 / "420" generation. Compatible public updates use a
-  fourth patch number such as 4.2.0.1.
-- General / Player, OBS Overlay, Text & Style, Visualizer, Performance,
-  Director Mode and Outputs 1-6 now provide Default, named presets and Custom.
-- Changing an individual setting marks only its page Custom. Existing 4.2.0
-  installations keep their settings and migrate newly tracked pages as Custom.
-- Outputs presets can instantly build Minimal, Split Essentials, Broadcast Desk
-  or Full Studio Browser Source arrangements across all six rows.
-- Visualizer resolution now runs from Monolith 12x4 and Mega Blocks 16x5 through
-  Microscopic 160x40 and Maximum Detail 192x48.
-- The Visualizer page reports exact generated pixels, relative cost, FPS and a
-  plain-language detail classification before you save.
-- OBS Browser Source version queries follow the complete installed patch number,
-  which makes future updater-installed pages less likely to remain stale.
+  fourth patch number such as 4.2.0.2.
+- Settings -> Sources is a complete one-module source manager. Every module has
+  its own On switch, label, OBS width/height, exact URL, Copy and Preview.
+- Sources presets instantly build Default, Split Essentials, Text Only,
+  Information Desk, Culture Desk or Full Science arrangements.
+- Settings -> Groups 1-6 now has per-row Copy and Preview buttons plus an ordered
+  checklist editor, so comma-separated module lists never need hand editing.
+- Enabling an individual source now activates its required artwork/video/
+  visualizer/comment/history preparation even when the classic overlay module
+  is off. Disabled systems still do no preparation work.
+- Save Settings requests one controlled YOMI restart only when a running media
+  pipeline actually changed; browser-only dimensions, layout and style remain
+  live. The last direct Smart Crop FFprobe fallback now launches at idle priority.
 
 WHAT IS NEW IN 4.2
 ------------------
@@ -76,8 +76,8 @@ The original default uses ONE Browser Source. Open Settings -> OBS Overlay or pr
 DIRECTOR MODE
 -------------
 Director Mode is opt-in. The original /overlay URL and its appearance remain the
-default. Enabling Director Mode unlocks six configurable source groups plus
-fixed one-module Browser Source URLs.
+default. Enabling Director Mode unlocks a Sources page for one-module Browser
+Sources plus a Groups 1-6 page for combined custom arrangements.
 
 Available modules:
 - artwork
@@ -94,12 +94,20 @@ Available modules:
 - upnext
 - mission
 
-Each output accepts any comma-separated module list in display order. Layouts
-include Broadcast Strip, Horizontal, Stack, Cards, Terminal, Timeline and Single. A source can
-contain one item or shovel several together. Every source reads the same local
-track state and mpv clock, so video/progress/visualizer timing stays aligned.
-Media is downloaded once and shared. Putting video in several Browser Sources
-does make OBS decode that same file several times.
+On Settings -> Sources, turn on each module you want, set its OBS dimensions,
+save, then use that row's Copy and Preview buttons. The page also has presets
+and a Copy Enabled Source Pack button.
+
+On Settings -> Groups 1-6, enable a row, press Edit to choose and order its
+modules, choose a layout/theme/dimensions, save, then use Copy or Preview. A
+group can contain one item or shovel several together. Layouts include Broadcast
+Strip, Horizontal, Stack, Cards, Terminal, Timeline and Single.
+
+Every source reads the same local track state and mpv clock, so video/progress/
+visualizer timing stays aligned. Media is downloaded once and shared. Putting
+video in several Browser Sources does make OBS decode that same file several
+times. Save Settings automatically performs a controlled restart only when a
+running preparation pipeline needs the new module selection.
 
 Director worlds:
 Classic, Pirate Radio, Control Room, Cyberpunk Lab, Record Store,

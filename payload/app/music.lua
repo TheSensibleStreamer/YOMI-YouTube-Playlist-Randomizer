@@ -109,9 +109,18 @@ local function modules_contain(value, wanted)
 end
 
 local function director_wants(wanted)
-    if cfg.director_mode ~= true or type(cfg.director_outputs) ~= "table" then return false end
-    for _,output in ipairs(cfg.director_outputs) do
-        if output.enabled == true and modules_contain(output.modules,wanted) then return true end
+    if cfg.director_mode ~= true then return false end
+    if type(cfg.director_fixed_sources) == "table" then
+        for _,source in ipairs(cfg.director_fixed_sources) do
+            if source.enabled == true and tostring(source.module):lower() == tostring(wanted):lower() then
+                return true
+            end
+        end
+    end
+    if type(cfg.director_outputs) == "table" then
+        for _,output in ipairs(cfg.director_outputs) do
+            if output.enabled == true and modules_contain(output.modules,wanted) then return true end
+        end
     end
     return false
 end
@@ -1072,74 +1081,68 @@ local function art_job(job)
                         return
                     end
 
-                    local probe = mp.command_native({
-                        name="subprocess",
-                        playback_only=false,
-                        capture_stdout=true,
-                        capture_stderr=true,
-                        args={
-                            install_root .. "\\runtime\\ffmpeg\\ffprobe.exe",
-                            "-v","error",
-                            "-select_streams","v:0",
-                            "-show_entries","stream=width,height",
-                            "-of","csv=s=x:p=0",
-                            normalized
-                        }
-                    })
+                    local ffprobe = install_root .. "\\runtime\\ffmpeg\\ffprobe.exe"
+                    run("idle",ffprobe,{
+                        "-v","error",
+                        "-select_streams","v:0",
+                        "-show_entries","stream=width,height",
+                        "-of","csv=s=x:p=0",
+                        normalized
+                    },function(probe_success,probe)
+                        local ow,oh=nil,nil
 
-                    local ow,oh=nil,nil
+                        if probe_success and probe and probe.status==0 and probe.stdout then
+                            local a,b=probe.stdout:match("(%d+)%s*x%s*(%d+)")
+                            ow=tonumber(a)
+                            oh=tonumber(b)
+                        end
 
-                    if probe and probe.status==0 and probe.stdout then
-                        local a,b=probe.stdout:match("(%d+)%s*x%s*(%d+)")
-                        ow=tonumber(a)
-                        oh=tonumber(b)
-                    end
+                        if not ow or not oh then
+                            log("ARTWORK BLACK FALLBACK PROBE FAILED track " .. i)
+                            finish_art(nil,"none")
+                            return
+                        end
 
-                    if not ow or not oh then
-                        log("ARTWORK BLACK FALLBACK PROBE FAILED track " .. i)
-                        finish_art(nil,"none")
-                        return
-                    end
+                        local left=cx
+                        local top=cy
+                        local right=ow-(cx+cw)
+                        local bottom=oh-(cy+ch)
 
-                    local left=cx
-                    local top=cy
-                    local right=ow-(cx+cw)
-                    local bottom=oh-(cy+ch)
+                        local meaningful =
+                            left >= 8 or top >= 8 or right >= 8 or bottom >= 8
 
-                    local meaningful =
-                        left >= 8 or top >= 8 or right >= 8 or bottom >= 8
+                        local within_caps =
+                            left <= ow*0.30 and
+                            right <= ow*0.30 and
+                            top <= oh*0.30 and
+                            bottom <= oh*0.30 and
+                            cw >= ow*0.40 and
+                            ch >= oh*0.40
 
-                    local within_caps =
-                        left <= ow*0.30 and
-                        right <= ow*0.30 and
-                        top <= oh*0.30 and
-                        bottom <= oh*0.30 and
-                        cw >= ow*0.40 and
-                        ch >= oh*0.40
+                        if meaningful and within_caps then
+                            local crop_expr=string.format("%d:%d:%d:%d",cw,ch,cx,cy)
 
-                    if meaningful and within_caps then
-                        local crop_expr=string.format("%d:%d:%d:%d",cw,ch,cx,cy)
+                            log(
+                                "ARTWORK BLACK CROP track "..i.." "..crop_expr..
+                                " borders L"..left..
+                                " T"..top..
+                                " R"..right..
+                                " B"..bottom
+                            )
 
-                        log(
-                            "ARTWORK BLACK CROP track "..i.." "..crop_expr..
-                            " borders L"..left..
-                            " T"..top..
-                            " R"..right..
-                            " B"..bottom
-                        )
+                            finish_art(crop_expr,"black-fallback")
+                        else
+                            log(
+                                "ARTWORK BLACK FALLBACK REJECT track "..i..
+                                " borders L"..left..
+                                " T"..top..
+                                " R"..right..
+                                " B"..bottom
+                            )
 
-                        finish_art(crop_expr,"black-fallback")
-                    else
-                        log(
-                            "ARTWORK BLACK FALLBACK REJECT track "..i..
-                            " borders L"..left..
-                            " T"..top..
-                            " R"..right..
-                            " B"..bottom
-                        )
-
-                        finish_art(nil,"none")
-                    end
+                            finish_art(nil,"none")
+                        end
+                    end)
                 end)
             end
 

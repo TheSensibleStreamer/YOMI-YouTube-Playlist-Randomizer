@@ -1,10 +1,13 @@
 {
-  "version": "v4.2.0.1",
+  "version": "v4.2.0.2",
   "product": "YOMI - YouTube OBS Music Interface / Playlist Randomizer / Director Mode",
   "features": [
     "original combined OBS overlay preserved as the default",
-    "six configurable modular OBS output groups",
-    "fixed single-module Browser Source URLs",
+    "native individual-source manager with enable, dimensions, exact URL, Copy and Preview per module",
+    "Sources presets for Split Essentials, Text Only, Information Desk, Culture Desk and Full Science",
+    "six configurable modular OBS output groups with per-row Copy and Preview",
+    "ordered checked-list module editor for Groups 1-6",
+    "fixed single-module Browser Source URLs that activate their own preparation requirements",
     "one shared state clock and media cache across every output",
     "polished 90px Broadcast Strip plus Horizontal, Stack, Cards, Terminal, Timeline and Single layouts",
     "twelve broadcast world themes",
@@ -13,7 +16,7 @@
     "seven visualizer shapes with anchor, spacing, glow, frequency-scale and live high-frequency-trim controls",
     "visualizer generation resolution ladder from 12x4 Monolith through 192x48 Maximum Detail",
     "live FPS-adjusted visualizer sampled-pixel workload indicator",
-    "Default, named and auto-Custom page presets across General, OBS Overlay, Text and Style, Visualizer, Performance, Director and Outputs",
+    "Default, named and auto-Custom page presets across General, OBS Overlay, Text and Style, Visualizer, Performance, Director, Sources and Groups",
     "atomic six-row output templates for Minimal, Split Essentials, Broadcast Desk and Full Studio",
     "4.2.0.x patch-derived Browser Source cache keys",
     "true 30 or 60 FPS cached visualizer generation",
@@ -36,7 +39,9 @@
     "one complete-track ready-ahead distance from 1 through 20",
     "automatic 15, 30 or 60 FPS Browser Source resolution from enabled media",
     "optional 8-worker maximum caching mode with below-normal process priority",
-    "silent ordinary settings saves and playlist-preserving Restore Defaults",
+    "silent ordinary settings saves with targeted controlled restart when a running media pipeline changes",
+    "live browser-only source dimensions, layout and styling without an engine restart",
+    "playlist-preserving Restore Defaults",
     "daily low-overhead update availability checks plus manual Check for Updates",
     "official-repository update manifest with mandatory SHA-256 package verification",
     "hard video disk-cache ceiling independent of complete-bundle look-ahead",
@@ -44,7 +49,7 @@
     "server-side current-state file cache for efficient multi-source polling",
     "versioned OBS setup URLs to avoid stale Browser Source pages",
     "JPG-first canonical Smart Crop pipeline with compiled any-color detector",
-    "FFmpeg black-border cropdetect fallback",
+    "FFmpeg black-border cropdetect fallback with idle-priority FFprobe compatibility inspection",
     "Balanced two-worker fresh-install default",
     "duplicate playlist occurrences preserved with no dedupe",
     "explicit opt-in narrow Windows Defender yt-dlp process exclusion",
@@ -54,39 +59,39 @@
   "files": {
     "INSTALL YOMI.cmd": {
       "bytes": 1574,
-      "sha256": "135bcf0e9c44fd128c937d2e4ee03ca82a034d4bc4dfeeeff09be88bc3d1ad7d"
+      "sha256": "3dad198eed01ff47354bd071b1463557c413a099539caf21d8cda6675fbd59ed"
     },
     "installer/install.ps1": {
       "bytes": 37084,
-      "sha256": "8bc0da3260e077c0209e5fee930979ddc086e707cbc7e7c1e46bb31c42c80e65"
+      "sha256": "440a3185c3224f66d5ce6a720e0086bd1e86ed523ac7dca115828bac06ca96d8"
     },
     "payload/app/ArtworkEdgeDetector.cs": {
       "bytes": 8193,
       "sha256": "1708437ba084788d4df37d6e9c9ce143c54163bd10f0efd7d1c820ce49abc6ce"
     },
     "payload/app/common.ps1": {
-      "bytes": 15302,
-      "sha256": "ecc04302320fc8d32397a6f00e008a7214a622767a91d8dc70293430944adc22"
+      "bytes": 16050,
+      "sha256": "4103ebc8dc7dc49049512a0c6710af64f898da71a1ec62284c7c9c45c934aa0d"
     },
     "payload/app/components.ps1": {
       "bytes": 4467,
       "sha256": "d0793e63ad4a7f73836f229a621a148687d24a8ec7bbb6e3060f1d3db9665a7f"
     },
     "payload/app/controller.ps1": {
-      "bytes": 23087,
-      "sha256": "ace53073762bd014c13dda04a5d83d046d3ca6c0636da4210c382f93d5c27d96"
+      "bytes": 23740,
+      "sha256": "382adadf0e729e856b151aea29cb05ee0d583dcbabe065462f6c3d7990d95334"
     },
     "payload/app/default-config.json": {
-      "bytes": 4199,
-      "sha256": "ae1a830ad3e50785b4f4d68b74c2d4641bb0433e059b9e0607db2ecad235531e"
+      "bytes": 5528,
+      "sha256": "5e5db5e011e54518b5ae8522c6de4df4b5d5d673e578bc21f40a476f2892faed"
     },
     "payload/app/diagnostics.ps1": {
-      "bytes": 4492,
-      "sha256": "bb903e2e7fd6fb4746a49b4b91a3515dac3353439957867e16243342086f0baa"
+      "bytes": 4736,
+      "sha256": "c04e9f3a5400b768da34c09dd4292839a3c9c6ec9711eb05c1b38f51217c5c52"
     },
     "payload/app/music.lua": {
-      "bytes": 63656,
-      "sha256": "065392a78971c0fd8765cc8358e8c56bdaa44f0564e617b7631af79850d5fbde"
+      "bytes": 63960,
+      "sha256": "5e7f02c2b1926ee1450583c82408443c6991f614af74c0e3272f08b1d79b2700"
     },
     "payload/app/playlist-refresh.ps1": {
       "bytes": 186,
@@ -101,8 +106,8 @@
       "sha256": "0f20de75bd2bcf4ca2f5824efd56f811941935f37907dd1c6c79c84ce7fd91e5"
     },
     "payload/app/settings.ps1": {
-      "bytes": 95796,
-      "sha256": "51d22b45094ab4dd9df51fd530aab23f25fc9275b2aab15ee72d3d586ccc0c52"
+      "bytes": 111046,
+      "sha256": "b690216996fab352e80f3cf835dd2c73b19ab2d3124aeba09a05f6781f8f3e7e"
     },
     "payload/app/shuffle.ps1": {
       "bytes": 3320,
@@ -133,12 +138,12 @@
       "sha256": "6a393dd34870f3ca7d8021076fefbec02b7026e2d61eca84069a5c53313bb511"
     },
     "payload/README-EASY.txt": {
-      "bytes": 23194,
-      "sha256": "1915fcca5ac757f311b10e1c05d01e157f1682f41114b3b4039ea4efce6fc283"
+      "bytes": 23645,
+      "sha256": "61685a9ba99839b16988074c57a00e35a0479290af6f9a62097eac6d2a4bd808"
     },
     "payload/README-TECHNICAL.txt": {
-      "bytes": 18954,
-      "sha256": "3f1130dd7b623e7dc400944bd998284f1961b3b9cf72d6c0460d6a0861781191"
+      "bytes": 20331,
+      "sha256": "45ae5296e4c9eaad18499f75b88ba5ccb9fecff1e4ff75b43a861d9d8932658f"
     },
     "payload/THIRD-PARTY.txt": {
       "bytes": 805,
@@ -150,11 +155,11 @@
     },
     "payload/VERSION.txt": {
       "bytes": 14,
-      "sha256": "2c9f9a3c4e93371f5b8802e2b4460fce3a181c2dbfb61b88cdbd1c1f7bc999e1"
+      "sha256": "e8333675f69bb17868595903d5094330bac10828a4eb724e8a4f8b01b9b1d8ab"
     },
     "payload/web/director.html": {
-      "bytes": 32581,
-      "sha256": "430a3aa301b10b92c8f59a7d397539406475a244e77defd9686049215150639d"
+      "bytes": 32757,
+      "sha256": "0b4c2e44a918e214f3f3508223756d3c30c2cc0e884216efe9e688cf4f58eb25"
     },
     "payload/web/overlay.html": {
       "bytes": 14902,

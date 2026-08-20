@@ -1,4 +1,4 @@
-YOMI 4.2.0.1 - TECHNICAL NOTES / 420 PATCH LINE + PRESET SYSTEM
+YOMI 4.2.0.2 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
 ==========================
 Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI
@@ -22,6 +22,9 @@ legacy config field for older-version readability.
 
 Director mode (opt-in):
 The same server exposes /source/1 through /source/6 plus fixed module routes.
+director_fixed_sources stores the enable state, label and OBS dimensions for
+every one-module route. Merely enabling a fixed source now participates in the
+same preparation-demand calculation as a numbered group or classic overlay.
 All Browser Sources poll one current.json state object and one sampled mpv IPC
 clock. Audio/art/video/visualizer assets are prepared once and shared by URL.
 Each Browser Source owns its own decoder/render surface, so duplicate video
@@ -39,16 +42,39 @@ failure writes a small status marker and cannot delay, skip or stop a track.
 PAGE PRESETS
 ------------
 General / Player, OBS Overlay, Text & Style, Visualizer, Performance, Director
-Mode and Outputs 1-6 expose Default, named presets and Custom. Event guards let
+Mode, Sources and Groups 1-6 expose Default, named presets and Custom. Event guards let
 a preset populate all controls without renaming itself; changing any underlying
 control outside the guarded operation marks only that page Custom. Existing
 installations missing a page tracker migrate that page as Custom, preserving
 hand-tuned values rather than falsely labeling them as factory settings.
 
-The Outputs page applies six rows atomically while the guard is active. Minimal,
+The Groups page applies six rows atomically while the guard is active. Minimal,
 Split Essentials, Broadcast Desk and Full Studio are configuration templates;
 they do not duplicate downloads because every source retains the shared media
 cache and clock architecture.
+
+The Sources page applies one-module arrangements atomically. Each row exposes
+enabled state, label, width, height, exact URL, Copy and Preview. Groups expose
+the same Copy/Preview workflow and an ordered checked-list editor instead of a
+raw module string. Selecting Comment or History also enables its required
+decorative feature switch.
+
+DIRECTOR SOURCE MANAGER / RESTART CONTRACT
+------------------------------------------
+The preparation contract is the union of:
+1. enabled classic overlay modules,
+2. enabled fixed one-module sources, and
+3. modules present in enabled Groups 1-6.
+
+Disabled systems schedule no asset work. Settings compares a compact signature
+of pipeline-affecting values before and after Save. If YOMI is running and that
+signature changes, it writes one restart request for the Controller, which
+gracefully stops and relaunches the Supervisor/server/player. Browser-only
+labels, dimensions, layout and styling do not restart the media pipeline.
+
+All normal FFmpeg and FFprobe child work, including the Smart Crop compatibility
+probe that previously bypassed the launcher, now goes through PriorityRun at
+idle priority.
 
 VISUALIZER GENERATION RESOLUTION
 --------------------------------

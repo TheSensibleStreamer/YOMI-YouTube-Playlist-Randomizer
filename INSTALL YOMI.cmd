@@ -5,7 +5,7 @@ title Install YOMI
 
 echo.
 echo ========================================
-echo           INSTALL YOMI 4.2.0.1
+echo           INSTALL YOMI 4.2.0.2
 echo ========================================
 echo       YouTube OBS Music Interface
 echo.

@@ -8,9 +8,9 @@ If you were searching for a **YouTube playlist randomizer**, **lightweight YouTu
 
 ## Download
 
-The current public build is **YOMI v4.2.0.1**. YOMI remains on the 4.2.0/“420” line; compatible improvements use the fourth patch component instead of needlessly renaming the product generation.
+The current public build is **YOMI v4.2.0.2**. YOMI remains on the 4.2.0/“420” line; compatible improvements use the fourth patch component instead of needlessly renaming the product generation.
 
-Download [`YOMI-v4.2.0.1.zip`](./YOMI-v4.2.0.1.zip), fully extract it, then double-click:
+Download [`YOMI-v4.2.0.2.zip`](./YOMI-v4.2.0.2.zip), fully extract it, then double-click:
 
 ```text
 INSTALL YOMI.cmd
@@ -39,9 +39,11 @@ The original combined Browser Source remains the default. It can contain:
 - Channel name
 - Retro audio visualizer
 
-Director Mode is optional and adds six configurable output groups plus fixed single-module URLs. You can keep everything together, split each module into its own Browser Source, or shovel several modules into any output.
+Director Mode is optional and adds a native source manager plus six configurable output groups. You can keep everything together, split each module into its own Browser Source, or shovel several modules into any output.
 
 Available modules include artwork, video, title, channel, visualizer, progress, stats, technical telemetry, pipeline status, featured comment, history, Up Next, and mission metrics. All sources share one player clock and prepared media cache, so splitting the layout does not redownload the track.
+
+Settings → **Sources** gives every individual module its own On switch, editable OBS dimensions, visible URL, Copy button, and live Preview button. Settings → **Groups 1–6** adds row-level Copy/Preview controls and an ordered checklist editor for choosing modules. Enabling an individual media source now activates its required preparation work instead of relying on a hidden classic-overlay or output-group dependency.
 
 ## Visualizer
 
@@ -61,9 +63,9 @@ The lower-resolution Monolith/Mega/Giant choices produce deliberately enormous p
 
 ## Presets and customization
 
-General / Player, the complete OBS Overlay page, Text & Style, Visualizer, Performance, Director Mode, and Outputs 1–6 expose **Default**, named presets, and **Custom**. Changing any underlying option automatically marks only that page Custom.
+General / Player, the complete OBS Overlay page, Text & Style, Visualizer, Performance, Director Mode, Sources, and Groups 1–6 expose **Default**, named presets, and **Custom**. Changing any underlying option automatically marks only that page Custom.
 
-The Outputs presets can build a minimal title source, six split essentials, a broadcast desk, or a full studio in one selection. Existing 4.2.0 installations preserve their hand-tuned values and label newly tracked pages Custom during migration.
+Source presets can build Split Essentials, Text Only, Information Desk, Culture Desk, or Full Science individual-source packs. Group presets can build a minimal title source, six split essentials, a broadcast desk, or a full studio in one selection. Existing 4.2.0 installations preserve their hand-tuned values during migration.
 
 ## Complete-track cache
 
@@ -102,7 +104,7 @@ When a newer build exists, YOMI asks before downloading anything. The package UR
 
 ## Settings behavior
 
-Ordinary saves are silent; the button briefly changes to **SAVED**. **Restore Default Settings** resets YOMI options and layouts while preserving the playlist, playback history, installed components, and Defender choice.
+Ordinary saves are silent; the button briefly changes to **SAVED**. When a saved change affects player or preparation behavior, Settings asks the existing Controller to perform a controlled automatic restart and reports **SAVED — RESTARTING**. Browser-only styling and source-dimension changes continue refreshing live without interrupting playback. **Restore Default Settings** resets YOMI options and layouts while preserving the playlist, playback history, installed components, and Defender choice.
 
 ## Smart artwork crop
 

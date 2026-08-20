@@ -1,7 +1,7 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
-$script:YomiFallbackVersion = '4.2.0.1'
+$script:YomiFallbackVersion = '4.2.0.2'
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
 
 function Get-YomiVersionText {
@@ -163,6 +163,13 @@ function Get-DirectorOutputUrl($Config,[int]$OutputId) {
 function Get-DirectorModuleUrl($Config,[string]$Module) {
     $safe = ([string]$Module).Trim().ToLowerInvariant()
     return "http://127.0.0.1:$($Config.server_port)/source/$safe?v=$(Get-YomiBrowserCacheKey)"
+}
+
+function Get-DirectorFixedSource($Config,[string]$Module) {
+    $safe = ([string]$Module).Trim().ToLowerInvariant()
+    return @($Config.director_fixed_sources | Where-Object {
+        ([string]$_.module).Trim().ToLowerInvariant() -eq $safe
+    }) | Select-Object -First 1
 }
 
 function Clear-YomiCache {
@@ -363,34 +370,49 @@ No second visualizer source is needed.
 
 DIRECTOR MODE / MODULAR SOURCES
 ===============================
-Every source uses the same YOMI state and playback clock. Media is downloaded
-once and shared; adding the same video to several Browser Sources does make OBS
-decode that video several times.
+1. In Settings, enable the individual sources and/or grouped outputs you want.
+2. Save. YOMI automatically restarts only when the media pipeline must reload.
+3. In OBS, create one Browser Source for each enabled URL below.
+4. Copy the matching width and height exactly, then place the source anywhere.
 
-Single-module URLs:
-Artwork:    $(Get-DirectorModuleUrl $Config 'artwork')
-Video:      $(Get-DirectorModuleUrl $Config 'video')
-Title:      $(Get-DirectorModuleUrl $Config 'title')
-Channel:    $(Get-DirectorModuleUrl $Config 'channel')
-Visualizer: $(Get-DirectorModuleUrl $Config 'visualizer')
-Progress:   $(Get-DirectorModuleUrl $Config 'progress')
-Stats:      $(Get-DirectorModuleUrl $Config 'stats')
-Technical:  $(Get-DirectorModuleUrl $Config 'technical')
-Pipeline:   $(Get-DirectorModuleUrl $Config 'pipeline')
-Comment:    $(Get-DirectorModuleUrl $Config 'comment')
-History:    $(Get-DirectorModuleUrl $Config 'history')
-Up Next:    $(Get-DirectorModuleUrl $Config 'upnext')
-Mission:    $(Get-DirectorModuleUrl $Config 'mission')
+Every source uses the same YOMI playback clock and one shared download cache.
+Adding the same video to several Browser Sources does not redownload it, but it
+does make OBS decode that video once per video source.
 
-Configured outputs:
+ENABLED INDIVIDUAL SOURCES
+--------------------------
 "@
 
+        $fixedCount = 0
+        foreach ($source in @($Config.director_fixed_sources)) {
+            if (-not [bool]$source.enabled) { continue }
+            $fixedCount++
+            $label = if ($source.label) { [string]$source.label } else { [string]$source.module }
+            $text += "`r`n$label`r`n"
+            $text += "URL: $(Get-DirectorModuleUrl $Config ([string]$source.module))`r`n"
+            $text += "Browser: $([int]$source.width) x $([int]$source.height)`r`n"
+        }
+        if ($fixedCount -eq 0) {
+            $text += "`r`n(none enabled - use Settings > Sources)`r`n"
+        }
+
+        $text += @"
+
+ENABLED GROUPED OUTPUTS
+-----------------------
+"@
+
+        $outputCount = 0
         foreach ($output in @($Config.director_outputs)) {
             if (-not [bool]$output.enabled) { continue }
+            $outputCount++
             $text += "`r`nOutput $($output.id) - $($output.name)`r`n"
             $text += "URL: $(Get-DirectorOutputUrl $Config ([int]$output.id))`r`n"
             $text += "Browser: $($output.width) x $($output.height)`r`n"
             $text += "Modules: $($output.modules)`r`n"
+        }
+        if ($outputCount -eq 0) {
+            $text += "`r`n(none enabled - use Settings > Groups 1-6)`r`n"
         }
     }
 

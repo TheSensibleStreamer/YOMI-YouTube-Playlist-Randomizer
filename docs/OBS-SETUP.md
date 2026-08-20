@@ -17,9 +17,25 @@ Classic overlay page presets include Default, Gaming Light, Artwork Radio, Full 
 
 ## Director Mode and split sources
 
-Director Mode is opt-in. It exposes `/source/1` through `/source/6` for configurable groups plus fixed one-module routes such as `/source/artwork`, `/source/video`, `/source/title`, and `/source/stats`.
+Director Mode is opt-in. It exposes fixed one-module routes through **Sources** and `/source/1` through `/source/6` through **Groups 1–6**.
 
-Outputs presets can configure all six rows at once:
+### Individual-source workflow
+
+1. Open **General / Player** and select **Streamer / OBS**.
+2. Open **Director Mode** and enable it or choose a named preset.
+3. Open **Sources** and choose a source preset or enable individual rows.
+4. Set each Browser Source width and height if the recommended dimensions do not fit your scene.
+5. Save. YOMI restarts itself only when the player/preparation pipeline needs to reload.
+6. Use **Copy** or **Preview** beside the exact source you want.
+7. In OBS, add a Browser Source with the copied URL and the width/height shown on that row.
+
+Available individual routes are artwork, video, title, channel, visualizer, progress, stats, technical, pipeline, comment, history, Up Next, and mission. Enabling a row tells YOMI to prepare that source; disabled rows add no media work.
+
+### Grouped-output workflow
+
+Open **Groups 1–6**, choose a preset or edit any row, and use **Edit** to choose modules with an ordered checklist. Copy and Preview sit on the same row as its URL configuration.
+
+Group presets can configure all six rows at once:
 
 - Minimal — one title/channel source
 - Split Essentials — artwork, video, title card, visualizer, culture, and stats sources
@@ -27,6 +43,8 @@ Outputs presets can configure all six rows at once:
 - Full Studio — six enabled broadcast surfaces including a timeline and mission control
 
 All sources share one local clock and one downloaded media cache. Splitting video into multiple Browser Sources does not redownload it, but every video source makes OBS perform another decode.
+
+The Director page can copy one complete enabled-source pack or open a generated setup guide containing only enabled sources/groups with their exact URLs and dimensions.
 
 ## Layout and source FPS
 

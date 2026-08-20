@@ -1,5 +1,30 @@
 # YOMI Changelog
 
+## v4.2.0.2
+
+Director Mode usability and correctness release on the permanent YOMI 4.2.0/“420” generation.
+
+### Source manager
+
+- Added a dedicated Sources page covering all thirteen individual module routes
+- Added per-source enable switches, editable OBS dimensions, visible URLs, Copy buttons, and live Preview buttons
+- Added Default, Split Essentials, Text Only, Information Desk, Culture Desk, Full Science, and auto-Custom source presets
+- Added enabled-source packs with exact OBS dimensions to the generated setup guide
+
+### Grouped outputs
+
+- Renamed the advanced page to Groups 1–6 and added Copy and Preview beside every row
+- Replaced raw module-string editing with an ordered checklist and Move Up / Move Down controls
+- Automatically enables Featured Comment and History prerequisites when an active source/group selects those modules
+
+### Correctness and lifecycle
+
+- Individual artwork, video, visualizer, and comment routes now activate their own required preparation work
+- Disabled individual routes remain genuinely disabled and do not silently add cache work
+- Pipeline-affecting saves now request a controlled stop/restart through the existing Controller; browser-only changes remain live
+- Routed the last direct Smart Crop FFprobe fallback through `PriorityRun.exe idle`
+- Expanded diagnostics with every individual source, enable state, dimensions, and URL
+
 ## v4.2.0.1
 
 Patch-line expansion on the permanent YOMI 4.2.0/“420” generation.
