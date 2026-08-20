@@ -76,6 +76,22 @@ function Color-Name([string]$hex,[string]$fallback='YOMI Cream') {
     return $fallback
 }
 
+$directorModuleCatalog=@(
+    [PSCustomObject]@{Module='artwork';Label='Artwork';Width=320;Height=180},
+    [PSCustomObject]@{Module='video';Label='Video';Width=320;Height=180},
+    [PSCustomObject]@{Module='title';Label='Title';Width=900;Height=120},
+    [PSCustomObject]@{Module='channel';Label='Channel';Width=900;Height=100},
+    [PSCustomObject]@{Module='visualizer';Label='Visualizer';Width=900;Height=180},
+    [PSCustomObject]@{Module='progress';Label='Progress';Width=900;Height=100},
+    [PSCustomObject]@{Module='stats';Label='Stats';Width=1200;Height=420},
+    [PSCustomObject]@{Module='technical';Label='Technical';Width=1000;Height=320},
+    [PSCustomObject]@{Module='pipeline';Label='Pipeline';Width=1000;Height=360},
+    [PSCustomObject]@{Module='comment';Label='Featured Comment';Width=900;Height=360},
+    [PSCustomObject]@{Module='history';Label='History';Width=1200;Height=220},
+    [PSCustomObject]@{Module='upnext';Label='Up Next';Width=1000;Height=220},
+    [PSCustomObject]@{Module='mission';Label='Mission';Width=1000;Height=320}
+)
+
 $tabs=New-Object System.Windows.Forms.TabControl
 $tabs.Location=New-Object System.Drawing.Point(20,62); $tabs.Size=New-Object System.Drawing.Size(955,650)
 $form.Controls.Add($tabs)
@@ -298,27 +314,58 @@ $historyOn=Add-Check $director 'Show persistent broadcast History module' 18 304
 Add-Label $director 'Keep entries:' 365 308 100 | Out-Null
 $historyMax=Add-Number $director 465 304 80 10 1000 ([int]$config.history_max_entries)
 
-$directorHint=Add-Label $director 'Director Mode adds modular Browser Sources, output groups, synchronized scene timelines, theme worlds, rules, history, Up Next, engineering telemetry, mission codes and culture widgets. Disabled systems consume no download/probe work. The original /overlay remains the unchanged default.' 18 360 865 70
+$directorHint=Add-Label $director 'Director Mode adds modular Browser Sources, output groups, synchronized scene timelines, theme worlds, history, Up Next, engineering telemetry, mission codes and culture widgets. Build separate modules on Sources or combine them on Groups 1-6. The original /overlay remains the unchanged default.' 18 360 865 70
 $directorHint.ForeColor=[System.Drawing.Color]::DimGray
-$copySources=New-Object System.Windows.Forms.Button; $copySources.Text='COPY ALL SOURCE URLS'; $copySources.Location=New-Object System.Drawing.Point(18,455); $copySources.Size=New-Object System.Drawing.Size(220,38); $director.Controls.Add($copySources)
-$openObsGuide=New-Object System.Windows.Forms.Button; $openObsGuide.Text='OPEN DIRECTOR OBS GUIDE'; $openObsGuide.Location=New-Object System.Drawing.Point(250,455); $openObsGuide.Size=New-Object System.Drawing.Size(235,38); $director.Controls.Add($openObsGuide)
-$directorUrlHint=Add-Label $director 'Fixed URLs include /source/artwork, /video, /title, /channel, /visualizer, /stats, /technical, /comment, /history, /upnext and /mission. Configured groups use /source/1 through /source/6.' 18 515 865 52
+$copySources=New-Object System.Windows.Forms.Button; $copySources.Text='COPY ENABLED SOURCE PACK'; $copySources.Location=New-Object System.Drawing.Point(18,455); $copySources.Size=New-Object System.Drawing.Size(245,38); $director.Controls.Add($copySources)
+$openObsGuide=New-Object System.Windows.Forms.Button; $openObsGuide.Text='OPEN OBS SOURCE GUIDE'; $openObsGuide.Location=New-Object System.Drawing.Point(275,455); $openObsGuide.Size=New-Object System.Drawing.Size(225,38); $director.Controls.Add($openObsGuide)
+$directorUrlHint=Add-Label $director 'Workflow: enable Director Mode, choose individual sources and/or grouped outputs, Save, then Copy or Open Preview on the same source row. Pipeline-affecting changes restart YOMI automatically.' 18 515 865 52
 $directorUrlHint.ForeColor=[System.Drawing.Color]::DimGray
 
+# INDIVIDUAL MODULAR SOURCES
+$sourcesTab=New-Tab 'Sources'
+Add-Label $sourcesTab 'Preset:' 12 13 65 | Out-Null
+$sourcesPreset=Add-Combo $sourcesTab 78 9 190 @('Default','Split Essentials','Text Only','Information Desk','Culture Desk','Full Science','Custom') ([string]$config.sources_preset)
+$sourcesPresetHint=Add-Label $sourcesTab 'On means YOMI prepares that source. Copy and Preview use the exact current URL.' 285 12 455 28
+$sourcesPresetHint.ForeColor=[System.Drawing.Color]::DimGray
+$copyEnabledFixed=New-Object System.Windows.Forms.Button;$copyEnabledFixed.Text='COPY ENABLED';$copyEnabledFixed.Location=New-Object System.Drawing.Point(760,7);$copyEnabledFixed.Size=New-Object System.Drawing.Size(135,32);$sourcesTab.Controls.Add($copyEnabledFixed)
+Add-Label $sourcesTab 'On' 12 49 30 | Out-Null
+Add-Label $sourcesTab 'Source' 48 49 110 | Out-Null
+Add-Label $sourcesTab 'W' 170 49 45 | Out-Null
+Add-Label $sourcesTab 'H' 235 49 45 | Out-Null
+Add-Label $sourcesTab 'Browser Source URL' 305 49 250 | Out-Null
+$sourceControls=@()
+$sourceIndex=0
+foreach($entry in $directorModuleCatalog){
+    $saved=@($config.director_fixed_sources|Where-Object{[string]$_.module -eq [string]$entry.Module})|Select-Object -First 1
+    if($null -eq $saved){$saved=[PSCustomObject]@{module=$entry.Module;label=$entry.Label;enabled=$false;width=$entry.Width;height=$entry.Height}}
+    $y=65+($sourceIndex*38);$sourceIndex++
+    $on=Add-Check $sourcesTab '' 12 $y ([bool]$saved.enabled) 28
+    Add-Label $sourcesTab ([string]$entry.Label) 48 ($y+3) 115 | Out-Null
+    $sw=Add-Number $sourcesTab 170 $y 55 64 7680 ([int]$saved.width)
+    $sh=Add-Number $sourcesTab 235 $y 55 32 4320 ([int]$saved.height)
+    $url=Add-Text $sourcesTab 305 $y 385 (Get-DirectorModuleUrl $config ([string]$entry.Module));$url.ReadOnly=$true;$url.BackColor=[System.Drawing.Color]::White
+    $copy=New-Object System.Windows.Forms.Button;$copy.Text='COPY';$copy.Location=New-Object System.Drawing.Point(700,$y);$copy.Size=New-Object System.Drawing.Size(75,28);$sourcesTab.Controls.Add($copy)
+    $preview=New-Object System.Windows.Forms.Button;$preview.Text='PREVIEW';$preview.Location=New-Object System.Drawing.Point(785,$y);$preview.Size=New-Object System.Drawing.Size(110,28);$sourcesTab.Controls.Add($preview)
+    $row=[PSCustomObject]@{Module=[string]$entry.Module;Label=[string]$entry.Label;Enabled=$on;Width=$sw;Height=$sh;Url=$url;Copy=$copy;Preview=$preview}
+    $on.Tag=$row;$copy.Tag=$row;$preview.Tag=$row;$sourceControls+=$row
+}
+$sourcesHint=Add-Label $sourcesTab 'Artwork, video, visualizer and comment can add preparation work. Several Browser Sources share YOMI downloads and clock; several video sources still make OBS decode the video several times.' 12 565 885 42
+$sourcesHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+
 # MODULAR OUTPUT GROUPS
-$outputsTab=New-Tab 'Outputs 1-6'
+$outputsTab=New-Tab 'Groups 1-6'
 Add-Label $outputsTab 'Page preset:' 16 13 95 | Out-Null
 $outputsPreset=Add-Combo $outputsTab 115 9 240 @('Default','Minimal','Split Essentials','Broadcast Desk','Full Studio','Custom') ([string]$config.outputs_preset)
-$outputsPresetHint=Add-Label $outputsTab 'A preset fills all six rows. Touching any row marks the page Custom.' 380 12 510 28
+$outputsPresetHint=Add-Label $outputsTab 'A preset fills all six rows. Edit Modules opens an ordered checklist.' 380 12 510 28
 $outputsPresetHint.ForeColor=[System.Drawing.Color]::DimGray
 Add-Label $outputsTab 'On' 16 55 32 | Out-Null
 Add-Label $outputsTab 'ID' 48 55 28 | Out-Null
-Add-Label $outputsTab 'Name' 80 55 115 | Out-Null
-Add-Label $outputsTab 'Modules (comma separated, in display order)' 210 55 290 | Out-Null
-Add-Label $outputsTab 'Layout' 510 55 100 | Out-Null
-Add-Label $outputsTab 'Theme' 625 55 125 | Out-Null
-Add-Label $outputsTab 'W' 770 55 55 | Out-Null
-Add-Label $outputsTab 'H' 840 55 55 | Out-Null
+Add-Label $outputsTab 'Name' 76 55 95 | Out-Null
+Add-Label $outputsTab 'Modules (display order)' 180 55 205 | Out-Null
+Add-Label $outputsTab 'Layout' 440 55 85 | Out-Null
+Add-Label $outputsTab 'Theme' 535 55 95 | Out-Null
+Add-Label $outputsTab 'W' 645 55 45 | Out-Null
+Add-Label $outputsTab 'H' 700 55 45 | Out-Null
 $outputControls=@()
 for($oid=1;$oid -le 6;$oid++) {
     $saved=@($config.director_outputs | Where-Object { [int]$_.id -eq $oid }) | Select-Object -First 1
@@ -328,15 +375,19 @@ for($oid=1;$oid -le 6;$oid++) {
     $y=85+(($oid-1)*66)
     $on=Add-Check $outputsTab '' 16 $y ([bool]$saved.enabled) 28
     Add-Label $outputsTab ([string]$oid) 50 ($y+3) 25 | Out-Null
-    $name=Add-Text $outputsTab 80 $y 120 ([string]$saved.name)
-    $mods=Add-Text $outputsTab 210 $y 290 ([string]$saved.modules)
-    $layoutChoice=Add-Combo $outputsTab 510 $y 105 @('Broadcast Strip','Horizontal','Stack','Cards','Terminal','Timeline','Single') ([string]$saved.layout)
-    $themeChoice=Add-Combo $outputsTab 625 $y 130 (@('Global')+$directorThemes) ([string]$saved.theme)
-    $ow=Add-Number $outputsTab 770 $y 60 64 7680 ([int]$saved.width)
-    $oh=Add-Number $outputsTab 840 $y 60 32 4320 ([int]$saved.height)
-    $outputControls += [PSCustomObject]@{Id=$oid;Enabled=$on;Name=$name;Modules=$mods;Layout=$layoutChoice;Theme=$themeChoice;Width=$ow;Height=$oh}
+    $name=Add-Text $outputsTab 76 $y 98 ([string]$saved.name)
+    $mods=Add-Text $outputsTab 180 $y 202 ([string]$saved.modules);$mods.ReadOnly=$true;$mods.BackColor=[System.Drawing.Color]::White
+    $edit=New-Object System.Windows.Forms.Button;$edit.Text='EDIT';$edit.Location=New-Object System.Drawing.Point(388,$y);$edit.Size=New-Object System.Drawing.Size(46,28);$outputsTab.Controls.Add($edit)
+    $layoutChoice=Add-Combo $outputsTab 440 $y 90 @('Broadcast Strip','Horizontal','Stack','Cards','Terminal','Timeline','Single') ([string]$saved.layout)
+    $themeChoice=Add-Combo $outputsTab 535 $y 105 (@('Global')+$directorThemes) ([string]$saved.theme)
+    $ow=Add-Number $outputsTab 645 $y 50 64 7680 ([int]$saved.width)
+    $oh=Add-Number $outputsTab 700 $y 50 32 4320 ([int]$saved.height)
+    $copy=New-Object System.Windows.Forms.Button;$copy.Text='COPY';$copy.Location=New-Object System.Drawing.Point(756,$y);$copy.Size=New-Object System.Drawing.Size(62,28);$outputsTab.Controls.Add($copy)
+    $preview=New-Object System.Windows.Forms.Button;$preview.Text='PREVIEW';$preview.Location=New-Object System.Drawing.Point(824,$y);$preview.Size=New-Object System.Drawing.Size(78,28);$outputsTab.Controls.Add($preview)
+    $row=[PSCustomObject]@{Id=$oid;Enabled=$on;Name=$name;Modules=$mods;Edit=$edit;Layout=$layoutChoice;Theme=$themeChoice;Width=$ow;Height=$oh;Copy=$copy;Preview=$preview}
+    $on.Tag=$row;$edit.Tag=$row;$copy.Tag=$row;$preview.Tag=$row;$outputControls+=$row
 }
-$outputsHint=Add-Label $outputsTab 'Available modules: artwork, video, title, channel, visualizer, progress, stats, technical, pipeline, comment, history, upnext, mission. Put one module in a source or shovel several together. Multiple video sources share the download but each makes OBS perform another decode.' 18 500 870 70
+$outputsHint=Add-Label $outputsTab 'Each enabled row becomes /source/1 through /source/6. Copy and Preview are beside the row. Use Sources when you want exactly one module without consuming an output slot.' 18 500 870 70
 $outputsHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # COMPONENTS
@@ -378,7 +429,55 @@ $script:ApplyingStylePreset=$false
 $script:ApplyingVisualizerPreset=$false
 $script:ApplyingPerformancePreset=$false
 $script:ApplyingDirectorPreset=$false
+$script:ApplyingSourcesPreset=$false
 $script:ApplyingOutputsPreset=$false
+
+function Apply-SourcesPreset {
+    if($script:ApplyingSourcesPreset){return}
+    if([string]$sourcesPreset.SelectedItem -eq 'Custom'){return}
+    $script:ApplyingSourcesPreset=$true
+    try{
+        $enabled=@()
+        switch([string]$sourcesPreset.SelectedItem){
+            'Split Essentials'{$enabled=@('artwork','video','title','channel','visualizer')}
+            'Text Only'{$enabled=@('title','channel','progress','upnext')}
+            'Information Desk'{$enabled=@('progress','stats','technical','pipeline','mission')}
+            'Culture Desk'{$enabled=@('comment','history','upnext')}
+            'Full Science'{$enabled=@($directorModuleCatalog|ForEach-Object{$_.Module})}
+        }
+        foreach($row in $sourceControls){
+            $defaults=@($directorModuleCatalog|Where-Object{$_.Module -eq $row.Module})|Select-Object -First 1
+            $row.Enabled.Checked=($enabled -contains $row.Module)
+            if($defaults){$row.Width.Value=[int]$defaults.Width;$row.Height.Value=[int]$defaults.Height}
+        }
+    }finally{$script:ApplyingSourcesPreset=$false}
+    Update-Dependencies
+}
+
+function Enable-DirectorModulePrerequisites([string]$Modules) {
+    $items=@($Modules.ToLowerInvariant().Split(',')|ForEach-Object{$_.Trim()})
+    if($items -contains 'comment'){$commentOn.Checked=$true}
+    if($items -contains 'history'){$historyOn.Checked=$true}
+}
+
+function Show-OutputModulePicker($row) {
+    $dialog=New-Object System.Windows.Forms.Form;$dialog.Text="Output $($row.Id) - Modules";$dialog.StartPosition='CenterParent';$dialog.Size=New-Object System.Drawing.Size(470,520);$dialog.MinimumSize=$dialog.Size;$dialog.MaximumSize=$dialog.Size;$dialog.MaximizeBox=$false;$dialog.MinimizeBox=$false;$dialog.Font=$form.Font
+    $help=Add-Label $dialog 'Check modules, then use Move Up / Move Down to set their display order.' 14 12 425 42;$help.ForeColor=[System.Drawing.Color]::DimGray
+    $list=New-Object System.Windows.Forms.CheckedListBox;$list.Location=New-Object System.Drawing.Point(14,58);$list.Size=New-Object System.Drawing.Size(290,365);$list.CheckOnClick=$true;$dialog.Controls.Add($list)
+    $current=@(([string]$row.Modules.Text).Split(',')|ForEach-Object{$_.Trim().ToLowerInvariant()}|Where-Object{$_})
+    $all=@($directorModuleCatalog|ForEach-Object{$_.Module})
+    $ordered=@($current|Where-Object{$all -contains $_})+@($all|Where-Object{$current -notcontains $_})
+    foreach($module in $ordered){$index=$list.Items.Add($module);if($current -contains $module){$list.SetItemChecked($index,$true)}}
+    $up=New-Object System.Windows.Forms.Button;$up.Text='MOVE UP';$up.Location=New-Object System.Drawing.Point(320,90);$up.Size=New-Object System.Drawing.Size(115,34);$dialog.Controls.Add($up)
+    $down=New-Object System.Windows.Forms.Button;$down.Text='MOVE DOWN';$down.Location=New-Object System.Drawing.Point(320,136);$down.Size=New-Object System.Drawing.Size(115,34);$dialog.Controls.Add($down)
+    $ok=New-Object System.Windows.Forms.Button;$ok.Text='USE MODULES';$ok.Location=New-Object System.Drawing.Point(305,390);$ok.Size=New-Object System.Drawing.Size(130,34);$dialog.Controls.Add($ok)
+    $cancel=New-Object System.Windows.Forms.Button;$cancel.Text='CANCEL';$cancel.Location=New-Object System.Drawing.Point(305,435);$cancel.Size=New-Object System.Drawing.Size(130,30);$dialog.Controls.Add($cancel)
+    $up.Add_Click({$i=$list.SelectedIndex;if($i -le 0){return};$item=$list.Items[$i];$checked=$list.GetItemChecked($i);$list.Items.RemoveAt($i);$list.Items.Insert($i-1,$item);$list.SetItemChecked($i-1,$checked);$list.SelectedIndex=$i-1})
+    $down.Add_Click({$i=$list.SelectedIndex;if($i -lt 0 -or $i -ge $list.Items.Count-1){return};$item=$list.Items[$i];$checked=$list.GetItemChecked($i);$list.Items.RemoveAt($i);$list.Items.Insert($i+1,$item);$list.SetItemChecked($i+1,$checked);$list.SelectedIndex=$i+1})
+    $ok.Add_Click({$selected=@();for($i=0;$i -lt $list.Items.Count;$i++){if($list.GetItemChecked($i)){$selected+=[string]$list.Items[$i]}};if($selected.Count -lt 1){[System.Windows.Forms.MessageBox]::Show('Choose at least one module.','YOMI Output Modules')|Out-Null;return};$row.Modules.Text=($selected -join ',');if($row.Enabled.Checked){Enable-DirectorModulePrerequisites ([string]$row.Modules.Text)};$dialog.DialogResult=[System.Windows.Forms.DialogResult]::OK;$dialog.Close()})
+    $cancel.Add_Click({$dialog.DialogResult=[System.Windows.Forms.DialogResult]::Cancel;$dialog.Close()})
+    [void]$dialog.ShowDialog($form);$dialog.Dispose()
+}
 
 function Apply-GeneralPreset {
     if($script:ApplyingGeneralPreset){return}
@@ -607,6 +706,12 @@ function Get-UiConfig {
     $o.featured_comment_enabled=[bool]$commentOn.Checked; $o.comment_max_chars=[int]$commentChars.Value; $o.comment_filter_mode=[string]$commentFilter.SelectedItem
     $o.telemetry_enabled=[bool]$telemetryOn.Checked; $o.telemetry_probe_enabled=[bool]$probeOn.Checked
     $o.history_enabled=[bool]$historyOn.Checked; $o.history_max_entries=[int]$historyMax.Value
+    $o.sources_preset=[string]$sourcesPreset.SelectedItem
+    $fixed=@()
+    foreach($row in $sourceControls){
+        $fixed += [PSCustomObject]@{module=[string]$row.Module;label=[string]$row.Label;enabled=[bool]$row.Enabled.Checked;width=[int]$row.Width.Value;height=[int]$row.Height.Value}
+    }
+    $o.director_fixed_sources=$fixed
     $outs=@()
     foreach($row in $outputControls) {
         $outs += [PSCustomObject]@{
@@ -623,6 +728,42 @@ function Get-UiConfig {
     $o.outputs_preset=[string]$outputsPreset.SelectedItem;$o.director_outputs=$outs
     switch([string]$performance.SelectedItem){'Balanced (2 workers)'{$o.performance_mode='Balanced';$o.cache_workers=2;$o.cache_priority='idle'}'Fast caching (4 workers)'{$o.performance_mode='Fast caching';$o.cache_workers=4;$o.cache_priority='below'}'Maximum caching (8 workers)'{$o.performance_mode='Maximum caching';$o.cache_workers=8;$o.cache_priority='below'}default{$o.performance_mode='Gaming / Lowest overhead';$o.cache_workers=1;$o.cache_priority='idle'}}
     return $o
+}
+
+function Get-YomiEngineConfigSignature($c) {
+    $fixed=@($c.director_fixed_sources|Sort-Object module|ForEach-Object{"$($_.module):$([bool]$_.enabled)"})
+    $outputs=@($c.director_outputs|Sort-Object id|ForEach-Object{"$($_.id):$([bool]$_.enabled):$($_.modules)"})
+    $projection=[ordered]@{
+        app_mode=[string]$c.app_mode;player_video_quality=[string]$c.player_video_quality
+        overlay_video_quality=[string]$c.overlay_video_quality;video_preference=[string]$c.video_preference;video_fps=[string]$c.video_fps
+        audio_quality=[string]$c.audio_quality;audio_preference=[string]$c.audio_preference;loudness_normalization=[bool]$c.loudness_normalization
+        artwork_enabled=[bool]$c.artwork_enabled;video_enabled=[bool]$c.video_enabled;visualizer_enabled=[bool]$c.visualizer_enabled
+        smart_artwork_crop=[bool]$c.smart_artwork_crop;media_width=[int]$c.media_width;media_height=[int]$c.media_height
+        visualizer_internal_width=[int]$c.visualizer_internal_width;visualizer_internal_height=[int]$c.visualizer_internal_height
+        visualizer_activity=[string]$c.visualizer_activity;visualizer_frequency_scale=[string]$c.visualizer_frequency_scale;visualizer_fps=[string]$c.visualizer_fps
+        cache_workers=[int]$c.cache_workers;prefetch_ahead=[int]$c.prefetch_ahead;cache_priority=[string]$c.cache_priority
+        director_mode=[bool]$c.director_mode;fixed_sources=$fixed;grouped_outputs=$outputs
+        featured_comment_enabled=[bool]$c.featured_comment_enabled;comment_max_chars=[int]$c.comment_max_chars;comment_filter_mode=[string]$c.comment_filter_mode
+        telemetry_enabled=[bool]$c.telemetry_enabled;telemetry_probe_enabled=[bool]$c.telemetry_probe_enabled
+        history_enabled=[bool]$c.history_enabled;history_max_entries=[int]$c.history_max_entries
+    }
+    return ($projection|ConvertTo-Json -Depth 8 -Compress)
+}
+
+function Test-YomiRuntimeRunning {
+    $stateRoot=Join-Path $DataRoot 'state'
+    foreach($name in @('engine.pid','supervisor.pid')){
+        $path=Join-Path $stateRoot $name;if(-not(Test-Path $path)){continue}
+        $pidValue=0;try{[void][int]::TryParse((Get-Content $path -Raw).Trim(),[ref]$pidValue)}catch{}
+        if($pidValue -gt 0 -and (Get-Process -Id $pidValue -ErrorAction SilentlyContinue)){return $true}
+    }
+    return $false
+}
+
+function Request-YomiControlledRestart {
+    $stateRoot=Join-Path $DataRoot 'state';New-Item -ItemType Directory -Path $stateRoot -Force|Out-Null
+    Set-Content (Join-Path $stateRoot 'restart-request.txt') 'settings-engine-change' -Encoding ASCII
+    Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'controller'
 }
 
 function Update-QualityWarning {
@@ -655,8 +796,19 @@ function Update-Dependencies {
     $commentFilter.Enabled=($directorActive -and $commentOn.Checked)
     $probeOn.Enabled=($directorActive -and $telemetryOn.Checked -and $ff)
     $historyMax.Enabled=($directorActive -and $historyOn.Checked)
+    $sourcesPreset.Enabled=$directorActive
+    $anyFixed=$false
+    foreach($row in $sourceControls){
+        $supported=($row.Module -ne 'visualizer' -or $ff)
+        $row.Enabled.Enabled=($directorActive -and $supported)
+        $active=($directorActive -and $supported -and $row.Enabled.Checked)
+        $row.Width.Enabled=$active;$row.Height.Enabled=$active;$row.Url.Enabled=$directorActive;$row.Copy.Enabled=$active;$row.Preview.Enabled=$active
+        if($active){$anyFixed=$true}
+    }
+    $copyEnabledFixed.Enabled=($directorActive -and $anyFixed)
     foreach($row in $outputControls) {
-        foreach($c in @($row.Enabled,$row.Name,$row.Modules,$row.Layout,$row.Theme,$row.Width,$row.Height)) { $c.Enabled=$directorActive }
+        foreach($c in @($row.Enabled,$row.Name,$row.Modules,$row.Edit,$row.Layout,$row.Theme,$row.Width,$row.Height)) { $c.Enabled=$directorActive }
+        $row.Copy.Enabled=($directorActive -and $row.Enabled.Checked);$row.Preview.Enabled=($directorActive -and $row.Enabled.Checked)
     }
     $outputsPreset.Enabled=$directorActive
     $copyOverlay.Enabled=$streamer; $obsSetup.Enabled=$streamer
@@ -1054,6 +1206,7 @@ $stylePreset.Add_SelectedIndexChanged({Apply-StylePreset})
 $vizPreset.Add_SelectedIndexChanged({Apply-VisualizerPreset})
 $performancePreset.Add_SelectedIndexChanged({Apply-PerformancePreset})
 $directorPreset.Add_SelectedIndexChanged({Apply-DirectorPreset})
+$sourcesPreset.Add_SelectedIndexChanged({Apply-SourcesPreset})
 $outputsPreset.Add_SelectedIndexChanged({Apply-OutputsPreset})
 $mode.Add_SelectedIndexChanged({Update-Dependencies;Update-Preview})
 foreach($c in @($corner,$font,$textColor,$outlineColor,$textAlign,$textSpacing,$cornerStyle,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$browserFps,$performance,$playerQuality,$videoPreference,$videoFps,$audioQuality,$audioPreference,$activity,$chunk,$vizLength,$directorTheme,$directorTimeline,$directorMotion,$directorPalette,$directorVizShape,$statsDetail,$commentFilter)){ $c.Add_SelectedIndexChanged({Update-Preview}) }
@@ -1069,9 +1222,17 @@ $vizColorMode.Add_SelectedIndexChanged({Update-Dependencies})
 $chunk.Add_SelectedIndexChanged({Update-VisualizerResolutionInfo})
 $vizFps.Add_SelectedIndexChanged({Update-VisualizerResolutionInfo})
 foreach($row in $outputControls) {
-    $row.Enabled.Add_CheckedChanged({Update-Preview})
+    $row.Enabled.Add_CheckedChanged({param($sender,$e)if($sender.Checked){Enable-DirectorModulePrerequisites ([string]$sender.Tag.Modules.Text)};Update-Dependencies;Update-Preview})
     $row.Layout.Add_SelectedIndexChanged({Update-Preview})
     $row.Theme.Add_SelectedIndexChanged({Update-Preview})
+    $row.Edit.Add_Click({param($sender,$e)Show-OutputModulePicker $sender.Tag})
+    $row.Copy.Add_Click({param($sender,$e)$row=$sender.Tag;[System.Windows.Forms.Clipboard]::SetText((Get-DirectorOutputUrl (Get-UiConfig) ([int]$row.Id)));$sender.Text='COPIED'})
+    $row.Preview.Add_Click({param($sender,$e)Start-Process (Get-DirectorOutputUrl (Get-UiConfig) ([int]$sender.Tag.Id))})
+}
+foreach($row in $sourceControls){
+    $row.Enabled.Add_CheckedChanged({param($sender,$e)if($sender.Checked){Enable-DirectorModulePrerequisites ([string]$sender.Tag.Module)};Update-Dependencies})
+    $row.Copy.Add_Click({param($sender,$e)$row=$sender.Tag;[System.Windows.Forms.Clipboard]::SetText((Get-DirectorModuleUrl (Get-UiConfig) ([string]$row.Module)));$sender.Text='COPIED'})
+    $row.Preview.Add_Click({param($sender,$e)Start-Process (Get-DirectorModuleUrl (Get-UiConfig) ([string]$sender.Tag.Module))})
 }
 
 # Page presets are intentionally honest: touching any underlying field turns
@@ -1121,6 +1282,11 @@ foreach($n in @($commentChars,$historyMax)) {
 }
 foreach($c in @($directorOn,$commentOn,$telemetryOn,$probeOn,$historyOn)) {
     $c.Add_CheckedChanged({if(-not $script:ApplyingDirectorPreset -and [string]$directorPreset.SelectedItem -ne 'Custom'){$directorPreset.SelectedItem='Custom'}})
+}
+foreach($row in $sourceControls){
+    $row.Enabled.Add_CheckedChanged({if(-not $script:ApplyingSourcesPreset -and [string]$sourcesPreset.SelectedItem -ne 'Custom'){$sourcesPreset.SelectedItem='Custom'}})
+    $row.Width.Add_ValueChanged({if(-not $script:ApplyingSourcesPreset -and [string]$sourcesPreset.SelectedItem -ne 'Custom'){$sourcesPreset.SelectedItem='Custom'}})
+    $row.Height.Add_ValueChanged({if(-not $script:ApplyingSourcesPreset -and [string]$sourcesPreset.SelectedItem -ne 'Custom'){$sourcesPreset.SelectedItem='Custom'}})
 }
 foreach($row in $outputControls) {
     $row.Enabled.Add_CheckedChanged({if(-not $script:ApplyingOutputsPreset -and [string]$outputsPreset.SelectedItem -ne 'Custom'){$outputsPreset.SelectedItem='Custom'}})
@@ -1191,9 +1357,18 @@ $obsSetup.Add_Click({$p=Write-ObsInstructions (Get-UiConfig);Start-Process notep
 $copySources.Add_Click({
     $p=Write-ObsInstructions (Get-UiConfig)
     [System.Windows.Forms.Clipboard]::SetText((Get-Content $p -Raw))
-    [System.Windows.Forms.MessageBox]::Show('All classic and Director Source URLs copied.','YOMI Director Mode')|Out-Null
+    [System.Windows.Forms.MessageBox]::Show('The enabled source pack, URLs and exact OBS dimensions were copied.','YOMI Director Mode')|Out-Null
 })
 $openObsGuide.Add_Click({$p=Write-ObsInstructions (Get-UiConfig);Start-Process notepad.exe ('"'+$p+'"')})
+$copyEnabledFixed.Add_Click({
+    $c=Get-UiConfig;$lines=@('YOMI ENABLED INDIVIDUAL SOURCES','')
+    foreach($source in @($c.director_fixed_sources)){
+        if(-not [bool]$source.enabled){continue}
+        $lines+="$($source.label): $(Get-DirectorModuleUrl $c ([string]$source.module))  |  $($source.width)x$($source.height)"
+    }
+    if($lines.Count -eq 2){$lines+='(none enabled)'}
+    [System.Windows.Forms.Clipboard]::SetText(($lines -join "`r`n"));$copyEnabledFixed.Text='COPIED'
+})
 $restoreDefaults.Add_Click({
     $answer=[System.Windows.Forms.MessageBox]::Show(
         "Restore factory settings?`r`n`r`nThis resets YOMI options and output layouts. Your playlist, playback history, installed components and Defender choice stay intact. Media affected by quality, crop or visualizer defaults will rebuild on the next start.",
@@ -1210,6 +1385,7 @@ $restoreDefaults.Add_Click({
     $stateRoot=Join-Path $DataRoot 'state';New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
     foreach($flag in @('audio-reset.pending','artwork-reset.pending','video-reset.pending','visualizer-reset.pending')){Set-Content (Join-Path $stateRoot $flag) '1' -Encoding ASCII}
     Write-ObsInstructions $defaults | Out-Null
+    if(Test-YomiRuntimeRunning){Request-YomiControlledRestart}
     Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'settings'
     $form.Close()
 })
@@ -1245,6 +1421,7 @@ $shuffleBtn.Add_Click({
 
 $save.Add_Click({
     $old=Get-YomiConfig; $new=Get-UiConfig; $new.version=$yomiVersion; $new.playlist=$playlist.Text.Trim()
+    $engineChanged=((Get-YomiEngineConfigSignature $old) -ne (Get-YomiEngineConfigSignature $new));$runtimeWasRunning=Test-YomiRuntimeRunning
     $metrics=Get-YomiLayoutMetrics $new; $new.overlay_width=[int]$metrics.OverlayWidth; $new.overlay_height=[int]$metrics.OverlayHeight; $new.overlay_fps=[int]$metrics.BrowserFps
     $playlistChanged=([string]$old.playlist -ne [string]$new.playlist)
     $vizSigBefore="$($old.visualizer_internal_width)x$($old.visualizer_internal_height)|$($old.visualizer_activity)|$($old.visualizer_frequency_scale)|$($old.visualizer_fps)"; $vizSigAfter="$($new.visualizer_internal_width)x$($new.visualizer_internal_height)|$($new.visualizer_activity)|$($new.visualizer_frequency_scale)|$($new.visualizer_fps)"
@@ -1260,7 +1437,9 @@ $save.Add_Click({
     if($audioSigBefore -ne $audioSigAfter){Set-Content (Join-Path $DataRoot 'state\audio-reset.pending') '1' -Encoding ASCII}
     if($commentSigBefore -ne $commentSigAfter){Get-ChildItem (Join-Path $DataRoot 'cache\comments') -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue;Get-ChildItem (Join-Path $DataRoot 'cache\status') -Filter 'track-*.comment.*' -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue}
     Write-ObsInstructions $new | Out-Null
-    $saveResetTimer.Stop();$save.Text='SAVED';$saveResetTimer.Start()
+    $saveResetTimer.Stop()
+    if($engineChanged -and $runtimeWasRunning){$save.Text='SAVED - RESTARTING';Request-YomiControlledRestart}else{$save.Text='SAVED'}
+    $saveResetTimer.Start()
     $config=$new;Update-Dependencies;Update-Preview
 })
 

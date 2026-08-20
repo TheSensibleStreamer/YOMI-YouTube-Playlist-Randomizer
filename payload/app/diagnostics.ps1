@@ -21,6 +21,12 @@ $out.Add("Director: Enabled=$($config.director_mode) Theme=$($config.director_th
 $out.Add("Director data: Comment=$($config.featured_comment_enabled) Telemetry=$($config.telemetry_enabled) Probe=$($config.telemetry_probe_enabled) History=$($config.history_enabled)")
 
 $out.Add('')
+$out.Add('===== INDIVIDUAL SOURCES =====')
+foreach($s in @($config.director_fixed_sources)) {
+    $out.Add("$($s.module): Enabled=$($s.enabled) $($s.width)x$($s.height) URL=$(Get-DirectorModuleUrl $config ([string]$s.module))")
+}
+
+$out.Add('')
 $out.Add('===== DIRECTOR OUTPUTS =====')
 foreach($o in @($config.director_outputs)) {
     $out.Add("$($o.id): Enabled=$($o.enabled) $($o.width)x$($o.height) $($o.layout) [$($o.modules)] URL=$(Get-DirectorOutputUrl $config ([int]$o.id))")

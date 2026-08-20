@@ -4,13 +4,13 @@ Add-Type -AssemblyName System.Windows.Forms;Add-Type -AssemblyName System.Drawin
 $yomiVersion=Get-YomiVersionText
 $created=$false;$mutex=New-Object System.Threading.Mutex($true,'Local\YOMI_CONTROLLER_V4',[ref]$created);if(-not $created){exit 0}
 $pipeName='yomi-v4';$supervisor=Join-Path $PSScriptRoot 'supervisor.ps1';$shuffleScript=Join-Path $PSScriptRoot 'shuffle.ps1';$launcher=Join-Path $PSScriptRoot 'YomiLauncher.exe';$iconPath=Join-Path $InstallRoot 'assets\yomi-v408.ico'
-$stateRoot=Join-Path $DataRoot 'state';$enginePidFile=Join-Path $stateRoot 'engine.pid';$serverPidFile=Join-Path $stateRoot 'server.pid';$supervisorPidFile=Join-Path $stateRoot 'supervisor.pid';$engineStatusFile=Join-Path $stateRoot 'engine-status.json';$supervisorStatusFile=Join-Path $stateRoot 'supervisor-status.txt';$currentFile=Join-Path $stateRoot 'current.json';$shuffleStatusFile=Join-Path $stateRoot 'shuffle-status.txt';$shuffleRequestFile=Join-Path $stateRoot 'shuffle-request.txt';$playlistFile=Join-Path $DataRoot 'playlist.txt';$historyFile=Join-Path $stateRoot 'history.jsonl';$metaDir=Join-Path $DataRoot 'cache\meta';$audioDir=Join-Path $DataRoot 'cache\audio';$artDir=Join-Path $DataRoot 'cache\artwork';$videoDir=Join-Path $DataRoot 'cache\video';$vizDir=Join-Path $DataRoot 'cache\visualizer';$gainDir=Join-Path $DataRoot 'cache\gain';$statusDir=Join-Path $DataRoot 'cache\status'
+$stateRoot=Join-Path $DataRoot 'state';$enginePidFile=Join-Path $stateRoot 'engine.pid';$serverPidFile=Join-Path $stateRoot 'server.pid';$supervisorPidFile=Join-Path $stateRoot 'supervisor.pid';$engineStatusFile=Join-Path $stateRoot 'engine-status.json';$supervisorStatusFile=Join-Path $stateRoot 'supervisor-status.txt';$currentFile=Join-Path $stateRoot 'current.json';$shuffleStatusFile=Join-Path $stateRoot 'shuffle-status.txt';$shuffleRequestFile=Join-Path $stateRoot 'shuffle-request.txt';$restartRequestFile=Join-Path $stateRoot 'restart-request.txt';$playlistFile=Join-Path $DataRoot 'playlist.txt';$historyFile=Join-Path $stateRoot 'history.jsonl';$metaDir=Join-Path $DataRoot 'cache\meta';$audioDir=Join-Path $DataRoot 'cache\audio';$artDir=Join-Path $DataRoot 'cache\artwork';$videoDir=Join-Path $DataRoot 'cache\video';$vizDir=Join-Path $DataRoot 'cache\visualizer';$gainDir=Join-Path $DataRoot 'cache\gain';$statusDir=Join-Path $DataRoot 'cache\status'
 function LivePid($p){if(-not(Test-Path $p)){return 0};$n=0;try{[void][int]::TryParse((Get-Content $p -Raw).Trim(),[ref]$n)}catch{return 0};if($n -gt 0 -and (Get-Process -Id $n -ErrorAction SilentlyContinue)){return $n};return 0}
 function Running{return (LivePid $enginePidFile)-gt 0};function Starting{return (LivePid $supervisorPidFile)-gt 0}
 function Send-Mpv([object[]]$cmd){$pipe=$null;$writer=$null;try{$pipe=New-Object System.IO.Pipes.NamedPipeClientStream('.',$pipeName,[System.IO.Pipes.PipeDirection]::Out);$pipe.Connect(120);$writer=New-Object System.IO.StreamWriter($pipe,(New-Object System.Text.UTF8Encoding($false)));$writer.AutoFlush=$true;$writer.WriteLine((@{command=$cmd}|ConvertTo-Json -Compress));return $true}catch{return $false}finally{if($writer){$writer.Dispose()};if($pipe){$pipe.Dispose()}}}
 function StartEngine{if(Running -or Starting){return};Remove-Item $engineStatusFile -Force -ErrorAction SilentlyContinue;Set-Content $supervisorStatusFile 'Launching YOMI...' -Encoding UTF8;$e=$supervisor.Replace("'","''");Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-Command',("& '"+$e+"'")) -WindowStyle Hidden|Out-Null}
 function ForceStop{foreach($f in @($enginePidFile,$serverPidFile,$supervisorPidFile)){$p=LivePid $f;if($p -gt 0 -and $p -ne $PID){Stop-Process -Id $p -Force -ErrorAction SilentlyContinue}};Remove-Item $enginePidFile,$serverPidFile,$supervisorPidFile -Force -ErrorAction SilentlyContinue}
-$script:stopping=$false;$script:deadline=[DateTime]::MinValue;$script:shufflePending=$false;$script:shuffleProcess=$null
+$script:stopping=$false;$script:deadline=[DateTime]::MinValue;$script:shufflePending=$false;$script:restartPending=$false;$script:shuffleProcess=$null
 function BeginStop{if(-not(Running)-and -not(Starting)){$script:stopping=$false;return};$script:stopping=$true;$script:deadline=[DateTime]::UtcNow.AddSeconds(2);[void](Send-Mpv @('quit'))}
 function StopForExit{
     if(-not(Running)-and -not(Starting)){return}
@@ -42,6 +42,14 @@ function BeginApprovedShuffle{
     }else{
         StartShuffle
     }
+}
+function BeginApprovedRestart{
+    if($script:shuffleProcess -or $script:shufflePending){return}
+    if(Running -or Starting){$script:restartPending=$true;BeginStop}else{StartEngine}
+}
+function ContinueAfterStop{
+    if($script:shufflePending){$script:shufflePending=$false;StartShuffle;return}
+    if($script:restartPending){$script:restartPending=$false;StartEngine}
 }
 $compactSize=New-Object System.Drawing.Size(535,375);$expandedSize=New-Object System.Drawing.Size(1120,680)
 $form=New-Object System.Windows.Forms.Form;$form.Text="YOMI $yomiVersion - YouTube OBS Music Interface";$form.StartPosition='CenterScreen';$form.Size=$compactSize;$form.MinimumSize=$compactSize;$form.MaximumSize=$expandedSize;$form.MaximizeBox=$false;$form.Font=New-Object System.Drawing.Font('Segoe UI',10);if(Test-Path $iconPath){try{$form.Icon=New-Object System.Drawing.Icon($iconPath)}catch{}}
@@ -83,7 +91,10 @@ function Config-WantsModule($config,[string]$module) {
     if([string]$config.app_mode -ne 'Streamer / OBS'){return $false}
     if($module -eq 'visualizer' -and -not(Test-YomiComponent 'ffmpeg')){return $false}
     switch($module){'artwork'{if([bool]$config.artwork_enabled){return $true}}'video'{if([bool]$config.video_enabled){return $true}}'visualizer'{if([bool]$config.visualizer_enabled){return $true}}}
-    if([bool]$config.director_mode){foreach($output in @($config.director_outputs)){if([bool]$output.enabled -and @(([string]$output.modules).ToLowerInvariant().Split(',')|ForEach-Object{$_.Trim()}) -contains $module){return $true}}}
+    if([bool]$config.director_mode){
+        foreach($source in @($config.director_fixed_sources)){if([bool]$source.enabled -and [string]$source.module -eq $module){return $true}}
+        foreach($output in @($config.director_outputs)){if([bool]$output.enabled -and @(([string]$output.modules).ToLowerInvariant().Split(',')|ForEach-Object{$_.Trim()}) -contains $module){return $true}}
+    }
     return $false
 }
 function Get-CacheLabel([int]$index,$config) {
@@ -146,13 +157,14 @@ $form.Add_FormClosing({
     }
 })
 $timer=New-Object System.Windows.Forms.Timer;$timer.Interval=350;$timer.Add_Tick({
+ if(Test-Path $restartRequestFile){try{Remove-Item $restartRequestFile -Force -ErrorAction SilentlyContinue;BeginApprovedRestart}catch{}}
  if(Test-Path $shuffleRequestFile){
     try{
         Remove-Item $shuffleRequestFile -Force -ErrorAction SilentlyContinue
         BeginApprovedShuffle
     }catch{}
  }
- if($script:stopping){if(-not(Running)-and -not(Starting)){$script:stopping=$false;if($script:shufflePending){$script:shufflePending=$false;StartShuffle}}elseif([DateTime]::UtcNow -ge $script:deadline){ForceStop;$script:stopping=$false;if($script:shufflePending){$script:shufflePending=$false;StartShuffle}}}
+ if($script:stopping){if(-not(Running)-and -not(Starting)){$script:stopping=$false;ContinueAfterStop}elseif([DateTime]::UtcNow -ge $script:deadline){ForceStop;$script:stopping=$false;ContinueAfterStop}}
  if($script:shuffleProcess){if($script:shuffleProcess.HasExited){$code=$script:shuffleProcess.ExitCode;$script:shuffleProcess.Dispose();$script:shuffleProcess=$null;if($code -eq 0){StartEngine}else{$status.Text='Shuffle failed';if(Test-Path $shuffleStatusFile){try{$now.Text=(Get-Content $shuffleStatusFile -Raw).Trim()}catch{$now.Text='Shuffle Playlist failed.'}}else{$now.Text='Shuffle Playlist failed.'}}}else{$status.Text='Shuffling playlist...';if(Test-Path $shuffleStatusFile){try{$now.Text=(Get-Content $shuffleStatusFile -Raw).Trim()}catch{}};return}}
  $c=Get-YomiConfig
  if($script:queueVisible -and [DateTime]::UtcNow -ge $script:nextQueueRefresh){$script:nextQueueRefresh=[DateTime]::UtcNow.AddMilliseconds(1500);Refresh-QueueView (Current-QueueIndex) $c}
