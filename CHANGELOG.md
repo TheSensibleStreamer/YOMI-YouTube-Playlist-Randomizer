@@ -1,8 +1,8 @@
 # YOMI Changelog
 
-## v4.2.0.2
+## v4.2.0.3
 
-Director Mode usability and correctness release on the permanent YOMI 4.2.0/“420” generation.
+Director Mode usability and correctness release for the YOMI 4.2.0 generation.
 
 ### Source manager
 
@@ -27,7 +27,7 @@ Director Mode usability and correctness release on the permanent YOMI 4.2.0/“4
 
 ## v4.2.0.1
 
-Patch-line expansion on the permanent YOMI 4.2.0/“420” generation.
+Preset and visualizer expansion for the YOMI 4.2.0 generation.
 
 ### Presets everywhere useful
 

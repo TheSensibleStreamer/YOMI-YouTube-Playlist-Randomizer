@@ -1,5 +1,5 @@
 {
-  "version": "v4.2.0.2",
+  "version": "v4.2.0.3",
   "product": "YOMI - YouTube OBS Music Interface / Playlist Randomizer / Director Mode",
   "features": [
     "original combined OBS overlay preserved as the default",
@@ -59,11 +59,11 @@
   "files": {
     "INSTALL YOMI.cmd": {
       "bytes": 1574,
-      "sha256": "3dad198eed01ff47354bd071b1463557c413a099539caf21d8cda6675fbd59ed"
+      "sha256": "492b797d640050853837915dc88e0dcb30da5c51a591c98d21212674572e28ce"
     },
     "installer/install.ps1": {
       "bytes": 37084,
-      "sha256": "440a3185c3224f66d5ce6a720e0086bd1e86ed523ac7dca115828bac06ca96d8"
+      "sha256": "684638ebe69e2f3cff9fa863f005e8ce8e02352fd18fe661c264d65056c59c20"
     },
     "payload/app/ArtworkEdgeDetector.cs": {
       "bytes": 8193,
@@ -71,7 +71,7 @@
     },
     "payload/app/common.ps1": {
       "bytes": 16050,
-      "sha256": "4103ebc8dc7dc49049512a0c6710af64f898da71a1ec62284c7c9c45c934aa0d"
+      "sha256": "44938cab242177e629d41013321bf70c3d5f60a2fbf1be68f07eaf0b5726244c"
     },
     "payload/app/components.ps1": {
       "bytes": 4467,
@@ -83,7 +83,7 @@
     },
     "payload/app/default-config.json": {
       "bytes": 5528,
-      "sha256": "5e5db5e011e54518b5ae8522c6de4df4b5d5d673e578bc21f40a476f2892faed"
+      "sha256": "fee16478a696a8a28b84c4be4a70c74ed54b1da0159c2c6d01ad5e953afe69c8"
     },
     "payload/app/diagnostics.ps1": {
       "bytes": 4736,
@@ -138,12 +138,12 @@
       "sha256": "6a393dd34870f3ca7d8021076fefbec02b7026e2d61eca84069a5c53313bb511"
     },
     "payload/README-EASY.txt": {
-      "bytes": 23645,
-      "sha256": "61685a9ba99839b16988074c57a00e35a0479290af6f9a62097eac6d2a4bd808"
+      "bytes": 23617,
+      "sha256": "a6c6198ad4fa0498240b10eff189ad491db5cec4ba2a412eee403c4d4f68fdb9"
     },
     "payload/README-TECHNICAL.txt": {
       "bytes": 20331,
-      "sha256": "45ae5296e4c9eaad18499f75b88ba5ccb9fecff1e4ff75b43a861d9d8932658f"
+      "sha256": "1eeb9cbebd821a4b75c5c1739bd43dd6b92bb8853d507e7dd875d867d01c02f6"
     },
     "payload/THIRD-PARTY.txt": {
       "bytes": 805,
@@ -155,7 +155,7 @@
     },
     "payload/VERSION.txt": {
       "bytes": 14,
-      "sha256": "e8333675f69bb17868595903d5094330bac10828a4eb724e8a4f8b01b9b1d8ab"
+      "sha256": "960aa69f58b1bde345e03b4d3d84f2c7c10d2b0ab285912b31e15b5ab183ced8"
     },
     "payload/web/director.html": {
       "bytes": 32757,
