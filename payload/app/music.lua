@@ -1224,19 +1224,44 @@ local function video_job(job)
         [480]="135/134/18/133/160",
         [720]="136/22/135/134/18/133/160"
     }
-    local function filtered_video(base,height,high_fps_only)
-        local h = height and height > 0 and ("[height<=" .. height .. "]") or ""
+    local function filtered_video(base,height,high_fps_only,exact_height)
+        local h = ""
+        if height and height > 0 then
+            h = exact_height and ("[height=" .. height .. "]") or ("[height<=" .. height .. "]")
+        end
         local fps
         if prefer_60 then fps = high_fps_only and "[fps>30][fps<=60]" or "[fps<=60]"
         else fps = "[fps<=30]" end
         return base .. h .. fps .. "[vcodec^=avc][ext=mp4]/" .. base .. h .. fps .. "[ext=mp4]"
     end
+    local function labeled_video(base,height,high_fps_only)
+        local fps
+        if prefer_60 then fps = high_fps_only and "[fps>30][fps<=60]" or "[fps<=60]"
+        else fps = "[fps<=30]" end
+        local label = "[format_note^=" .. height .. "p]"
+        return base .. label .. fps .. "[vcodec^=avc][ext=mp4]/" .. base .. label .. fps .. "[ext=mp4]"
+    end
     local max_formats = {}
     for _,height in ipairs({144,240,360,480,720}) do
         if prefer_60 then
-            max_formats[height] = filtered_video("bestvideo",height,true) .. "/" .. filtered_video("bestvideo",height,false) .. "/" .. itag_ladders[height]
+            max_formats[height] =
+                labeled_video("bestvideo",height,true) .. "/" ..
+                filtered_video("bestvideo",height,true,true) .. "/" ..
+                filtered_video("bestvideo",height,true,false) .. "/" ..
+                labeled_video("bestvideo",height,false) .. "/" ..
+                filtered_video("bestvideo",height,false,true) .. "/" ..
+                filtered_video("bestvideo",height,false,false) .. "/" ..
+                itag_ladders[height]
         else
-            max_formats[height] = itag_ladders[height] .. "/" .. filtered_video("bestvideo",height,false)
+            -- YouTube's nominal quality label is authoritative here. A video
+            -- can be labeled 240p while its stored frame is 352x288, so a
+            -- literal height<=240 filter rejects the correct format. Try the
+            -- label first, then literal/capped MP4, then fixed-itag recovery.
+            max_formats[height] =
+                labeled_video("bestvideo",height,false) .. "/" ..
+                filtered_video("bestvideo",height,false,true) .. "/" ..
+                filtered_video("bestvideo",height,false,false) .. "/" ..
+                itag_ladders[height]
         end
     end
     local primary
@@ -1254,7 +1279,7 @@ local function video_job(job)
     local label_pref = prefer_low and "lowest compatible" or "selected maximum"
     local label_fps = prefer_60 and "60 FPS when available" or "30 FPS"
     local routes = {
-        {label=label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",clients=prefer_60 and "default,-web_safari" or ((cap == 144 or prefer_low) and "web_embedded,default" or "default,-web_safari"),format=primary,repeats=(cap == 144 and 3 or 2),delay=(cap == 144 and 1.5 or 1.0)}
+        {label=label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",clients=prefer_60 and "default,-web_safari" or (((cap > 0 and cap <= 240) or prefer_low) and "web_embedded,default" or "default,-web_safari"),format=primary,repeats=(cap == 144 and 3 or 2),delay=(cap == 144 and 1.5 or 1.0)}
     }
     if cap == 0 or cap > 360 then
         table.insert(routes,{label="360p compatibility recovery",clients="default,-web_safari",format=max_formats[360],repeats=2,delay=1.0})
@@ -1269,12 +1294,16 @@ local function video_job(job)
         os.remove(temp); local spec=routes[rn]; local args=ytdlp_common(spec.clients)
         table.insert(args,"--retries");table.insert(args,"1");table.insert(args,"--fragment-retries");table.insert(args,"1")
         table.insert(args,"--format");table.insert(args,spec.format);table.insert(args,"--output");table.insert(args,temp);table.insert(args,"--no-part");table.insert(args,urls[i])
+        table.insert(args,"--print");table.insert(args,"after_move:YOMI_FORMAT=%(format_id)s|%(height)s|%(fps)s|%(ext)s")
         log("VIDEO ATTEMPT track "..i.." route "..rn.." try "..attempt.."/"..spec.repeats.." "..spec.label)
         run(cache_priority,ytdlp,args,function(success,result)
             if result and result.stderr then last_stderr=result.stderr end
             if success and result and result.status==0 and exists(temp) and fsize(temp)>0 then
                 mp.add_timeout(0.5,function()
-                    if exists(temp) and fsize(temp)>0 then move_replace(temp,video_path(i));log("VIDEO READY track "..i.." route "..rn.." try "..attempt);if playing_index==i then write_state(i) end;job_done(job) end
+                    if exists(temp) and fsize(temp)>0 then
+                        local selected = result and result.stdout and result.stdout:match("YOMI_FORMAT=([^\r\n]+)") or "unknown"
+                        move_replace(temp,video_path(i));log("VIDEO READY track "..i.." route "..rn.." try "..attempt.." selected "..selected);if playing_index==i then write_state(i) end;job_done(job)
+                    end
                 end);return
             end
             os.remove(temp)

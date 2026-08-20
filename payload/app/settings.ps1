@@ -34,6 +34,7 @@ $form.Controls.Add($subtitle)
 function Add-Label($parent,$text,$x,$y,$w=180,$h=24) {
     $c=New-Object System.Windows.Forms.Label; $c.Text=$text
     $c.Location=New-Object System.Drawing.Point($x,$y); $c.Size=New-Object System.Drawing.Size($w,$h)
+    $c.AutoSize=$false; $c.AutoEllipsis=$true; $c.UseMnemonic=$false
     $parent.Controls.Add($c); return $c
 }
 function Add-Combo($parent,$x,$y,$w,$items,$selected) {
@@ -244,9 +245,9 @@ Add-Label $visual 'Visualizer FPS:' 18 292 105 | Out-Null
 $vizFps=Add-Combo $visual 125 288 145 @('30 FPS','60 FPS') ([string]$config.visualizer_fps)
 Add-Label $visual 'High-frequency trim %:' 305 292 165 | Out-Null
 $vizHighTrim=Add-Number $visual 475 288 80 0 60 ([int]$config.visualizer_high_frequency_trim)
-$visualHint=Add-Label $visual 'Monolith/Mega/Giant Blocks deliberately stretch very few generated pixels and minimize visualizer preparation/cache cost. Microscopic/Maximum Detail push in the opposite direction. High-frequency trim remaps useful bins across the full width. Generation-affecting changes rebuild cached visualizers.' 18 344 875 70
+$visualHint=Add-Label $visual 'Monolith, Mega and Giant Blocks stretch very few generated pixels for low preparation cost. Microscopic and Maximum Detail increase resolution. High-frequency trim remaps useful bins across the full width. Generation changes rebuild cached visualizers.' 18 344 875 70
 $visualHint.ForeColor=[System.Drawing.Color]::DimGray
-$visualCost=Add-Label $visual '' 18 418 875 48
+$visualCost=Add-Label $visual '' 18 430 875 56
 $visualCost.BorderStyle='FixedSingle';$visualCost.ForeColor=[System.Drawing.Color]::DimGray
 
 # PERFORMANCE
@@ -325,14 +326,14 @@ $directorUrlHint.ForeColor=[System.Drawing.Color]::DimGray
 $sourcesTab=New-Tab 'Sources'
 Add-Label $sourcesTab 'Preset:' 12 13 65 | Out-Null
 $sourcesPreset=Add-Combo $sourcesTab 78 9 190 @('Default','Split Essentials','Text Only','Information Desk','Culture Desk','Full Science','Custom') ([string]$config.sources_preset)
-$sourcesPresetHint=Add-Label $sourcesTab 'On means YOMI prepares that source. Copy and Preview use the exact current URL.' 285 12 455 28
+$sourcesPresetHint=Add-Label $sourcesTab 'Enable a row to prepare it. Copy and Preview use its current URL.' 285 12 455 28
 $sourcesPresetHint.ForeColor=[System.Drawing.Color]::DimGray
 $copyEnabledFixed=New-Object System.Windows.Forms.Button;$copyEnabledFixed.Text='COPY ENABLED';$copyEnabledFixed.Location=New-Object System.Drawing.Point(760,7);$copyEnabledFixed.Size=New-Object System.Drawing.Size(135,32);$sourcesTab.Controls.Add($copyEnabledFixed)
 Add-Label $sourcesTab 'On' 12 49 30 | Out-Null
-Add-Label $sourcesTab 'Source' 48 49 110 | Out-Null
-Add-Label $sourcesTab 'W' 170 49 45 | Out-Null
-Add-Label $sourcesTab 'H' 235 49 45 | Out-Null
-Add-Label $sourcesTab 'Browser Source URL' 305 49 250 | Out-Null
+Add-Label $sourcesTab 'Source' 48 49 140 | Out-Null
+Add-Label $sourcesTab 'W' 195 49 45 | Out-Null
+Add-Label $sourcesTab 'H' 260 49 45 | Out-Null
+Add-Label $sourcesTab 'Browser Source URL' 330 49 250 | Out-Null
 $sourceControls=@()
 $sourceIndex=0
 foreach($entry in $directorModuleCatalog){
@@ -340,10 +341,10 @@ foreach($entry in $directorModuleCatalog){
     if($null -eq $saved){$saved=[PSCustomObject]@{module=$entry.Module;label=$entry.Label;enabled=$false;width=$entry.Width;height=$entry.Height}}
     $y=65+($sourceIndex*38);$sourceIndex++
     $on=Add-Check $sourcesTab '' 12 $y ([bool]$saved.enabled) 28
-    Add-Label $sourcesTab ([string]$entry.Label) 48 ($y+3) 115 | Out-Null
-    $sw=Add-Number $sourcesTab 170 $y 55 64 7680 ([int]$saved.width)
-    $sh=Add-Number $sourcesTab 235 $y 55 32 4320 ([int]$saved.height)
-    $url=Add-Text $sourcesTab 305 $y 385 (Get-DirectorModuleUrl $config ([string]$entry.Module));$url.ReadOnly=$true;$url.BackColor=[System.Drawing.Color]::White
+    Add-Label $sourcesTab ([string]$entry.Label) 48 ($y+3) 140 | Out-Null
+    $sw=Add-Number $sourcesTab 195 $y 55 64 7680 ([int]$saved.width)
+    $sh=Add-Number $sourcesTab 260 $y 55 32 4320 ([int]$saved.height)
+    $url=Add-Text $sourcesTab 330 $y 360 (Get-DirectorModuleUrl $config ([string]$entry.Module));$url.ReadOnly=$true;$url.BackColor=[System.Drawing.Color]::White
     $copy=New-Object System.Windows.Forms.Button;$copy.Text='COPY';$copy.Location=New-Object System.Drawing.Point(700,$y);$copy.Size=New-Object System.Drawing.Size(75,28);$sourcesTab.Controls.Add($copy)
     $preview=New-Object System.Windows.Forms.Button;$preview.Text='PREVIEW';$preview.Location=New-Object System.Drawing.Point(785,$y);$preview.Size=New-Object System.Drawing.Size(110,28);$sourcesTab.Controls.Add($preview)
     $row=[PSCustomObject]@{Module=[string]$entry.Module;Label=[string]$entry.Label;Enabled=$on;Width=$sw;Height=$sh;Url=$url;Copy=$copy;Preview=$preview}

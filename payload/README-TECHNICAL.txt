@@ -1,4 +1,4 @@
-YOMI 4.2.0.3 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
+YOMI 4.2.0.4 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
 ==========================
 Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI
@@ -108,7 +108,12 @@ VIDEO RETRY LADDER
 Route 1 follows the requested 144/240/360/480/720/Best ceiling and maximum or
 lowest-compatible policy. The default 144p route retains three delayed itag 160
 attempts with player_client=web_embedded,default.
-Higher ladders use known H.264 MP4 format IDs plus filtered MP4 selectors.
+Maximum mode first follows YouTube's nominal quality label, then tries an exact
+target-height MP4, the best MP4 under the numeric ceiling and known fixed-format
+recovery IDs. Label-first selection handles nonstandard stored dimensions such
+as a YouTube-labeled 240p stream whose frame is 352x288. The 144p/240p primary
+route uses the proven embedded and default YouTube clients. Successful cache
+logs record the exact selection made by yt-dlp.
 Every ladder can recover through 360p, the proven 144p route and a final
 automatic/progressive <=360/480 selector.
 Permanent unavailable/private/removed errors do not burn every retry.
