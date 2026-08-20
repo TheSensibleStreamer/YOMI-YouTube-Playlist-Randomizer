@@ -8,9 +8,9 @@ If you were searching for a **YouTube playlist randomizer**, **lightweight YouTu
 
 ## Download
 
-The current public build is **YOMI v4.2.0.4**. Compatible improvements use the fourth version component while remaining within the 4.2.0 generation.
+The current public build is **YOMI v4.2.0.5**. Compatible improvements use the fourth version component while remaining within the 4.2.0 generation.
 
-Download [`YOMI-v4.2.0.4.zip`](./YOMI-v4.2.0.4.zip), fully extract it, then double-click:
+Download [`YOMI-v4.2.0.5.zip`](./YOMI-v4.2.0.5.zip), fully extract it, then double-click:
 
 ```text
 INSTALL YOMI.cmd
@@ -98,7 +98,7 @@ YOMI never excludes PowerShell, `%TEMP%`, mpv, Deno, a user profile, or broad YO
 
 ## Built-in updater
 
-Controller and Settings perform at most one low-overhead automatic update check every 24 hours. Settings → Components also provides **Check for Updates**.
+Controller and Settings perform a tiny automatic manifest check at startup, so a newly published version is discovered immediately. If you decline a version, YOMI suppresses that same prompt for 30 days; a newer version can still prompt immediately. Settings → Components also provides **Check for Updates**.
 
 When a newer build exists, YOMI asks before downloading anything. The package URL must remain inside the official repository, and the downloaded ZIP must match the SHA-256 in [`update.json`](./update.json) before YOMI opens the normal interactive installer. YOMI does not silently replace running program files.
 

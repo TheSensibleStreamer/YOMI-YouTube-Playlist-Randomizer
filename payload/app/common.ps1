@@ -1,7 +1,7 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
-$script:YomiFallbackVersion = '4.2.0.4'
+$script:YomiFallbackVersion = '4.2.0.5'
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
 
 function Get-YomiVersionText {
@@ -282,10 +282,13 @@ function Get-YomiLayoutMetrics($Config) {
     if ($titleOn) { $lines++ }
     if ($channelOn) { $lines++ }
 
+    $spacingScale = [Math]::Max(1.0,[Math]::Min(3.0,([double]$mh / [Math]::Max(1.0,([double]$textSize * 2.7)))))
     $lineMultiplier = 1.08
     switch ([string]$Config.title_channel_spacing) {
         'Tight' { $lineMultiplier = 0.96 }
-        'Loose' { $lineMultiplier = 1.22 }
+        'Loose' { $lineMultiplier = 1.22 + (0.22 * ($spacingScale - 1.0)) }
+        'Extra Loose' { $lineMultiplier = 1.50 + (0.32 * ($spacingScale - 1.0)) }
+        'Maximum' { $lineMultiplier = 1.85 + (0.45 * ($spacingScale - 1.0)) }
     }
 
     $textHeight = 1

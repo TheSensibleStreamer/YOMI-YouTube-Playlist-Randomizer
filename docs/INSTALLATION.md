@@ -26,7 +26,7 @@ The uninstaller removes an exclusion created by YOMI. If that exact exclusion ex
 
 ## Updating
 
-YOMI uses a fourth version component for compatible improvements within the 4.2.0 generation. Controller and Settings check the official `update.json` at most once per day; Settings → Components also provides a manual check. YOMI asks before downloading, verifies the ZIP's SHA-256, then opens the normal interactive installer. User configuration is stored separately from Program Files and is preserved by an in-place update.
+YOMI uses a fourth version component for compatible improvements within the 4.2.0 generation. Controller and Settings check the tiny official `update.json` manifest at startup. Declining a version suppresses that same prompt for 30 days, while a newer version can still prompt immediately. Settings → Components also provides a manual check. YOMI asks before downloading, verifies the ZIP's SHA-256, then opens the normal interactive installer. User configuration is stored separately from Program Files and is preserved by an in-place update.
 
 ## Uninstalling
 

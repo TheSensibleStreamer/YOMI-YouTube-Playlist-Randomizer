@@ -1,4 +1,4 @@
-YOMI 4.2.0.4 - DIRECTOR SOURCE MANAGER
+YOMI 4.2.0.5 - DIRECTOR SOURCE MANAGER
 ========
 YOMI means YouTube OBS Music Interface.
 YouTube playlist randomizer, player and modular OBS overlay for streamers
@@ -7,14 +7,21 @@ Created and designed by TheSensibleStreamer
 Powered by mpv | yt-dlp | FFmpeg
 Development assistance by ChatGPT
 
-WHAT IS NEW IN 4.2.0.4
+WHAT IS NEW IN 4.2.0.5
 ----------------------
 - Compatible public updates within the 4.2.0 generation use a fourth version
-  component such as 4.2.0.4.
+  component such as 4.2.0.5.
 - Maximum video quality now tries YouTube's requested quality label, literal
   height and compatible capped MP4s before lower-resolution recovery. This
   handles videos whose nominal 240p format uses a nonstandard stored frame such
   as 352x288. Cache logs include the selected format's exact details.
+- The Sources column headings now occupy their own compact header band instead
+  of overlapping the first source row with an invisible label rectangle.
+- Title/channel spacing now includes Extra Loose and Maximum. Loose and wider
+  choices automatically spread farther apart on larger media layouts.
+- Normal Controller/player startup checks for a new version every session. If
+  you decline one version, that same prompt stays quiet for 30 days; a newer
+  version still appears immediately.
 - Settings -> Sources is a complete one-module source manager. Every module has
   its own On switch, label, OBS width/height, exact URL, Copy and Preview.
 - Sources presets instantly build Default, Split Essentials, Text Only,
@@ -45,10 +52,11 @@ WHAT IS NEW IN 4.2
   Ultra Fine (128x32); v4.2.0.1 expands both ends of that ladder.
 - Text & Style, Visualizer and Performance introduced Default, named presets
   and Custom tracking; v4.2.0.1 extends that behavior to every useful page.
-- Controller/Settings perform at most one automatic update check per day. A new
-  build prompts before downloading; Settings -> Components also has Check for
-  Updates. Downloaded ZIPs must match the public SHA-256 manifest before YOMI
-  opens the normal interactive installer.
+- Controller/Settings check the tiny update manifest at startup. Declining a
+  version suppresses that same prompt for 30 days; a newer version can still
+  prompt immediately. Settings -> Components also has Check for Updates.
+  Downloaded ZIPs must match the public SHA-256 manifest before YOMI opens the
+  normal interactive installer.
 - Save Settings is silent; the button briefly says SAVED. Restore Default
   Settings preserves the playlist, history, installed components and Defender
   choice.
@@ -167,6 +175,8 @@ YOMI 4 includes a deliberately broad but curated style system instead of hundred
 - 12 fonts from understated to loud/playful/serif/mono
 - text color and outline color
 - outline thickness and text opacity
+- Tight / Normal / Loose / Extra Loose / Maximum title-channel spacing; the
+  wider choices scale upward with larger media layouts
 - subtle glow
 - square / soft rounded / rounded media corners
 - border on/off, width and color (2px #252525 remains the default)

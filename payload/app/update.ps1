@@ -8,21 +8,21 @@ $dataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $stateRoot = Join-Path $dataRoot 'state'
 $updateRoot = Join-Path $dataRoot 'updates'
 $lastCheckFile = Join-Path $stateRoot 'last-update-check.txt'
+$lastPromptFile = Join-Path $stateRoot 'last-update-prompt.json'
 $manifestUri = 'https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json'
 
 New-Item -ItemType Directory -Path $stateRoot,$updateRoot -Force | Out-Null
 
-if (-not $Manual -and (Test-Path $lastCheckFile)) {
-    try {
-        $last = [DateTime]::Parse((Get-Content $lastCheckFile -Raw).Trim())
-        if (((Get-Date) - $last).TotalHours -lt 24) { exit 0 }
+$created = $false
+$updateMutex = New-Object System.Threading.Mutex($true,'Local\YOMI_Update_Check',[ref]$created)
+$ownsMutex = $created
+if (-not $created) {
+    if (-not $Manual -or -not $updateMutex.WaitOne(5000)) {
+        $updateMutex.Dispose()
+        exit 0
     }
-    catch {}
+    $ownsMutex = $true
 }
-
-# Record the automatic attempt before network access so an offline machine is
-# never hammered every time Controller starts. Manual checks always bypass it.
-Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII
 
 function Get-VersionNumber([string]$Text) {
     $match = [regex]::Match($Text,'\d+(?:\.\d+){1,3}')
@@ -49,12 +49,24 @@ try {
     $current = Get-VersionNumber $currentText
     $headers = @{ 'User-Agent' = ("YOMI-"+$current.ToString()+"-Updater") }
     $manifest = Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20
+    Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII
 
     $latest = Get-VersionNumber ([string]$manifest.version)
 
     if ($latest -le $current) {
         Show-UpdateMessage "YOMI $current is current.`r`n`r`nNo newer public build is available." ([System.Windows.Forms.MessageBoxIcon]::Information)
         exit 0
+    }
+
+    if (-not $Manual -and (Test-Path $lastPromptFile)) {
+        try {
+            $previousPrompt = Get-Content $lastPromptFile -Raw | ConvertFrom-Json
+            $promptTime = [DateTime]::Parse([string]$previousPrompt.time)
+            if ([string]$previousPrompt.version -eq $latest.ToString() -and ((Get-Date) - $promptTime).TotalDays -lt 30) {
+                exit 0
+            }
+        }
+        catch {}
     }
 
     $notes = [string]$manifest.summary
@@ -65,7 +77,11 @@ try {
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Information
     )
-    if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { exit 0 }
+    if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) {
+        [PSCustomObject]@{ version=$latest.ToString(); time=(Get-Date).ToString('o') } |
+            ConvertTo-Json -Compress | Set-Content $lastPromptFile -Encoding ASCII
+        exit 0
+    }
 
     $packageName = [string]$manifest.package_name
     if ([string]::IsNullOrWhiteSpace($packageName) -or $packageName -notmatch '^YOMI-v[0-9.]+\.zip$') {
@@ -100,4 +116,8 @@ try {
 catch {
     Show-UpdateMessage ("YOMI could not check for or prepare the update.`r`n`r`n" + $_.Exception.Message) ([System.Windows.Forms.MessageBoxIcon]::Warning)
     exit 1
+}
+finally {
+    if ($ownsMutex) { try { $updateMutex.ReleaseMutex() } catch {} }
+    if ($updateMutex) { $updateMutex.Dispose() }
 }
