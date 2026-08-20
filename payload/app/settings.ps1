@@ -187,7 +187,7 @@ $textSize=Add-Number $style 120 121 80 10 120 ([int]$config.text_size)
 Add-Label $style 'Alignment:' 230 125 80 | Out-Null
 $textAlign=Add-Combo $style 310 121 140 @('Auto','Left','Center','Right') ([string]$config.text_alignment)
 Add-Label $style 'Title/channel spacing:' 475 125 145 | Out-Null
-$textSpacing=Add-Combo $style 625 121 135 @('Tight','Normal','Loose') ([string]$config.title_channel_spacing)
+$textSpacing=Add-Combo $style 625 121 135 @('Tight','Normal','Loose','Extra Loose','Maximum') ([string]$config.title_channel_spacing)
 $glow=Add-Check $style 'Subtle text glow' 785 121 $config.text_glow 140
 
 $mediaStyleBox=New-Object System.Windows.Forms.GroupBox; $mediaStyleBox.Text='Media frame'; $mediaStyleBox.Location=New-Object System.Drawing.Point(18,175); $mediaStyleBox.Size=New-Object System.Drawing.Size(875,95); $style.Controls.Add($mediaStyleBox)
@@ -199,7 +199,7 @@ $borderColor=Add-Combo $mediaStyleBox 335 27 150 @('Dark Gray','Near Black','Bla
 Add-Label $mediaStyleBox 'Corners:' 515 31 70 | Out-Null
 $cornerStyle=Add-Combo $mediaStyleBox 590 27 160 @('Square','Soft Rounded','Rounded') ([string]$config.media_corner_style)
 
-$styleHint=Add-Label $style 'The list is intentionally curated instead of dumping hundreds of Windows fonts on you. Preview changes live before saving.' 18 290 870 36
+$styleHint=Add-Label $style 'The list is intentionally curated instead of dumping hundreds of Windows fonts on you. Loose spacing grows with larger media layouts; Extra Loose and Maximum provide substantially wider separation. Preview changes live before saving.' 18 290 870 52
 $styleHint.ForeColor=[System.Drawing.Color]::DimGray
 
 # VISUALIZER
@@ -329,17 +329,17 @@ $sourcesPreset=Add-Combo $sourcesTab 78 9 190 @('Default','Split Essentials','Te
 $sourcesPresetHint=Add-Label $sourcesTab 'Enable a row to prepare it. Copy and Preview use its current URL.' 285 12 455 28
 $sourcesPresetHint.ForeColor=[System.Drawing.Color]::DimGray
 $copyEnabledFixed=New-Object System.Windows.Forms.Button;$copyEnabledFixed.Text='COPY ENABLED';$copyEnabledFixed.Location=New-Object System.Drawing.Point(760,7);$copyEnabledFixed.Size=New-Object System.Drawing.Size(135,32);$sourcesTab.Controls.Add($copyEnabledFixed)
-Add-Label $sourcesTab 'On' 12 49 30 | Out-Null
-Add-Label $sourcesTab 'Source' 48 49 140 | Out-Null
-Add-Label $sourcesTab 'W' 195 49 45 | Out-Null
-Add-Label $sourcesTab 'H' 260 49 45 | Out-Null
-Add-Label $sourcesTab 'Browser Source URL' 330 49 250 | Out-Null
+Add-Label $sourcesTab 'On' 12 45 30 18 | Out-Null
+Add-Label $sourcesTab 'Source' 48 45 140 18 | Out-Null
+Add-Label $sourcesTab 'W' 195 45 45 18 | Out-Null
+Add-Label $sourcesTab 'H' 260 45 45 18 | Out-Null
+Add-Label $sourcesTab 'Browser Source URL' 330 45 250 18 | Out-Null
 $sourceControls=@()
 $sourceIndex=0
 foreach($entry in $directorModuleCatalog){
     $saved=@($config.director_fixed_sources|Where-Object{[string]$_.module -eq [string]$entry.Module})|Select-Object -First 1
     if($null -eq $saved){$saved=[PSCustomObject]@{module=$entry.Module;label=$entry.Label;enabled=$false;width=$entry.Width;height=$entry.Height}}
-    $y=65+($sourceIndex*38);$sourceIndex++
+    $y=70+($sourceIndex*38);$sourceIndex++
     $on=Add-Check $sourcesTab '' 12 $y ([bool]$saved.enabled) 28
     Add-Label $sourcesTab ([string]$entry.Label) 48 ($y+3) 140 | Out-Null
     $sw=Add-Number $sourcesTab 195 $y 55 64 7680 ([int]$saved.width)
@@ -350,7 +350,7 @@ foreach($entry in $directorModuleCatalog){
     $row=[PSCustomObject]@{Module=[string]$entry.Module;Label=[string]$entry.Label;Enabled=$on;Width=$sw;Height=$sh;Url=$url;Copy=$copy;Preview=$preview}
     $on.Tag=$row;$copy.Tag=$row;$preview.Tag=$row;$sourceControls+=$row
 }
-$sourcesHint=Add-Label $sourcesTab 'Artwork, video, visualizer and comment can add preparation work. Several Browser Sources share YOMI downloads and clock; several video sources still make OBS decode the video several times.' 12 565 885 42
+$sourcesHint=Add-Label $sourcesTab 'Artwork, video, visualizer and comment can add preparation work. Several Browser Sources share YOMI downloads and clock; several video sources still make OBS decode the video several times.' 12 572 885 36
 $sourcesHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
 
 # MODULAR OUTPUT GROUPS
@@ -1145,9 +1145,12 @@ $preview.Add_Paint({
             if($right){$align='Right'}else{$align='Left'}
         }
 
+        $spacingScale=[Math]::Max(1.0,[Math]::Min(3.0,([double]$u.media_height/[Math]::Max(1.0,([double]$u.text_size*2.7)))))
         $lineMult=1.08
         if([string]$u.title_channel_spacing -eq 'Tight'){$lineMult=0.96}
-        elseif([string]$u.title_channel_spacing -eq 'Loose'){$lineMult=1.22}
+        elseif([string]$u.title_channel_spacing -eq 'Loose'){$lineMult=1.22+(0.22*($spacingScale-1.0))}
+        elseif([string]$u.title_channel_spacing -eq 'Extra Loose'){$lineMult=1.50+(0.32*($spacingScale-1.0))}
+        elseif([string]$u.title_channel_spacing -eq 'Maximum'){$lineMult=1.85+(0.45*($spacingScale-1.0))}
 
         $lineH=[Math]::Max(13,[int][Math]::Round($fontSize*$lineMult))
         $textY=$stripY+4

@@ -1,5 +1,25 @@
 # YOMI Changelog
 
+## v4.2.0.5
+
+### Sources header geometry
+
+- Removed the invisible overlap between the Sources column-header labels and the first source row
+- Assigned the headings a compact 18-pixel header band with a visible gap before the interactive controls
+- Rebalanced the row and footer spacing so all thirteen sources remain cleanly inside the page
+
+### Title and channel spacing
+
+- Expanded the Text & Style spacing choices with Extra Loose and Maximum
+- Made Loose, Extra Loose, and Maximum separation scale upward with larger media layouts
+- Kept Tight and Normal behavior stable so existing default overlays retain their established appearance
+
+### Automatic updater startup check
+
+- Normal Controller/player startup now checks the tiny public manifest every session instead of suppressing newly published releases behind an earlier 24-hour no-update check
+- After a user declines an update, that same version stays quiet for 30 days; any newer version still prompts immediately
+- Added a cross-process check lock so opening Settings and Controller together cannot create duplicate prompts
+
 ## v4.2.0.4
 
 ### Video quality selection

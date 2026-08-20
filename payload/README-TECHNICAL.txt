@@ -1,4 +1,4 @@
-YOMI 4.2.0.4 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
+YOMI 4.2.0.5 - TECHNICAL NOTES / DIRECTOR SOURCE MANAGER
 ==========================
 Product name: YOMI - YouTube OBS Music Interface
 Program files: C:\Program Files\YOMI
@@ -89,11 +89,13 @@ not a claim that total CPU usage scales perfectly linearly with pixel count.
 
 UPDATER
 -------
-Controller and Settings launch the console-free update helper, which rate-limits
-automatic checks to once per 24 hours. Manual checks bypass the timer. The helper
-reads update.json only from the official public YOMI repository, accepts package
-URLs only from that repository, verifies the downloaded ZIP against the manifest
-SHA-256 and then opens the normal interactive installer. It never silently
+Controller and Settings launch the console-free update helper at startup. The
+helper reads the tiny update.json manifest each session, while a declined version
+is suppressed for 30 days. A newer version bypasses that same-version suppression,
+and manual checks always remain available. A cross-process mutex prevents Settings
+and Controller from producing duplicate prompts. Package URLs are accepted only
+from the official repository; the helper verifies the downloaded ZIP against the
+manifest SHA-256 and then opens the normal interactive installer. It never silently
 replaces running program files.
 
 COMPONENTS
@@ -124,7 +126,7 @@ No FFmpeg: gain scan writes 0 dB, smart crop is disabled, visualizer jobs are di
 
 OVERLAY
 -------
-Text styling and visualizer recoloring happen in-browser. Visualizer source remains a small white pixel video; solid/rainbow/gradient colors, seven shapes, anchor normalization, spacing, glow and 0-60% high-frequency trimming are applied to decoded pixels live. Activity, internal resolution, logarithmic/linear frequency scale or 30/60 FPS changes regenerate the cached source.
+Text styling and visualizer recoloring happen in-browser. Title/channel spacing supports Tight, Normal, Loose, Extra Loose and Maximum; the wider modes scale their separation against media height as well as text size. Visualizer source remains a small white pixel video; solid/rainbow/gradient colors, seven shapes, anchor normalization, spacing, glow and 0-60% high-frequency trimming are applied to decoded pixels live. Activity, internal resolution, logarithmic/linear frequency scale or 30/60 FPS changes regenerate the cached source.
 
 SECURITY / ISOLATION
 --------------------
