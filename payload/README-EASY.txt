@@ -1,4 +1,4 @@
-YOMI 4.2.0.3 - DIRECTOR SOURCE MANAGER
+YOMI 4.2.0.4 - DIRECTOR SOURCE MANAGER
 ========
 YOMI means YouTube OBS Music Interface.
 YouTube playlist randomizer, player and modular OBS overlay for streamers
@@ -7,10 +7,14 @@ Created and designed by TheSensibleStreamer
 Powered by mpv | yt-dlp | FFmpeg
 Development assistance by ChatGPT
 
-WHAT IS NEW IN 4.2.0.3
+WHAT IS NEW IN 4.2.0.4
 ----------------------
 - Compatible public updates within the 4.2.0 generation use a fourth version
-  component such as 4.2.0.3.
+  component such as 4.2.0.4.
+- Maximum video quality now tries YouTube's requested quality label, literal
+  height and compatible capped MP4s before lower-resolution recovery. This
+  handles videos whose nominal 240p format uses a nonstandard stored frame such
+  as 352x288. Cache logs include the selected format's exact details.
 - Settings -> Sources is a complete one-module source manager. Every module has
   its own On switch, label, OBS width/height, exact URL, Copy and Preview.
 - Sources presets instantly build Default, Split Essentials, Text Only,

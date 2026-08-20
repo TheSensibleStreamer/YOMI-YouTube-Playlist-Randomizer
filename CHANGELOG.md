@@ -1,5 +1,21 @@
 # YOMI Changelog
 
+## v4.2.0.4
+
+### Video quality selection
+
+- Corrected the 30 FPS maximum-quality ladder so YouTube's requested quality label, literal height, and compatible capped MP4 formats are tried before lower-resolution recovery
+- Handles nonstandard stored dimensions such as a YouTube-labeled 240p format whose actual frame is 352×288
+- Expanded the 144p/240p primary extraction route across the proven embedded and default YouTube clients
+- Added the selected format ID, height, frame rate, and container to successful video-cache log entries
+- Preserved 144p as the final reliability recovery when a requested higher format genuinely is not available
+
+### Settings layout polish
+
+- Widened the Sources-page name column so Featured Comment and other module names stay clear of the dimension fields
+- Shortened the Sources guidance line and added bounded-label overflow protection for Windows font and DPI variations
+- Added breathing room between the Visualizer explanation and its bordered workload readout
+
 ## v4.2.0.3
 
 Director Mode usability and correctness release for the YOMI 4.2.0 generation.

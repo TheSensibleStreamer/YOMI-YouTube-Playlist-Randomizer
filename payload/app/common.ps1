@@ -1,7 +1,7 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
-$script:YomiFallbackVersion = '4.2.0.3'
+$script:YomiFallbackVersion = '4.2.0.4'
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
 
 function Get-YomiVersionText {
