@@ -1,0 +1,19 @@
+YOMI 4.2.0.8 Compact Controller Calibration R61.97
+Base revision: R61.96.2
+
+Streamlined build checks:
+- controller/design XAML parse: PASS
+- controller x:Name closure: 509/509 unique
+- controller Find<T> closure: 502/502 resolved
+- Lua parse: PASS
+- PowerShell ASCII/no-BOM compatibility: PASS
+- historical source-token/glyph vetoes in installer: ABSENT
+- package manifest exact payload: 11/11
+- Go test: PASS
+- Go vet: PASS
+- Windows amd64 bootstrap build: PASS
+- embedded updater byte occurrence: exactly 1
+- target-machine real C# compile + staged WPF semantic self-test remain installer gates
+
+EXE SHA-256: 56e4f634293ac54305965f85152eecea848057b8df136b81a25180bfb745c6e5
+UPDATE SHA-256: a01da6ee7b5455db4ea307e89bb50c8fa225ed7fbff2809e954cebd528b6596e
