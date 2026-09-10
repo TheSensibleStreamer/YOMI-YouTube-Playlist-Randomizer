@@ -6,9 +6,19 @@ YOMI shuffles a YouTube playlist properly, preserves intentional duplicate occur
 
 If you were searching for a **YouTube playlist randomizer**, **lightweight YouTube music player for Windows**, **OBS YouTube music overlay**, **OBS now-playing overlay**, or a configurable collection of music Browser Sources, that is what YOMI is built to do.
 
-## Download
+## Experimental beta
 
-The current public build is **YOMI v4.2.0.7**. Compatible improvements use the fourth version component while remaining within the 4.2.0 generation.
+This branch contains **YOMI v4.2.0.8 R61.97** for testing.
+
+Download this branch as a ZIP, fully extract it, then double-click:
+
+```text
+INSTALL EXPERIMENTAL R61.97.cmd
+```
+
+For the stable release, use the main branch.
+
+## Stable release
 
 Download [`YOMI-v4.2.0.7.zip`](./YOMI-v4.2.0.7.zip), fully extract it, then double-click:
 

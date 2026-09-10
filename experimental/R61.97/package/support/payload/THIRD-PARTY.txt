@@ -1,0 +1,26 @@
+YOMI - THIRD-PARTY SOFTWARE
+===========================
+
+YOMI
+Created and designed by TheSensibleStreamer.
+Development assistance by ChatGPT.
+
+The installer retrieves separate runtime copies of third-party software.
+YOMI is not affiliated with YouTube/Google or the OBS Project.
+
+mpv
+Project: https://mpv.io/
+Runtime source: mpv-player/mpv GitHub release assets.
+YOMI is not affiliated with the mpv project.
+
+ yt-dlp
+Project: https://github.com/yt-dlp/yt-dlp
+Runtime source: official yt-dlp GitHub release executable.
+YOMI is not affiliated with the yt-dlp project.
+
+FFmpeg
+Project: https://ffmpeg.org/
+Windows runtime build source: Gyan FFmpeg Windows essentials build.
+YOMI is not affiliated with FFmpeg or the Windows build provider.
+
+See each upstream project for its applicable licenses and notices.

@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "product": "YOMI 4.2.0.8 Compact Controller Calibration R61.97",
+  "revision": "R61.97",
+  "base_revision": "R61.96.2",
+  "package_kind": "focused-update",
+  "files": [
+    {
+      "path": "install.ps1",
+      "bytes": 33609,
+      "sha256": "d281cdb65ddcef9a8aed6a6caa2d57ec49e1f18a5940e951a9a8f207d861fd0f"
+    },
+    {
+      "path": "focused/YomiControllerWpf.cs",
+      "bytes": 1337212,
+      "sha256": "f3347e8279c4eaa10c2dc33af6fbb33267fe12a3d1036019fda277a09adffe8f"
+    },
+    {
+      "path": "focused/YomiControllerWpf.xaml",
+      "bytes": 193750,
+      "sha256": "bab73341a919a64c2f5b15b5db01b4da497c1701c9c97c7e8a21cc993b2124be"
+    },
+    {
+      "path": "focused/YomiDesign.xaml",
+      "bytes": 87161,
+      "sha256": "86a0d1f61b1f9599778a7b09e832f0a4099695c4d66d314c914fe76fee8ea85d"
+    },
+    {
+      "path": "focused/YomiObsServer.ps1",
+      "bytes": 47577,
+      "sha256": "a726fda86556a65365b0a7d7409d316dfe2c0848985195654038edeb71342ab4"
+    },
+    {
+      "path": "focused/YomiSupervisor.ps1",
+      "bytes": 38223,
+      "sha256": "a56ce74f79b37b31cdfa4fff582d03aa4b149728d4e0783dba33ccc887a87178"
+    },
+    {
+      "path": "focused/YomiUpdateHost.ps1",
+      "bytes": 10248,
+      "sha256": "fd4354808c3715f70d29e0dac9dd6266fd254729abf640159a7ef1689a6ad4e8"
+    },
+    {
+      "path": "focused/contracts.ps1",
+      "bytes": 3068,
+      "sha256": "946414b41fef33b80b00f0cad2d038f26868e633f1ca8733ae04f82696eeb162"
+    },
+    {
+      "path": "focused/music.lua",
+      "bytes": 112994,
+      "sha256": "d37e1389d768483c8057c9b9854a7aa7c3e0ce00dd0aafe1d0776a75b53ceb4c"
+    },
+    {
+      "path": "focused/YomiDiagnosticBundle.ps1",
+      "bytes": 22957,
+      "sha256": "04e81c4d711c3f23919a8b52b7ff6428b4605774ce7f420ea7142290d4390246"
+    },
+    {
+      "path": "focused/PriorityRun.cs",
+      "bytes": 12557,
+      "sha256": "d9da7d23fcd9ee1a92af6cc89ba8da146831ce5ba31635ffae46a164a7047f9d"
+    }
+  ]
+}
