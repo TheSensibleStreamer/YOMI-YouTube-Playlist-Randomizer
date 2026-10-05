@@ -1225,6 +1225,8 @@
         <Setter Property="FontSize" Value="13.5"/>
         <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
         <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
         <Setter Property="Padding" Value="12,8"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -1364,11 +1366,12 @@
                                     MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
                                     Margin="0,2,0,0"
-                                    Background="{DynamicResource ReadableSurfaceRaised}"
+                                    Background="{DynamicResource Surface}"
                                     BorderBrush="{DynamicResource BorderStrong}"
                                     BorderThickness="1"
                                     CornerRadius="3">
                                 <ScrollViewer Margin="1"
+                                              Background="Transparent"
                                               SnapsToDevicePixels="True"
                                               CanContentScroll="True"
                                               VerticalScrollBarVisibility="Auto">
@@ -1382,7 +1385,7 @@
                             <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource AccentBorder}"/>
                         </Trigger>
                         <Trigger Property="IsDropDownOpen" Value="True">
-                            <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource SurfaceRaised}"/>
+                            <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource Surface}"/>
                         </Trigger>
                         <Trigger Property="IsEditable" Value="True">
                             <Setter TargetName="SelectedContent" Property="Visibility" Value="Collapsed"/>
