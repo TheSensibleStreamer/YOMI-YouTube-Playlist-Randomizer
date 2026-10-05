@@ -192,10 +192,8 @@ replace_exact(
 )
 replace_exact(
     "payload/app/update-deployment.ps1",
-    """& $robo $From $To /E /COPY:DAT /DCOPY:T /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null
-""",
-    """& $robo $From $To /E /COPY:DAT /DCOPY:T /MT:16 /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null
-"""
+    """& $robo $From $To /E /COPY:DAT /DCOPY:T /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null""",
+    """& $robo $From $To /E /COPY:DAT /DCOPY:T /MT:16 /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null"""
 )
 replace_exact(
     "payload/app/update-deployment.ps1",
