@@ -1,3 +1,24 @@
+-- R61.100 SHARED CACHE PLANNER: playback lanes reprioritize one reusable cache without
+-- destroying completed main-queue media; optional assets age out only under a bounded disk budget.
+-- R61.79 MEDIA COMPATIBILITY + FAILURE CONTAINMENT: use modern FFmpeg frame-sync semantics,
+-- back off deterministic optional-media failures, and preserve R61.78 callback/volume/engine resilience.
+-- run optional FFmpeg work directly with diagnostics, source-pass usable art/video when normalization fails,
+-- and keep transport/media authority alive across recoverable callback faults.
+-- R61.94 calm presentation: visualizer media is binary two-color at generation time and carries a new profile identity.
+-- R61.75 runtime restoration: durable transport intent, live media demand, independent artwork/video preparation,
+-- repeat acknowledgement support, and visualizer profile/cadence correctness over the sealed playback spine.
+-- YOMI 4.2.0.8 R61.48 GEOMETRY CONTRACT; playback remains the sealed R61.45 resolver-health spine
+-- Presentation-only iteration: resolver/cache/playback control flow is intentionally unchanged.
+-- Fast-start extraction is now bounded and self-recovering: a wedged yt-dlp child cannot hold the entire player in PREPARING.
+-- Startup now carries an explicit flight record from script load through first audible playback.
+-- An alive mpv process is not considered a successful start until media actually reaches playback.
+-- Cache misses resolve and begin a direct audio stream first; the durable full-track cache
+-- is built behind active playback. Cached tracks remain local-first.
+-- Playlist lines are no longer treated as permanent media identity. Cache reuse is
+-- source-bound, and edited/reordered playlists preserve surviving queue intent by
+-- stable source identity where possible. Audio remains authoritative.
+if os.getenv("YOMI_SCRIPT_PROBE_ONLY") == "1" then return end
+
 local mp = require 'mp'
 local utils = require 'mp.utils'
 
@@ -6,59 +27,83 @@ if not install_root or install_root == "" then
     local program_files = os.getenv("ProgramFiles") or "C:\\Program Files"
     install_root = program_files .. "\\YOMI"
 end
-
 local localapp = os.getenv("LOCALAPPDATA") or "."
 local data_root = localapp .. "\\YOMI"
-
+local state_root = data_root .. "\\state"
+local cache_root = data_root .. "\\cache"
+tool_cache_root = data_root .. "\\tool-cache"
+ytdlp_cache_dir = tool_cache_root .. "\\yt-dlp"
+deno_cache_dir = tool_cache_root .. "\\deno"
+runtime_temp_dir = data_root .. "\\runtime-temp"
 local config_file = data_root .. "\\config.json"
+controller_ui_file = state_root .. "\\controller-ui.json"
 local playlist_file = data_root .. "\\playlist.txt"
-local resume_file = data_root .. "\\state\\resume-track.txt"
-local current_file = data_root .. "\\state\\current.json"
-local engine_status_file = data_root .. "\\state\\engine-status.json"
-local history_file = data_root .. "\\state\\history.jsonl"
-
-local audio_dir = data_root .. "\\cache\\audio"
-local artwork_dir = data_root .. "\\cache\\artwork"
-local video_dir = data_root .. "\\cache\\video"
-local visualizer_dir = data_root .. "\\cache\\visualizer"
-local meta_dir = data_root .. "\\cache\\meta"
-local gain_dir = data_root .. "\\cache\\gain"
-local status_dir = data_root .. "\\cache\\status"
-local comment_dir = data_root .. "\\cache\\comments"
-local telemetry_dir = data_root .. "\\cache\\telemetry"
-
+local pool_file = data_root .. "\\pool-current.json"
+local pool_reset_file = state_root .. "\\pool-reset.pending"
+local resume_file = state_root .. "\\resume-track.txt"
+local current_file = state_root .. "\\current.json"
+local engine_status_file = state_root .. "\\engine-status.json"
+local runtime_lease_file = state_root .. "\\runtime-lease.json"
+local startup_flight_file = state_root .. "\\startup-flight.json"
+local session_file = state_root .. "\\session.json"
+local order_file = state_root .. "\\session-order.json"
+local queue_file = state_root .. "\\queue-runtime.json"
+local repeat_file = state_root .. "\\repeat-mode.txt"
+local history_file = state_root .. "\\history.jsonl"
+active_slot_file = data_root .. "\\active-slot.json"
+cache_slot_context_file = state_root .. "\\cache-slot-context.txt"
+object_root = cache_root .. "\\objects"
+object_audio_dir = object_root .. "\\audio"
+object_meta_dir = object_root .. "\\meta"
+object_gain_dir = object_root .. "\\gain"
+local audio_dir = cache_root .. "\\audio"
+local artwork_dir = cache_root .. "\\artwork"
+local video_dir = cache_root .. "\\video"
+local visualizer_dir = cache_root .. "\\visualizer"
+local meta_dir = cache_root .. "\\meta"
+local gain_dir = cache_root .. "\\gain"
+local status_dir = cache_root .. "\\status"
 local ytdlp = install_root .. "\\runtime\\yt-dlp\\yt-dlp.exe"
 local ffmpeg = install_root .. "\\runtime\\ffmpeg\\ffmpeg.exe"
 local ffmpeg_dir = install_root .. "\\runtime\\ffmpeg"
-local runner = install_root .. "\\app\\PriorityRun.exe"
 local deno = install_root .. "\\runtime\\deno\\deno.exe"
+local runner = install_root .. "\\app\\PriorityRun.exe"
+local runtime_id = os.getenv("YOMI_RUNTIME_ID") or "focused-r19"
 
 local function read_all(path)
-    local f = io.open(path, "rb")
+    local f = io.open(path,"rb")
     if not f then return nil end
     local s = f:read("*a")
     f:close()
     return s
 end
 
-local function write_all(path, text)
+local function write_all(path,text)
     local temp = path .. ".tmp"
-    local f = io.open(temp, "wb")
+    local f = io.open(temp,"wb")
     if not f then return false end
     f:write(text or "")
     f:close()
     os.remove(path)
-    return os.rename(temp, path) ~= nil
+    return os.rename(temp,path) ~= nil
+end
+
+local function append_all(path,text)
+    local f = io.open(path,"ab")
+    if not f then return false end
+    f:write(text or "")
+    f:close()
+    return true
 end
 
 local function exists(path)
-    local f = io.open(path, "rb")
+    local f = io.open(path,"rb")
     if f then f:close(); return true end
     return false
 end
 
 local function fsize(path)
-    local f = io.open(path, "rb")
+    local f = io.open(path,"rb")
     if not f then return 0 end
     local n = f:seek("end") or 0
     f:close()
@@ -68,1738 +113,2902 @@ end
 local function load_json(path)
     local s = read_all(path)
     if not s then return nil end
-
-    -- Windows PowerShell 5.1 writes UTF-8 with a BOM by default.
-    -- mp.utils.parse_json may reject that prefix, which made RC3.2 silently
-    -- behave as if config.json were empty. Strip it defensively.
-    if s:sub(1,3) == string.char(239,187,191) then
-        s = s:sub(4)
-    end
-
-    local ok, value = pcall(utils.parse_json, s)
-    if ok and value then return value end
-
-    mp.msg.error("YOMI CONFIG PARSE FAILED: " .. tostring(path))
+    if s:sub(1,3) == string.char(239,187,191) then s=s:sub(4) end
+    local ok,value = pcall(utils.parse_json,s)
+    if ok and type(value)=="table" then return value end
     return nil
 end
 
-local cfg = load_json(config_file) or {}
-if cfg.app_mode == nil then cfg.app_mode = "Streamer / OBS" end
-if cfg.player_video_quality == nil then cfg.player_video_quality = "Off (audio only)" end
-if cfg.artwork_enabled == nil then cfg.artwork_enabled = true end
-if cfg.smart_artwork_crop == nil then cfg.smart_artwork_crop = true end
-if cfg.video_enabled == nil then cfg.video_enabled = true end
-if cfg.visualizer_enabled == nil then cfg.visualizer_enabled = true end
-if cfg.title_enabled == nil then cfg.title_enabled = true end
-if cfg.channel_enabled == nil then cfg.channel_enabled = true end
-if cfg.loudness_normalization == nil then cfg.loudness_normalization = true end
-if cfg.director_mode == nil then cfg.director_mode = false end
-if cfg.overlay_video_quality == nil then cfg.overlay_video_quality = "144p (fastest)" end
-if cfg.video_preference == nil then cfg.video_preference = "Prefer selected maximum" end
-if cfg.video_fps == nil then cfg.video_fps = "30 FPS" end
-if cfg.audio_quality == nil then cfg.audio_quality = "Best available" end
-if cfg.audio_preference == nil then cfg.audio_preference = "Prefer selected maximum" end
-if cfg.visualizer_frequency_scale == nil then cfg.visualizer_frequency_scale = "Logarithmic" end
-if cfg.visualizer_high_frequency_trim == nil then cfg.visualizer_high_frequency_trim = 20 end
-if cfg.visualizer_fps == nil then cfg.visualizer_fps = "30 FPS" end
-
-local function modules_contain(value, wanted)
-    local hay = "," .. tostring(value or ""):lower():gsub("%s+","") .. ","
-    return hay:find("," .. tostring(wanted):lower() .. ",",1,true) ~= nil
+local function write_json(path,obj)
+    local ok,text = pcall(utils.format_json,obj)
+    if not ok then return false end
+    return write_all(path,text)
 end
 
-local function director_wants(wanted)
-    if cfg.director_mode ~= true then return false end
-    if type(cfg.director_fixed_sources) == "table" then
-        for _,source in ipairs(cfg.director_fixed_sources) do
-            if source.enabled == true and tostring(source.module):lower() == tostring(wanted):lower() then
-                return true
-            end
-        end
-    end
-    if type(cfg.director_outputs) == "table" then
-        for _,output in ipairs(cfg.director_outputs) do
-            if output.enabled == true and modules_contain(output.modules,wanted) then return true end
-        end
-    end
-    return false
+local function log(text)
+    mp.msg.info("YOMI R61.106.52.13.5 " .. tostring(text or ""))
 end
 
-local streamer_mode = tostring(cfg.app_mode) == "Streamer / OBS"
-local director_mode = streamer_mode and cfg.director_mode == true
+-- R61.78: mpv destroys a Lua client when an uncaught callback throws. Keep one bad timer,
+-- transport handler, event or subprocess completion from amputating the whole YOMI engine.
+function yomi_callback_error(err)
+    local text=tostring(err or "unknown callback error")
+    if debug and debug.traceback then
+        local ok,trace=pcall(debug.traceback,text,2)
+        if ok and trace then text=tostring(trace) end
+    end
+    return text
+end
+function yomi_safe_invoke(label,fn,...)
+    if type(fn)~="function" then return false end
+    local args={...}
+    local ok,result=xpcall(function() return fn(unpack(args)) end,yomi_callback_error)
+    if not ok then log("CALLBACK RECOVERED "..tostring(label or "callback").." | "..tostring(result or "error")) end
+    return ok,result
+end
+function safe_timeout(seconds,fn)
+    return mp.add_timeout(seconds,function() yomi_safe_invoke("timeout",fn) end)
+end
+function safe_periodic_timer(seconds,fn)
+    return mp.add_periodic_timer(seconds,function() yomi_safe_invoke("periodic",fn) end)
+end
+function safe_register_event(name,fn)
+    mp.register_event(name,function(...) yomi_safe_invoke("event:"..tostring(name),fn,...) end)
+end
+function safe_register_script_message(name,fn)
+    mp.register_script_message(name,function(...) yomi_safe_invoke("message:"..tostring(name),fn,...) end)
+end
+
+local active_slot = load_json(active_slot_file) or {}
+local active_slot_id = tostring(active_slot.id or "")
+local active_slot_name = tostring(active_slot.name or "Main")
+local slot_bookmark_occurrence = math.max(0,math.floor(tonumber(active_slot.bookmark_occurrence) or 0))
+local slot_bookmark_seconds = math.max(0,tonumber(active_slot.bookmark_seconds) or 0)
+local explicit_play_start = os.getenv("YOMI_EXPLICIT_PLAY") == "1"
+local prewarm_start = os.getenv("YOMI_PREWARM") == "1"
+-- R61.94: prewarm is stronger than a saved play state. It may restore/load/prefetch the
+-- last session, but it is never permitted to emit sound until the controller releases pause.
+local slot_restore_paused = prewarm_start or (active_slot.paused == true and not explicit_play_start)
+local slot_bookmark_pending = slot_bookmark_seconds > 0.5
+
+-- R61.45 retains the R61.44 startup flight recorder. This is intentionally tiny and overwrite-only: it is
+-- diagnostic state, not an ever-growing log. It lets the controller distinguish
+-- "mpv exists" from the milestones that actually matter to first sound.
+local startup_started_at = mp.get_time()
+local startup_stage_seq = 0
+local startup_first_sound = false
+local startup_deadline_reported = false
+local startup_deadline_seconds = 18
+local startup_last_stage = "script_loaded"
+local startup_last_occurrence = 0
+local function startup_elapsed_ms()
+    return math.max(0,math.floor(((mp.get_time() or startup_started_at)-startup_started_at)*1000+0.5))
+end
+local function write_startup_flight(stage,occurrence,detail,complete,deadline_exceeded,waiting_stage)
+    startup_stage_seq=startup_stage_seq+1
+    startup_last_stage=tostring(stage or startup_last_stage or "unknown")
+    startup_last_occurrence=math.max(0,math.floor(tonumber(occurrence) or startup_last_occurrence or 0))
+    write_json(startup_flight_file,{
+        schema=1,runtime_id=runtime_id,slot_id=active_slot_id,slot_name=active_slot_name,
+        stage_seq=startup_stage_seq,stage=startup_last_stage,waiting_stage=tostring(waiting_stage or ""),
+        elapsed_ms=startup_elapsed_ms(),occurrence=startup_last_occurrence,detail=tostring(detail or ""),
+        complete=complete==true,deadline_seconds=startup_deadline_seconds,deadline_exceeded=deadline_exceeded==true,unix=os.time()
+    })
+end
+write_startup_flight("script_loaded",0,"Playback script loaded.",false,false)
+
+local cfg = {}
+local streamer_mode = true
+local configured_art = true
+local player_video_quality = "Off (audio only)"
+local player_video_enabled = false
+local overlay_video_enabled = true
+local configured_video = true
+local configured_viz = true
+local controller_want_art = false
+local controller_want_video = false
+local controller_want_viz = false
+local controller_demand_serial = 0
+local controller_demand_unix = 0
+local controller_demand_token = ""
+local last_current_semantic = ""
+local last_queue_runtime_semantic = ""
 local ffmpeg_available = exists(ffmpeg)
 local deno_available = exists(deno)
-local want_art = streamer_mode and (cfg.artwork_enabled == true or director_wants("artwork"))
-local want_video = streamer_mode and (cfg.video_enabled == true or director_wants("video"))
-local want_viz = streamer_mode and (cfg.visualizer_enabled == true or director_wants("visualizer")) and ffmpeg_available
-local want_comment = director_mode and cfg.featured_comment_enabled == true and director_wants("comment")
-local want_telemetry = director_mode and cfg.telemetry_enabled == true
-local want_probe = want_telemetry and cfg.telemetry_probe_enabled == true and ffmpeg_available
-local want_history = director_mode and cfg.history_enabled == true
-local smart_crop = want_art and cfg.smart_artwork_crop == true and ffmpeg_available
-local loudness_enabled = cfg.loudness_normalization == true and ffmpeg_available
-local player_stream_video = (not streamer_mode) and tostring(cfg.player_video_quality or "Off (audio only)") ~= "Off (audio only)"
+local cache_priority = "idle"
+local workers = 2
+local prefetch_ahead = 15
+optional_cache_budget_mb = 512
+optional_active_count = 0
+optional_worker_limit = 1
 
-mp.msg.info(
-    "YOMI CONFIG mode=" .. tostring(cfg.app_mode) ..
-    " art=" .. tostring(want_art) ..
-    " video=" .. tostring(want_video) ..
-    " visualizer=" .. tostring(want_viz) ..
-    " director=" .. tostring(director_mode) ..
-    " comments=" .. tostring(want_comment) ..
-    " telemetry=" .. tostring(want_telemetry) ..
-    " ffmpeg=" .. tostring(ffmpeg_available) ..
-    " deno=" .. tostring(deno_available)
-)
-
-local workers = tonumber(cfg.cache_workers) or 1
-if workers < 1 then workers = 1 end
-if workers > 8 then workers = 8 end
-
-local prefetch_ahead = tonumber(cfg.prefetch_ahead) or 4
-if prefetch_ahead < 1 then prefetch_ahead = 1 end
-if prefetch_ahead > 20 then prefetch_ahead = 20 end
-local video_prefetch_ahead = prefetch_ahead
-local video_cache_limit = math.max(64,tonumber(cfg.video_cache_limit_mb) or 512) * 1024 * 1024
-local cache_priority = tostring(cfg.cache_priority or "idle")
+local function apply_config(next_cfg)
+    cfg = type(next_cfg)=="table" and next_cfg or {}
+    streamer_mode = tostring(cfg.app_mode or "Streamer / OBS") == "Streamer / OBS"
+    configured_art = streamer_mode and cfg.obs_media_cache_enabled ~= false and cfg.artwork_enabled ~= false
+    player_video_quality = tostring(cfg.video_quality or cfg.player_video_quality or "Off (audio only)")
+    cfg._video_master_enabled = cfg.video_enabled ~= false and not player_video_quality:find("Off",1,true)
+    player_video_enabled = cfg._video_master_enabled
+    overlay_video_enabled = streamer_mode and cfg.obs_media_cache_enabled ~= false and cfg._video_master_enabled
+    configured_video = overlay_video_enabled
+    configured_viz = streamer_mode and cfg.obs_media_cache_enabled ~= false and cfg.visualizer_enabled ~= false
+    cache_priority = tostring(cfg.cache_priority or "idle")
+    workers = math.max(1,math.min(8,tonumber(cfg.cache_workers) or 2))
+    optional_worker_limit = workers<=1 and 1 or math.min(2,workers-1)
+    prefetch_ahead = math.max(1,math.min(30,tonumber(cfg.prefetch_ahead) or 15))
+    optional_cache_budget_mb = math.max(64,math.min(2048,math.floor(tonumber(cfg.optional_cache_budget_mb) or tonumber(cfg.video_cache_limit_mb) or 512)))
+end
+apply_config(load_json(config_file) or {})
+log("OPTIONAL MEDIA CONFIG obs_cache="..tostring(cfg.obs_media_cache_enabled ~= false).." art="..tostring(configured_art).." video="..tostring(configured_video).." viz="..tostring(configured_viz).." ffmpeg="..tostring(ffmpeg_available).." priority_runner="..tostring(exists(runner)).." cache_priority="..tostring(cache_priority).." workers="..tostring(workers).." optional_budget_mb="..tostring(optional_cache_budget_mb))
+local repeat_mode = tostring((read_all(repeat_file) or "all"):match("^%s*(.-)%s*$") or "all"):lower()
+if repeat_mode~="off" and repeat_mode~="all" and repeat_mode~="one" then repeat_mode="all" end
+local function persist_repeat() write_all(repeat_file,repeat_mode) end
 
 local urls = {}
 do
-    local s = read_all(playlist_file) or ""
-    for line in s:gmatch("[^\r\n]+") do
-        line = line:match("^%s*(.-)%s*$")
-        if line and line:match("^https?://") then
-            table.insert(urls, line)
-        end
+    local raw = read_all(playlist_file) or ""
+    for line in raw:gmatch("[^\r\n]+") do
+        line=line:match("^%s*(.-)%s*$")
+        if line and line:match("^https?://") then table.insert(urls,line) end
     end
 end
-
 if #urls == 0 then
-    mp.msg.error("YOMI: playlist is empty.")
+    write_startup_flight("playlist_empty",0,"No playable playlist URLs were found.",false,false)
+    mp.msg.error("YOMI R19: playlist is empty")
     return
 end
-
-local function status_path(i, name)
-    return status_dir .. "\\track-" .. i .. "." .. name
-end
+write_startup_flight("playlist_ready",0,"Loaded "..tostring(#urls).." playlist entries.",false,false)
 
 local function audio_path(i) return audio_dir .. "\\track-" .. i .. ".audio" end
 local function meta_path(i) return meta_dir .. "\\track-" .. i .. ".info.json" end
 local function gain_path(i) return gain_dir .. "\\track-" .. i .. ".gain" end
 local function video_path(i) return video_dir .. "\\track-" .. i .. ".mp4" end
 local function viz_path(i) return visualizer_dir .. "\\track-" .. i .. ".mp4" end
-local function comment_path(i) return comment_dir .. "\\track-" .. i .. ".json" end
-local function telemetry_audio_path(i) return telemetry_dir .. "\\track-" .. i .. ".audio.json" end
-local function telemetry_video_path(i) return telemetry_dir .. "\\track-" .. i .. ".video.json" end
+local function status_path(i,suffix) return status_dir .. "\\track-" .. i .. "." .. suffix end
 
-local image_exts = {"jpg","jpeg","webp","png"}
-local audio_exts = {"webm","m4a","mp4","opus","ogg","aac","mp3","mka"}
+local function visualizer_fps()
+    return tostring(cfg.visualizer_fps or "30 FPS"):find("60",1,true) and 60 or 30
+end
 
-local function artwork_path(i)
-    -- Smart Crop has ONE canonical final artifact. This prevents a legacy/raw
-    -- WEBP or PNG from both bypassing crop preparation and winning the server
-    -- lookup over the processed JPG.
-    if smart_crop then
-        local p = artwork_dir .. "\\track-" .. i .. ".jpg"
-        if exists(p) and fsize(p) > 0 then return p,"jpg" end
-        return nil,nil
+function visualizer_render_dimensions()
+    local raw_w=tonumber(cfg.visualizer_internal_width) or 180
+    local raw_h=tonumber(cfg.visualizer_internal_height) or 36
+    -- Legacy tiny analysis rasters migrate automatically. Manual length controls
+    -- presentation aspect separately and no longer multiplies decode bandwidth.
+    local w=(raw_w>=300 and 340) or (raw_w>=220 and 260) or (raw_w>=130 and 180) or 96
+    local h=(raw_h>=56 and 64) or (raw_h>=42 and 48) or (raw_h>=30 and 36) or 24
+    if w%2==1 then w=w+1 end
+    if h%2==1 then h=h+1 end
+    return w,h
+end
+
+function visualizer_profile()
+    local w,h=visualizer_render_dimensions()
+    return table.concat({
+        "r6110619-crisp-pixel-context",
+        tostring(visualizer_fps()),
+        tostring(w),tostring(h),
+        tostring(cfg.visualizer_activity or "Active"),
+        tostring(cfg.visualizer_adaptive_fill or "Adaptive"),
+        tostring(cfg.visualizer_frequency_scale or "Logarithmic"),
+        tostring(cfg.visualizer_high_frequency_trim or 0),
+        tostring(cfg.visualizer_high_frequency_lift_db or 4),
+        tostring(cfg.visualizer_color_mode or "Solid"),
+        tostring(cfg.visualizer_solid_color or "#8A8A84"),
+        tostring(cfg.visualizer_gradient_preset or "Sunset"),
+        tostring(cfg.visualizer_gradient_orientation or "Horizontal"),
+        tostring(cfg.visualizer_shape or "Spectrum"),
+        tostring(cfg.visualizer_bar_spacing or "None"),
+        tostring(cfg.visualizer_direction or "Normal"),
+        tostring(cfg.visualizer_vertical_anchor or "Source")
+    },"|")
+end
+
+function legacy_visualizer_profile_equivalent(recorded,current)
+    if type(recorded)~="string" or type(current)~="string" then return false end
+    local old_parts={}
+    local new_parts={}
+    for token in recorded:gmatch("([^|]+)") do table.insert(old_parts,token) end
+    for token in current:gmatch("([^|]+)") do table.insert(new_parts,token) end
+    if new_parts[1]~="r6110619-crisp-pixel-context" or new_parts[10]~="Solid" then return false end
+    -- Adopt the immediately preceding binary3 cache without regeneration when the
+    -- operator still uses Solid. Gradient/Rainbow deliberately get a new render.
+    if old_parts[1]=="r61106-binary3-frequency-range" and #old_parts>=15 and #new_parts>=17 then
+        for n=2,11 do if old_parts[n]~=new_parts[n] then return false end end
+        return old_parts[12]==new_parts[14] and old_parts[13]==new_parts[15] and old_parts[14]==new_parts[16] and old_parts[15]==new_parts[17]
     end
+    return false
+end
 
-    for _,ext in ipairs(image_exts) do
-        local p = artwork_dir .. "\\track-" .. i .. "." .. ext
-        if exists(p) and fsize(p) > 0 then return p,ext end
+function visualizer_profile_ready(i)
+    if not (exists(viz_path(i)) and fsize(viz_path(i))>0) then return false end
+    local recorded=read_all(status_path(i,"visualizer.profile"))
+    local current=visualizer_profile()
+    if recorded~=nil and recorded==current then return true end
+    if legacy_visualizer_profile_equivalent(recorded,current) then
+        write_all(status_path(i,"visualizer.profile"),current)
+        return true
     end
-    return nil,nil
+    return false
 end
 
-local function mark(path)
-    write_all(path,"1")
+-- Video cache identity includes the requested frame-rate policy. A decode-valid file is not
+-- enough when the operator explicitly changes Source / 30 / 60 FPS. Legacy cache is adopted
+-- lazily only for Source FPS; explicit CFR choices force one rebuild and then remain stable.
+function video_fps_mode()
+    local raw=tostring(cfg.video_fps or "Source FPS")
+    if raw:find("60",1,true) then return "60" end
+    if raw:find("30",1,true) then return "30" end
+    return "source"
 end
-
-local function playback_ready(i)
-    return exists(audio_path(i))
-        and fsize(audio_path(i)) > 0
-        and exists(meta_path(i))
-        and fsize(meta_path(i)) > 0
-        and exists(gain_path(i))
-end
-
-local bad = {}
-local function known_bad(i)
-    return bad[i] or exists(status_path(i,"audio.permanent"))
-end
-
-local function set_engine_status(phase,message,index)
-    local obj = {
-        phase = phase or "",
-        message = message or "",
-        index = tonumber(index) or 0,
-        count = #urls,
-        paused = mp.get_property_native("pause") == true,
-        unix = os.time()
-    }
-    local ok,text = pcall(utils.format_json,obj)
-    if ok then write_all(engine_status_file,text) end
-end
-
-local function log(msg)
-    mp.msg.info("YOMI " .. msg)
-end
-
--- Smart Crop cache format v3:
--- Older public builds could leave uncropped .webp/.png/.jpg finals behind,
--- and server lookup order could display those instead of the newly processed
--- JPG. Invalidate artwork only once; audio/video/meta caches are untouched.
-local smartcrop_cache_version = "3"
-local smartcrop_marker = artwork_dir .. "\\smartcrop-cache-version.txt"
-
-if smart_crop then
-    local old_version = (read_all(smartcrop_marker) or ""):match("^%s*(.-)%s*$")
-
-    if old_version ~= smartcrop_cache_version then
-        for _,name in ipairs(utils.readdir(artwork_dir,"files") or {}) do
-            if name:match("^track%-%d+%.") then
-                os.remove(artwork_dir .. "\\" .. name)
-            end
-        end
-
-        for _,name in ipairs(utils.readdir(status_dir,"files") or {}) do
-            if name:match("^track%-%d+%.artwork%.failed$") then
-                os.remove(status_dir .. "\\" .. name)
-            end
-        end
-
-        write_all(smartcrop_marker,smartcrop_cache_version)
-        log("SMART CROP CACHE RESET v" .. smartcrop_cache_version)
+function video_quality_profile()
+    local function rank(quality)
+        quality=tostring(quality or "")
+        if quality:find("Best",1,true) then return 10000 end
+        return tonumber(quality:match("(%d+)%s*p")) or 0
     end
-end
-
-local function lower(s)
-    return tostring(s or ""):lower()
-end
-
-local function permanent_error(stderr)
-    local s = lower(stderr)
-    return s:find("video unavailable",1,true)
-        or s:find("account associated with this video has been terminated",1,true)
-        or s:find("private video",1,true)
-        or s:find("has been removed",1,true)
-        or s:find("removed by the uploader",1,true)
-        or s:find("this video is unavailable",1,true)
-        or s:find("copyright",1,true)
-        or s:find("members-only",1,true)
-end
-
-local function find_stage(dir,i,extensions)
-    local files = utils.readdir(dir,"files") or {}
-    local prefix = "track-" .. i .. ".downloading."
-    for _,name in ipairs(files) do
-        if name:sub(1,#prefix) == prefix then
-            local l = name:lower()
-            for _,ext in ipairs(extensions) do
-                if l:sub(-#ext-1) == "." .. ext then
-                    return dir .. "\\" .. name,ext
-                end
-            end
-        end
+    local unified=tostring(cfg.video_quality or "")
+    if unified~="" then return unified end
+    local overlay=tostring(cfg.overlay_video_quality or "240p")
+    if player_video_enabled and overlay_video_enabled then
+        return rank(player_video_quality)>=rank(overlay) and player_video_quality or overlay
+    elseif player_video_enabled then
+        return player_video_quality
     end
-    return nil,nil
+    return overlay
+end
+function video_profile()
+    return "r61106-vfps3|fps="..video_fps_mode().."|quality="..video_quality_profile()
+end
+function video_profile_ready(i)
+    if not optional_validation_ready("video",i) then return false end
+    local recorded=read_all(status_path(i,"video.profile"))
+    return recorded==video_profile()
+end
+function mark_video_profile(i)
+    write_all(status_path(i,"video.profile"),video_profile())
+end
+function clear_video_profile(i) os.remove(status_path(i,"video.profile")) end
+function video_transcode_args(input_path,output_path)
+    local a={"-y","-hide_banner","-loglevel","error","-i",input_path,"-map","0:v:0","-an","-sn","-dn","-c:v","libx264","-preset","ultrafast","-tune","fastdecode","-crf","20","-pix_fmt","yuv420p","-g","60","-bf","0"}
+    local mode=video_fps_mode()
+    if mode=="30" or mode=="60" then
+        table.insert(a,"-vf");table.insert(a,"fps="..mode)
+        table.insert(a,"-r");table.insert(a,mode)
+        table.insert(a,"-fps_mode");table.insert(a,"cfr")
+    else
+        table.insert(a,"-fps_mode");table.insert(a,"passthrough")
+    end
+    table.insert(a,"-movflags");table.insert(a,"+faststart")
+    table.insert(a,"-threads");table.insert(a,"1")
+    table.insert(a,output_path)
+    return a
 end
 
-local function move_replace(src,dst)
-    if not src or not exists(src) then return false end
+-- R61.76: optional media is not READY merely because a non-empty file exists.
+-- Every generated thumbnail/video/visualizer carries a decode-validation sidecar tied to
+-- its exact byte length. Poisoned/truncated legacy cache is therefore rebuilt automatically.
+function optional_validation_sidecar(kind,i) return status_path(i,tostring(kind)..".decode-ok") end
+function optional_validation_media_path(kind,i)
+    if kind=="art" then return artwork_path(i)
+    elseif kind=="video" then return video_path(i)
+    elseif kind=="viz" then return viz_path(i) end
+    return nil
+end
+function optional_validation_ready(kind,i)
+    local path=optional_validation_media_path(kind,i)
+    if not path or not exists(path) then return false end
+    local size=fsize(path)
+    if size<=0 then return false end
+    local stamp=read_all(optional_validation_sidecar(kind,i))
+    if kind=="video" then
+        -- Legacy decode-valid/source-pass cache remains PRESENTATION READY. R61.85 may
+        -- opportunistically normalize it ahead of playback, but never blanks the current
+        -- track just because its codec predates the native MediaElement path.
+        return stamp==("r6185-h264|"..tostring(size)) or stamp==("r6185-source-pass|"..tostring(size))
+            or stamp==("r6176-decode1|"..tostring(size)) or stamp==("r6178-source-pass|"..tostring(size))
+    end
+    return stamp==("r6176-decode1|"..tostring(size)) or stamp==("r6178-source-pass|"..tostring(size))
+end
+function legacy_video_validation_ready(i)
+    local path=video_path(i)
+    if not path or not exists(path) then return false end
+    local size=fsize(path)
+    if size<=0 then return false end
+    local stamp=read_all(optional_validation_sidecar("video",i))
+    return stamp==("r6176-decode1|"..tostring(size)) or stamp==("r6178-source-pass|"..tostring(size))
+end
+function mark_optional_validated(kind,i)
+    local path=optional_validation_media_path(kind,i)
+    if not path or not exists(path) or fsize(path)<=0 then return false end
+    local prefix=kind=="video" and "r6185-h264|" or "r6176-decode1|"
+    write_all(optional_validation_sidecar(kind,i),prefix..tostring(fsize(path)))
+    if kind=="video" then mark_video_profile(i) end
+    return true
+end
+function mark_optional_source_pass(kind,i)
+    local path=optional_validation_media_path(kind,i)
+    if not path or not exists(path) or fsize(path)<=0 then return false end
+    if kind=="video" and video_fps_mode()~="source" then return false end
+    local prefix=kind=="video" and "r6185-source-pass|" or "r6178-source-pass|"
+    write_all(optional_validation_sidecar(kind,i),prefix..tostring(fsize(path)))
+    if kind=="video" then mark_video_profile(i) end
+    return true
+end
+function clear_optional_validation(kind,i)
+    os.remove(optional_validation_sidecar(kind,i))
+    if kind=="video" then clear_video_profile(i) end
+end
+
+function youtube_id(raw)
+    local u=tostring(raw or ""):match("^%s*(.-)%s*$") or ""
+    return u:match("[Yy][Oo][Uu][Tt][Uu]%.?[Bb][Ee]/([%w_%-]+)")
+        or u:match("[?&][Vv]=([%w_%-]+)")
+        or u:match("[Yy][Oo][Uu][Tt][Uu][Bb][Ee]%.com/[Ss][Hh][Oo][Rr][Tt][Ss]/([%w_%-]+)")
+        or u:match("[Yy][Oo][Uu][Tt][Uu][Bb][Ee]%.com/[Ee][Mm][Bb][Ee][Dd]/([%w_%-]+)")
+        or ""
+end
+
+function source_identity(raw)
+    local u=tostring(raw or ""):match("^%s*(.-)%s*$") or ""
+    local id=youtube_id(u)
+    -- YouTube video IDs are case-sensitive. Lowercasing here can make two distinct
+    -- sources look identical and is therefore unsafe for positional-cache ownership.
+    if id~="" then return "yt:"..id end
+    return "url:"..u
+end
+
+-- R61.42 source-identity bridge. Keep the existing position cache as the hot/session
+-- alias expected by the focused renderer/server, but back durable audio/metadata/gain
+-- with source-keyed objects so switching Slots cannot bind track-N from one world to a
+-- different source in another. Optional artwork/video/visualizer keep the R61.32 bounded
+-- rolling-window policy. The hash mirrors ControllerHost.IdentityHash / ComputeSourceKey.
+function hash32(text,seed)
+    local h=tonumber(seed) or 0
+    text=tostring(text or "")
+    for n=1,#text do h=(h*65599+text:byte(n)+17)%4294967296 end
+    return h
+end
+local hexchars="0123456789abcdef"
+function hex32(value)
+    local n=math.floor(tonumber(value) or 0)%4294967296
+    local out={}
+    for pos=8,1,-1 do
+        local digit=n%16;n=math.floor(n/16)
+        out[pos]=hexchars:sub(digit+1,digit+1)
+    end
+    return table.concat(out)
+end
+function identity_hash(text)
+    return hex32(hash32(text,2166136261))..hex32(hash32(text,2246822519))
+end
+function source_cache_key(raw)
+    local u=tostring(raw or ""):match("^%s*(.-)%s*$") or ""
+    local id=youtube_id(u)
+    if id~="" then return identity_hash("youtube:"..id) end
+    return identity_hash("url:"..u)
+end
+function audio_object_signature()
+    return identity_hash("audio:"..tostring(cfg.audio_quality or "Best available").."|"..tostring(cfg.audio_preference or "Prefer selected maximum"))
+end
+function audio_object_path(i) return object_audio_dir.."\\"..source_cache_key(urls[i]).."-audio-"..audio_object_signature()..".audio" end
+function meta_object_path(i) return object_meta_dir.."\\"..source_cache_key(urls[i]).."-meta.info.json" end
+function gain_object_path(i) return object_gain_dir.."\\"..source_cache_key(urls[i]).."-gain.gain" end
+
+function ensure_dir(path)
+    if utils.readdir(path,"files")~=nil then return true end
+    local cmd=os.getenv("ComSpec") or "cmd.exe"
+    local ok,result=pcall(utils.subprocess,{args={cmd,"/d","/c","mkdir",path},playback_only=false,capture_stdout=true,capture_stderr=true})
+    return ok and result and tonumber(result.status or 1)==0 or utils.readdir(path,"files")~=nil
+end
+for _,dir in ipairs({object_root,object_audio_dir,object_meta_dir,object_gain_dir,tool_cache_root,ytdlp_cache_dir,deno_cache_dir,runtime_temp_dir}) do ensure_dir(dir) end
+
+function copy_file_atomic(src,dst)
+    local expected=fsize(src);if expected<=0 then return false end
+    local temp=dst..".tmp."..tostring(os.time()).."."..tostring(math.random(100000,999999))
+    os.remove(temp)
+    local input=io.open(src,"rb");if not input then return false end
+    local output=io.open(temp,"wb");if not output then input:close();return false end
+    local good=true
+    while true do
+        local chunk=input:read(1024*1024)
+        if not chunk then break end
+        if not output:write(chunk) then good=false;break end
+    end
+    input:close();output:close()
+    if not good or fsize(temp)~=expected then os.remove(temp);return false end
+    if exists(dst) and fsize(dst)>0 then os.remove(temp);return true end
+    if os.rename(temp,dst) then return exists(dst) and fsize(dst)==expected end
+    -- Another worker may have won the same source-object race. Never expose the
+    -- temporary partial file as authoritative; accept only an already-complete target.
+    os.remove(temp)
+    return exists(dst) and fsize(dst)>0
+end
+
+function hardlink_or_copy(src,dst)
+    local expected=fsize(src);if expected<=0 then return false end
+    if exists(dst) and fsize(dst)>0 then return true end
     os.remove(dst)
-    return os.rename(src,dst) ~= nil
+    local cmd=os.getenv("ComSpec") or "cmd.exe"
+    local ok,result=pcall(utils.subprocess,{args={cmd,"/d","/c","mklink","/H",dst,src},playback_only=false,capture_stdout=true,capture_stderr=true})
+    if ok and result and tonumber(result.status or 1)==0 and exists(dst) and fsize(dst)==expected then return true end
+    os.remove(dst)
+    return copy_file_atomic(src,dst)
 end
 
-local function run(priority,exe,args,callback)
-    local a = {runner,priority,exe}
-    for _,v in ipairs(args) do table.insert(a,tostring(v)) end
-    mp.command_native_async({
-        name="subprocess",
-        playback_only=false,
-        capture_stdout=true,
-        capture_stderr=true,
-        args=a
-    },callback)
+function promote_object(src,dst)
+    if not src or not dst or not exists(src) or fsize(src)<=0 then return false end
+    if exists(dst) and fsize(dst)>0 then return true end
+    return hardlink_or_copy(src,dst)
 end
 
-local function ytdlp_common(client_spec)
-    local args = {
-        "--no-playlist",
-        "--quiet",
-        "--no-warnings",
-        "--socket-timeout","20"
-    }
-    if client_spec ~= false then
-        table.insert(args,"--extractor-args")
-        table.insert(args,"youtube:player_client=" .. tostring(client_spec or "web_embedded,default"))
-    end
-    if deno_available then
-        table.insert(args,"--js-runtimes")
-        table.insert(args,"deno:" .. deno)
-    end
-    if ffmpeg_available then
-        table.insert(args,"--ffmpeg-location")
-        table.insert(args,ffmpeg_dir)
-    end
-    return args
+function hydrate_position(src,dst)
+    if exists(dst) and fsize(dst)>0 then return true end
+    return hardlink_or_copy(src,dst)
 end
 
-local function audio_format_selector()
-    local quality = tostring(cfg.audio_quality or "Best available")
-    local prefer_low = tostring(cfg.audio_preference or "Prefer selected maximum") == "Prefer lowest compatible"
-    local cap = nil
-    if quality:find("64",1,true) then cap = 64
-    elseif quality:find("128",1,true) then cap = 128
-    elseif quality:find("160",1,true) then cap = 160 end
-
-    if prefer_low then
-        if cap then return "worstaudio[abr<=" .. cap .. "]/worstaudio/best" end
-        return "worstaudio/bestaudio/best"
-    end
-    if cap then return "bestaudio[abr<=" .. cap .. "]/bestaudio/best" end
-    return "bestaudio/best"
+function promote_position_objects(i)
+    if i<1 or i>#urls then return end
+    if exists(audio_path(i)) and fsize(audio_path(i))>0 then promote_object(audio_path(i),audio_object_path(i)) end
+    if exists(meta_path(i)) and fsize(meta_path(i))>0 then promote_object(meta_path(i),meta_object_path(i)) end
+    if exists(gain_path(i)) and fsize(gain_path(i))>0 then promote_object(gain_path(i),gain_object_path(i)) end
 end
 
-local function parse_gain(stderr)
-    local gain = tonumber((stderr or ""):match("track_gain%s*=%s*([%+%-]?[%d%.]+)%s*dB")) or 0
-    local peak = tonumber((stderr or ""):match("track_peak%s*=%s*([%d%.]+)")) or 0
-
-    if gain > 6 then gain = 6 end
-    if gain < -12 then gain = -12 end
-
-    if gain > 0 and peak > 0 then
-        local projected = peak * (10 ^ (gain / 20))
-        if projected > 0.98 then
-            local safe = 20 * (math.log(0.98 / peak) / math.log(10))
-            if safe < gain then gain = safe end
-        end
-    end
-
-    if gain < -20 then gain = -20 end
-    return gain
-end
-
-local function viz_filter()
-    local activity = tostring(cfg.visualizer_activity or "Active")
-    local averaging,win,boost = 1,1024,9
-
-    if activity == "Subtle" then averaging,win,boost = 3,2048,3
-    elseif activity == "Normal" then averaging,win,boost = 2,1024,6
-    elseif activity == "Punchy" then averaging,win,boost = 1,512,12 end
-
-    local w = math.max(12,math.min(192,tonumber(cfg.visualizer_internal_width) or 40))
-    local h = math.max(4,math.min(48,tonumber(cfg.visualizer_internal_height) or 10))
-    local fps = tostring(cfg.visualizer_fps or "30 FPS"):find("60",1,true) and 60 or 30
-
-    local fscale = tostring(cfg.visualizer_frequency_scale or "Logarithmic") == "Linear" and "lin" or "log"
-    return string.format(
-        "[0:a]highpass=f=30,volume=%ddB,showfreqs=s=%dx%d:mode=bar:ascale=cbrt:fscale=%s:cmode=combined:rate=%d:colors=white:averaging=%d:win_size=%d,format=yuv420p[v]",
-        boost,w,h,fscale,fps,averaging,win
-    )
-end
-
-local current_index = tonumber((read_all(resume_file) or "1"):match("%d+")) or 1
-if current_index < 1 or current_index > #urls then current_index = 1 end
-
-local desired_index = current_index
-local requested_index = 0
-local playing_index = 0
-local jobs = {}
-local queued = {}
-local active = {}
-local active_count = 0
-local decorative_active_count = 0
-local audio_retries = {}
-local bundle_priority = {}
-local metrics_by_track = {}
-local bundle_cache_hit = {}
-local bundle_ready
-
-local function next_candidate(from,step)
-    step = step or 1
-    local i = from
-    for _=1,#urls do
-        i = i + step
-        if i > #urls then i = 1 end
-        if i < 1 then i = #urls end
-        if not known_bad(i) then return i end
+function artwork_path(i)
+    if ensure_position_binding then ensure_position_binding(i) end
+    for _,ext in ipairs({"jpg","jpeg","png","webp"}) do
+        local p=artwork_dir .. "\\track-" .. i .. "." .. ext
+        if exists(p) and fsize(p)>0 then return p end
     end
     return nil
 end
 
-local function read_gain(i)
-    return tonumber((read_all(gain_path(i)) or "0"):match("[%+%-]?[%d%.]+")) or 0
+function hydrate_supporting_objects(i)
+    if not exists(meta_path(i)) then hydrate_position(meta_object_path(i),meta_path(i)) end
+    if not exists(gain_path(i)) then hydrate_position(gain_object_path(i),gain_path(i)) end
 end
 
-local function ready_ahead_count(i)
-    if not bundle_ready then return 0 end
-    local count = 0
-    local cursor = i
-    for _=1,prefetch_ahead do
-        local n = next_candidate(cursor,1)
-        if not n or n == i then break end
-        if bundle_ready(n) then count = count + 1 else break end
-        cursor = n
+function audio_ready(i)
+    if not i or i<1 or i>#urls then return false end
+    if ensure_position_binding then ensure_position_binding(i) end
+    if not (exists(audio_path(i)) and fsize(audio_path(i))>0) then hydrate_position(audio_object_path(i),audio_path(i)) end
+    if exists(audio_path(i)) and fsize(audio_path(i))>0 then
+        hydrate_supporting_objects(i)
+        promote_object(audio_path(i),audio_object_path(i))
+        return true
     end
-    return count
+    return false
 end
 
-local function state_for(i)
-    local info = load_json(meta_path(i)) or {}
-    local art = artwork_path(i)
-    local comment = load_json(comment_path(i)) or {}
-    if exists(status_path(i,"comment.hidden")) then comment={} end
-    local audio_probe = load_json(telemetry_audio_path(i))
-    local video_probe = load_json(telemetry_video_path(i))
-    local next_i = next_candidate(i,1)
-    local next_info = next_i and (load_json(meta_path(next_i)) or {}) or {}
-    local next_art = next_i and artwork_path(next_i) or nil
-    local m = metrics_by_track[i] or {}
-    local prepare_seconds = 0
-    for _,seconds in pairs(m) do prepare_seconds = prepare_seconds + (tonumber(seconds) or 0) end
-    local decorative_active = 0
-    for _,running in pairs(active) do
-        if type(running)=="table" and running.decorative then decorative_active=decorative_active+1 end
+function known_bad(i)
+    if ensure_position_binding then ensure_position_binding(i) end
+    local marker=status_path(i,"audio.permanent")
+    if not exists(marker) then return false end
+    -- A durable, decode-valid audio object outranks any stale failure marker.
+    if audio_ready(i) then
+        os.remove(marker)
+        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason=audio-ready")
+        return false
     end
-    local audio_bytes = fsize(audio_path(i))
-    local art_bytes = art and fsize(art) or 0
-    local video_bytes = fsize(video_path(i))
-    local viz_bytes = fsize(viz_path(i))
-
-    return {
-        index = i,
-        playlist_count = #urls,
-        id = info.id or "",
-        extractor = info.extractor_key or info.extractor or "YouTube",
-        webpage_url = info.webpage_url or info.original_url or urls[i],
-        title = info.title or ("Track " .. i),
-        channel = info.channel or info.uploader or "",
-        uploader = info.uploader or "",
-        duration = tonumber(info.duration) or 0,
-        upload_date = info.upload_date or info.release_date or "",
-        release_date = info.release_date or "",
-        view_count = tonumber(info.view_count),
-        like_count = tonumber(info.like_count),
-        comment_count = tonumber(info.comment_count),
-        channel_follower_count = tonumber(info.channel_follower_count),
-        channel_is_verified = info.channel_is_verified == true,
-        categories = info.categories or {},
-        tags = info.tags or {},
-        live_status = info.live_status or "",
-        age_limit = tonumber(info.age_limit) or 0,
-        artwork = (want_art and art) and ("/media/artwork/" .. i) or "",
-        video = (want_video and exists(video_path(i))) and ("/media/video/" .. i) or "",
-        visualizer = (want_viz and exists(viz_path(i))) and ("/media/visualizer/" .. i) or "",
-        video_quality = tostring(cfg.overlay_video_quality or "144p (fastest)"),
-        video_preference = tostring(cfg.video_preference or "Prefer selected maximum"),
-        video_fps = tostring(cfg.video_fps or "30 FPS"),
-        audio_quality = tostring(cfg.audio_quality or "Best available"),
-        audio_preference = tostring(cfg.audio_preference or "Prefer selected maximum"),
-        visualizer_fps = tostring(cfg.visualizer_fps or "30 FPS"),
-        visualizer_high_frequency_trim = tonumber(cfg.visualizer_high_frequency_trim) or 20,
-        audio = {
-            ext = info.ext or info.audio_ext or "",
-            format_id = info.format_id or "",
-            format_note = info.format_note or "",
-            acodec = info.acodec or "",
-            abr = tonumber(info.abr),
-            asr = tonumber(info.asr),
-            audio_channels = tonumber(info.audio_channels),
-            gain_db = read_gain(i)
-        },
-        media = {
-            audio_bytes = audio_bytes,
-            artwork_bytes = art_bytes,
-            video_bytes = video_bytes,
-            visualizer_bytes = viz_bytes,
-            total_bytes = audio_bytes + art_bytes + video_bytes + viz_bytes
-        },
-        telemetry = {
-            audio = audio_probe,
-            video = video_probe
-        },
-        comment = comment,
-        up_next = {
-            index = next_i or 0,
-            title = next_info.title or "",
-            channel = next_info.channel or next_info.uploader or "",
-            artwork = (next_i and next_art) and ("/media/artwork/" .. next_i) or ""
-        },
-        pipeline = {
-            bundle_ready = bundle_ready and bundle_ready(i) or false,
-            cache_hit = bundle_cache_hit[i] == true,
-            active_jobs = active_count,
-            decorative_jobs = decorative_active,
-            queued_jobs = #jobs,
-            workers = workers,
-            prefetch_ahead = prefetch_ahead,
-            video_prefetch_ahead = video_prefetch_ahead,
-            complete_prefetch_ahead = prefetch_ahead,
-            ready_ahead = ready_ahead_count(i),
-            prepare_seconds = prepare_seconds,
-            stages = m
-        }
-    }
-end
-
-local function write_state(i)
-    if not i or i < 1 then return end
-    local ok,text = pcall(utils.format_json,state_for(i))
-    if ok then write_all(current_file,text) end
-end
-
-local function record_history(i)
-    if not i or i<1 then return end
-    local info = load_json(meta_path(i)) or {}
-    local entry = {
-        index = i,
-        id = info.id or "",
-        title = info.title or ("Track " .. i),
-        channel = info.channel or info.uploader or "",
-        duration = tonumber(info.duration) or 0,
-        upload_date = info.upload_date or info.release_date or "",
-        unix = os.time()
-    }
-    local ok,line = pcall(utils.format_json,entry)
-    if not ok then return end
-    local max_entries = math.max(10,math.min(1000,tonumber(cfg.history_max_entries) or 100))
-    local lines = {}
-    local raw = read_all(history_file) or ""
-    for old in raw:gmatch("[^\r\n]+") do table.insert(lines,old) end
-    while #lines >= max_entries do table.remove(lines,1) end
-    table.insert(lines,line)
-    write_all(history_file,table.concat(lines,"\r\n") .. "\r\n")
-end
-
-local function job_key(kind,i)
-    return kind .. ":" .. i
-end
-
-local function optional_done(kind,i)
-    if kind == "art" then
-        return (not want_art) or artwork_path(i) ~= nil or exists(status_path(i,"artwork.failed"))
-    elseif kind == "video" then
-        return (not want_video) or exists(video_path(i)) or exists(status_path(i,"video.failed"))
-    elseif kind == "viz" then
-        return (not want_viz) or exists(viz_path(i)) or exists(status_path(i,"visualizer.failed"))
+    -- Permanent availability belongs to a SOURCE, never forever to a numeric Queue position.
+    -- Legacy builds wrote a one-byte '1' marker; that has no source identity and therefore cannot
+    -- safely condemn a still-valid track after playlist/cache evolution. Migrate it by retrying.
+    local raw=(read_all(marker) or ""):match("^%s*(.-)%s*$") or ""
+    local current=source_identity(urls[i])
+    if raw=="" or raw=="1" or raw~=current then
+        os.remove(marker)
+        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason="..(raw=="1" and "legacy-unscoped" or "source-mismatch"))
+        return false
     end
     return true
 end
 
-local function decorative_done(kind,i)
-    if kind == "comment" then
-        return (not want_comment) or exists(comment_path(i)) or exists(status_path(i,"comment.failed")) or exists(status_path(i,"comment.hidden"))
-    elseif kind == "probe" then
-        if not want_probe then return true end
-        local audio_done = exists(telemetry_audio_path(i)) or exists(status_path(i,"probe-audio.failed"))
-        local video_done = (not exists(video_path(i))) or exists(telemetry_video_path(i)) or exists(status_path(i,"probe-video.failed"))
-        return audio_done and video_done
+local pool_current=load_json(pool_file) or {}
+local pool_tracks=type(pool_current.tracks)=="table" and pool_current.tracks or {}
+local pool_name=tostring(pool_current.name or "")
+local pool_reset_requested=exists(pool_reset_file)
+local function pool_track_for(i)
+    local raw=pool_tracks[i]
+    if type(raw)~="table" then return nil end
+    if source_identity(raw.url)~=source_identity(urls[i]) then return nil end
+    return raw
+end
+
+local previous_session=load_json(session_file)
+local previous_source_by_position={}
+if previous_session and type(previous_session.occurrences)=="table" then
+    for ordinal,raw in ipairs(previous_session.occurrences) do
+        if type(raw)=="table" then
+            local pos=math.floor(tonumber(raw.position or raw.source_index or ordinal) or ordinal)
+            previous_source_by_position[pos]=source_identity(raw.url)
+        end
     end
-    return true
 end
 
-bundle_ready = function(i)
-    if not i or known_bad(i) then return false end
-    if not playback_ready(i) then return false end
-    if not optional_done("art",i) then return false end
-    if not optional_done("video",i) then return false end
-    if not optional_done("viz",i) then return false end
-    return true
+local playlist_changed=false
+do
+    local previous_count=0
+    for _ in pairs(previous_source_by_position) do previous_count=previous_count+1 end
+    if previous_count>0 then
+        if previous_count~=#urls then playlist_changed=true end
+        if not playlist_changed then
+            for i=1,#urls do
+                if previous_source_by_position[i]~=source_identity(urls[i]) then playlist_changed=true;break end
+            end
+        end
+    end
+end
+if pool_reset_requested then playlist_changed=true end
+
+local function remove_track_cache(dir,i)
+    local prefix="track-"..tostring(i).."."
+    local alt="track-"..tostring(i).."-"
+    for _,name in ipairs(utils.readdir(dir,"files") or {}) do
+        if name:sub(1,#prefix)==prefix or name:sub(1,#alt)==alt then os.remove(dir.."\\"..name) end
+    end
 end
 
-local function bundle_stage(i)
-    if not playback_ready(i) then return "audio" end
-    if not optional_done("art",i) then return "artwork" end
-    if not optional_done("video",i) then return "tiny video" end
-    if not optional_done("viz",i) then return "visualizer" end
-    return "ready"
+local prior_cache_slot=(read_all(cache_slot_context_file) or ""):match("^%s*(.-)%s*$") or ""
+local cache_slot_changed=active_slot_id~="" and prior_cache_slot~=active_slot_id
+local position_binding_checked={}
+
+-- R61.43.1 startup-critical repair.
+-- Slot-aware cache safety is enforced lazily for the occurrence YOMI actually touches.
+-- The R61.42 implementation synchronously reconciled/promoted every position in a
+-- playlist during music.lua initialization. On large libraries that could run thousands
+-- of filesystem probes and mklink subprocesses before mpv reached its first runtime
+-- lease or first play request, leaving the supervisor alive while playback appeared
+-- permanently stuck at "preparing the first playable track".
+function ensure_position_binding(i)
+    i=math.floor(tonumber(i) or 0)
+    if i<1 or i>#urls or position_binding_checked[i] then return end
+    position_binding_checked[i]=true
+
+    local marker=status_path(i,"source")
+    local current=source_identity(urls[i])
+    local recorded=(read_all(marker) or ""):match("^%s*(.-)%s*$") or ""
+    local prior=recorded~="" and recorded or (previous_source_by_position[i] or "")
+
+    local has_art=false
+    for _,ext in ipairs({"jpg","jpeg","png","webp"}) do
+        local p=artwork_dir.."\\track-"..i.."."..ext
+        if exists(p) and fsize(p)>0 then has_art=true;break end
+    end
+    local has_cache=(exists(audio_path(i)) and fsize(audio_path(i))>0) or has_art
+        or (exists(video_path(i)) and fsize(video_path(i))>0)
+        or (exists(viz_path(i)) and fsize(viz_path(i))>0)
+        or (exists(meta_path(i)) and fsize(meta_path(i))>0)
+        or (exists(gain_path(i)) and fsize(gain_path(i))>0)
+
+    -- A recorded source marker is authoritative even across Slot switches. For older
+    -- unmarked cache, trust the previous session mapping only when the Slot context has
+    -- not changed. Otherwise the positional alias may belong to another listening world.
+    local trusted=(recorded~="" and recorded==current)
+        or (recorded=="" and not cache_slot_changed and prior~="" and prior==current)
+
+    if not trusted then
+        remove_track_cache(audio_dir,i);remove_track_cache(artwork_dir,i);remove_track_cache(video_dir,i)
+        remove_track_cache(visualizer_dir,i);remove_track_cache(meta_dir,i);remove_track_cache(gain_dir,i);remove_track_cache(status_dir,i)
+        if has_cache or recorded~="" or prior~="" then log("SOURCE CHANGED track "..i.."; stale position cache removed lazily") end
+    elseif trusted then
+        -- Promote only the occurrence currently being touched. This preserves the
+        -- source-addressed durable cache without putting an O(playlist-size) migration
+        -- on the Play critical path.
+        promote_position_objects(i)
+    end
+    write_all(marker,current)
 end
 
-local function enqueue(kind,i,priority)
-    if not i or i < 1 or i > #urls then return end
+log("CACHE SOURCE RECONCILE lazy per-track"..(cache_slot_changed and " · slot changed" or ""))
+if active_slot_id~="" then write_all(cache_slot_context_file,active_slot_id) end
 
-    if kind == "audio" then
-        if playback_ready(i) or known_bad(i) then return end
-    elseif kind == "comment" or kind == "probe" then
-        if not playback_ready(i) or decorative_done(kind,i) then return end
-    else
-        if not playback_ready(i) or optional_done(kind,i) then return end
+local order = {}
+local order_position = {}
+local order_revision = 0
+local order_command_serial = 0
+local session_id = "focused-r19"
+do
+    local saved = pool_reset_requested and nil or load_json(order_file)
+    local seen = {}
+    if saved then
+        session_id=tostring(saved.session_id or session_id)
+        order_revision=tonumber(saved.revision) or 0
+        order_command_serial=tonumber(saved.command_serial) or 0
+    end
+    if pool_reset_requested then
+        session_id="pool-r6122-"..tostring(os.time())
+        order_revision=0
+        order_command_serial=0
+    elseif playlist_changed and previous_session then
+        session_id="focused-r59-"..tostring(os.time())
+        order_revision=0
+        order_command_serial=0
+        local buckets={}
+        for i=1,#urls do
+            local key=source_identity(urls[i]);buckets[key]=buckets[key] or {};table.insert(buckets[key],i)
+        end
+        local cursors={}
+        if saved and type(saved.order)=="table" then
+            for _,raw in ipairs(saved.order) do
+                local old=math.floor(tonumber(raw) or 0)
+                local key=previous_source_by_position[old]
+                local bucket=key and buckets[key] or nil
+                if bucket then
+                    local cursor=(cursors[key] or 0)+1
+                    cursors[key]=cursor
+                    local n=bucket[cursor]
+                    if n and not seen[n] then seen[n]=true;table.insert(order,n) end
+                end
+            end
+        end
+    elseif saved and type(saved.order)=="table" then
+        for _,raw in ipairs(saved.order) do
+            local n=math.floor(tonumber(raw) or 0)
+            if n>=1 and n<=#urls and not seen[n] then seen[n]=true;table.insert(order,n) end
+        end
+    end
+    for i=1,#urls do if not seen[i] then seen[i]=true;table.insert(order,i) end end
+    for slot,occ in ipairs(order) do order_position[occ]=slot end
+end
+
+local function current_slot(i)
+    return tonumber(order_position[i]) or 0
+end
+
+-- R61.95 SEARCH PLAYLIST: the authoritative session order never changes. A temporary
+-- filtered playback lane can sit over it, so search results behave like a little playlist
+-- until the user clears the search.
+playback_subset={}
+playback_subset_position={}
+playback_subset_active=false
+playback_subset_label=""
+playback_subset_cursor=0
+-- Pending transport is declared before lane helpers so late file-loaded events can never
+-- drag the filtered intent cursor backward to an older occurrence.
+local transport_pending_target=0
+-- Queue work ownership lives here so the runtime publisher can expose the active
+-- listening lane's QUEUED/PREPARING state instead of only the main-order neighborhood.
+local jobs={}
+local queued={}
+local active={}
+local active_count=0
+cache_plan_serial=0
+cache_plan_reason="session"
+
+function rebuild_playback_subset_position()
+    playback_subset_position={}
+    for slot,occ in ipairs(playback_subset) do playback_subset_position[occ]=slot end
+    if playback_subset_cursor>#playback_subset then playback_subset_cursor=#playback_subset end
+end
+
+function sync_playback_subset_cursor(i)
+    if not playback_subset_active then return end
+    local occurrence=math.floor(tonumber(i) or 0)
+    local pending=math.floor(tonumber(transport_pending_target) or 0)
+    local pending_slot=tonumber(playback_subset_position[pending]) or 0
+    if pending_slot>0 and occurrence~=pending then
+        -- A stale/slow file-loaded event is evidence about decoding, not navigation intent.
+        -- Keep the filtered cursor pinned to the last requested destination until it loads.
+        playback_subset_cursor=pending_slot
+        return
+    end
+    local slot=tonumber(playback_subset_position[occurrence]) or 0
+    if slot>0 then playback_subset_cursor=slot end
+end
+
+function active_prefetch_ahead()
+    if playback_subset_active then return math.max(prefetch_ahead,math.min(8,#playback_subset)) end
+    return prefetch_ahead
+end
+
+function next_subset_transport_occurrence(base,step)
+    if not playback_subset_active or #playback_subset==0 then return nil end
+    local direction=(tonumber(step) or 1)>=0 and 1 or -1
+    local pending_slot=tonumber(playback_subset_position[math.floor(tonumber(transport_pending_target) or 0)]) or 0
+    local slot=pending_slot>0 and pending_slot or playback_subset_cursor
+    if slot<1 then slot=tonumber(playback_subset_position[base]) or 0 end
+    if slot<1 then slot=direction>=0 and 0 or (#playback_subset+1) end
+    for _=1,#playback_subset do
+        local next_slot=slot+direction
+        if repeat_mode=="off" and (next_slot>#playback_subset or next_slot<1) then return nil end
+        slot=next_slot
+        if slot>#playback_subset then slot=1 elseif slot<1 then slot=#playback_subset end
+        local candidate=playback_subset[slot]
+        if candidate and not known_bad(candidate) then playback_subset_cursor=slot;return candidate end
+    end
+    return nil
+end
+
+local function next_occurrence(i,step)
+    local sequence=playback_subset_active and playback_subset or order
+    local positions=playback_subset_active and playback_subset_position or order_position
+    if #sequence==0 then return nil end
+    local direction=(tonumber(step) or 1)>=0 and 1 or -1
+    local slot=tonumber(positions[i]) or 0
+    if slot<1 then
+        -- Entering a temporary lane from a track outside it starts at the closest edge.
+        return direction>=0 and sequence[1] or sequence[#sequence]
+    end
+    for _=1,#sequence do
+        local next_slot=slot+direction
+        if repeat_mode=="off" and (next_slot>#sequence or next_slot<1) then return nil end
+        slot=next_slot
+        if slot>#sequence then slot=1 elseif slot<1 then slot=#sequence end
+        local candidate=sequence[slot]
+        if candidate and not known_bad(candidate) then return candidate end
+    end
+    return nil
+end
+
+local prior_resume_index = tonumber((read_all(resume_file) or "1"):match("%d+")) or 1
+local current_index = prior_resume_index
+if pool_reset_requested then
+    current_index=order[1] or 1
+elseif playlist_changed and previous_source_by_position[prior_resume_index] then
+    local wanted=previous_source_by_position[prior_resume_index]
+    current_index=0
+    for i=1,#urls do if source_identity(urls[i])==wanted then current_index=i;break end end
+end
+if current_index<1 or current_index>#urls then current_index=order[1] or 1 end
+local desired_index=current_index
+local playing_index=0
+loaded_waiting_for_restart=0
+local requested_index=0
+transport_pending_target=0
+local transport_serial=0
+local transport_timer=nil
+local transport_settle_seconds=0.075
+local transport_pending_attempts=0
+local transport_max_attempts=2
+local cancel_pending_transport
+local work_generation=1
+local shutting_down=false
+
+-- R61.100: prefetch distance is priority, not ownership. Search/Favorites/other
+-- temporary lanes all use the same prepared-media bank. The active lane gets a hard
+-- retention window; completed optional media outside that window stays reusable until the bank
+-- exceeds its byte budget. Audio is bounded separately by the configured track horizon.
+local optional_cache_keep_behind=2
+optional_cache_prune_interval_seconds=20
+optional_cache_prune_hysteresis=0.90
+optional_touch_serial=0
+optional_touch={}
+optional_inflight={}
+last_optional_prune_clock=-1000
+optional_cache_last_bytes=0
+optional_cache_last_evicted_bytes=0
+optional_cache_last_evicted_occurrences=0
+
+function touch_optional_occurrence(i)
+    i=math.floor(tonumber(i) or 0)
+    if i<1 or i>#urls then return end
+    optional_touch_serial=optional_touch_serial+1
+    optional_touch[i]=optional_touch_serial
+end
+
+local function optional_retention_set(anchor)
+    local keep={}
+    anchor=math.floor(tonumber(anchor) or 0)
+    if anchor<1 or anchor>#urls then return keep end
+    keep[anchor]=true
+    local cursor=anchor
+    for _=1,active_prefetch_ahead() do
+        local n=next_occurrence(cursor,1)
+        if not n or keep[n] then break end
+        keep[n]=true;cursor=n
+    end
+    cursor=anchor
+    for _=1,optional_cache_keep_behind do
+        local n=next_occurrence(cursor,-1)
+        if not n or keep[n] then break end
+        keep[n]=true;cursor=n
+    end
+    if desired_index>0 then keep[desired_index]=true end
+    if playing_index>0 then keep[playing_index]=true end
+    if requested_index>0 then keep[requested_index]=true end
+    for i,count in pairs(optional_inflight) do if tonumber(count) and count>0 then keep[i]=true end end
+    return keep
+end
+
+local function remove_optional_track_cache(i)
+    remove_track_cache(artwork_dir,i)
+    remove_track_cache(video_dir,i)
+    remove_track_cache(visualizer_dir,i)
+    os.remove(status_path(i,"art.failed"))
+    os.remove(status_path(i,"artwork.failed"))
+    os.remove(status_path(i,"video.failed"))
+    os.remove(status_path(i,"visualizer.failed"))
+    os.remove(status_path(i,"visualizer.profile"))
+    clear_optional_validation("art",i)
+    clear_optional_validation("video",i)
+    clear_optional_validation("viz",i)
+end
+
+function optional_file_mtime(path)
+    if type(utils.file_info)~="function" then return 0 end
+    local ok,info=pcall(utils.file_info,path)
+    if not ok or type(info)~="table" then return 0 end
+    return tonumber(info.mtime or info.modification_time or 0) or 0
+end
+
+function optional_cache_inventory()
+    local per={}
+    local total=0
+    for _,dir in ipairs({artwork_dir,video_dir,visualizer_dir}) do
+        for _,name in ipairs(utils.readdir(dir,"files") or {}) do
+            local n=tonumber(name:match("^track%-(%d+)[%.%-]"))
+            if n and n>=1 and n<=#urls then
+                local path=dir.."\\"..name
+                local bytes=math.max(0,tonumber(fsize(path)) or 0)
+                local row=per[n]
+                if not row then row={i=n,bytes=0,mtime=0};per[n]=row end
+                row.bytes=row.bytes+bytes
+                if not optional_touch[n] then row.mtime=math.max(row.mtime,optional_file_mtime(path)) end
+                total=total+bytes
+            end
+        end
+    end
+    return per,total
+end
+
+local function optional_should_retain(i,anchor)
+    return optional_retention_set(anchor)[i]==true
+end
+
+local function prune_optional_cache(anchor,force)
+    anchor=math.floor(tonumber(anchor) or 0)
+    if anchor<1 or anchor>#urls then return end
+    local now=tonumber(mp.get_time()) or 0
+    if not force and (now-last_optional_prune_clock)<optional_cache_prune_interval_seconds then return end
+    last_optional_prune_clock=now
+
+    local optional_per,optional_total=optional_cache_inventory()
+    local audio_per={}
+    local audio_total=0
+    for _,name in ipairs(utils.readdir(audio_dir,"files") or {}) do
+        local i=tonumber(name:match("^track%-(%d+)[%.%-]"))
+        if i and i>=1 and i<=#urls then
+            local bytes=math.max(0,tonumber(fsize(audio_dir.."\\"..name)) or 0)
+            local row=audio_per[i]
+            if not row then row={i=i,bytes=0,mtime=0,kind="audio"};audio_per[i]=row end
+            row.bytes=row.bytes+bytes
+            row.mtime=math.max(row.mtime,optional_file_mtime(audio_dir.."\\"..name))
+            audio_total=audio_total+bytes
+        end
     end
 
-    local key = job_key(kind,i)
-    if queued[key] or active[key] then return end
+    local total=optional_total+audio_total
+    optional_cache_last_bytes=total
+    optional_cache_last_evicted_bytes=0
+    optional_cache_last_evicted_occurrences=0
+    local budget=math.max(1,optional_cache_budget_mb)*1024*1024
 
-    queued[key] = true
-    table.insert(jobs,{
-        kind=kind,
-        i=i,
-        priority=priority or 100,
-        key=key
+    -- Previous/current/next are the continuity reserve, not cache inventory. This lets a
+    -- 64 MB budget remain a real floor without making Back or the next transition re-prepare.
+    local protected={}
+    protected[anchor]=true
+    if playing_index>0 then protected[playing_index]=true end
+    if desired_index>0 then protected[desired_index]=true end
+    if requested_index>0 then protected[requested_index]=true end
+    local p=next_occurrence(anchor,-1)
+    if p then protected[p]=true end
+    local n=next_occurrence(anchor,1)
+    if n then protected[n]=true end
+
+    local exempt_bytes=0
+    for i,row in pairs(optional_per) do if protected[i] then exempt_bytes=exempt_bytes+row.bytes end end
+    for i,row in pairs(audio_per) do if protected[i] then exempt_bytes=exempt_bytes+row.bytes end end
+    local counted_total=math.max(0,total-exempt_bytes)
+    if counted_total<=budget then return end
+
+    local optional_keep=optional_retention_set(anchor)
+    local audio_keep={}
+    if audio_retention_set then audio_keep=select(1,audio_retention_set(anchor)) or {} end
+    local candidates={}
+    for i,row in pairs(optional_per) do
+        if not protected[i] then
+            row.kind="optional";row.prepared=optional_keep[i]==true
+            table.insert(candidates,row)
+        end
+    end
+    for i,row in pairs(audio_per) do
+        if not protected[i] then
+            row.prepared=audio_keep[i]==true
+            table.insert(candidates,row)
+        end
+    end
+    table.sort(candidates,function(a,b)
+        if a.prepared~=b.prepared then return not a.prepared end
+        local at=tonumber(optional_touch[a.i]) or 0
+        local bt=tonumber(optional_touch[b.i]) or 0
+        if at~=bt then return at<bt end
+        if a.mtime~=b.mtime then return a.mtime<b.mtime end
+        if a.i~=b.i then return a.i<b.i end
+        return tostring(a.kind)<tostring(b.kind)
+    end)
+
+    local target=math.floor(budget*optional_cache_prune_hysteresis)
+    local before=total
+    local evicted_occurrences={}
+    for _,row in ipairs(candidates) do
+        if counted_total<=target then break end
+        if row.kind=="audio" then
+            remove_track_cache(audio_dir,row.i)
+            os.remove(audio_object_path(row.i))
+        else
+            remove_optional_track_cache(row.i)
+            optional_touch[row.i]=nil
+        end
+        total=math.max(0,total-row.bytes)
+        counted_total=math.max(0,counted_total-row.bytes)
+        optional_cache_last_evicted_bytes=optional_cache_last_evicted_bytes+row.bytes
+        evicted_occurrences[row.i]=true
+    end
+    local evicted_count=0
+    for _ in pairs(evicted_occurrences) do evicted_count=evicted_count+1 end
+    optional_cache_last_evicted_occurrences=evicted_count
+    optional_cache_last_bytes=total
+    if evicted_count>0 then
+        log("CACHE BUDGET EVICT anchor="..anchor.." budget_mb="..optional_cache_budget_mb.." exempt_mb="..string.format("%.1f",exempt_bytes/1048576).." before_mb="..string.format("%.1f",before/1048576).." after_mb="..string.format("%.1f",total/1048576).." occurrences="..evicted_count)
+    elseif counted_total>budget then
+        log("CACHE BUDGET PRESSURE continuity reserve protected budget_mb="..optional_cache_budget_mb.." counted_bytes="..counted_total.." exempt_bytes="..exempt_bytes)
+    end
+end
+
+function audio_retention_set(anchor)
+    local keep={}
+    local ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
+    local function pin(i)
+        i=math.floor(tonumber(i) or 0)
+        if i>=1 and i<=#urls then keep[i]=true end
+    end
+    pin(playing_index);pin(desired_index);pin(requested_index);pin(anchor)
+    pin(next_occurrence(anchor,-1))
+    for _,job in pairs(active) do if job and job.kind=="audio" then pin(job.i) end end
+    local cursor=math.floor(tonumber(anchor) or 0)
+    local added_ahead=0
+    while added_ahead<ahead and cursor>=1 and cursor<=#urls do
+        local n=next_occurrence(cursor,1)
+        if not n or n==anchor then break end
+        if not keep[n] then keep[n]=true end
+        added_ahead=added_ahead+1
+        cursor=n
+    end
+    return keep,ahead
+end
+
+function prune_audio_cache(anchor)
+    anchor=math.floor(tonumber(anchor) or 0)
+    if anchor<1 or anchor>#urls then return end
+    local keep,limit=audio_retention_set(anchor)
+    local keep_objects={}
+    for i in pairs(keep) do keep_objects[audio_object_path(i)]=true end
+    local removed_positions=0
+    for _,name in ipairs(utils.readdir(audio_dir,"files") or {}) do
+        local i=tonumber(name:match("^track%-(%d+)[%.%-]"))
+        if i and not keep[i] then os.remove(audio_dir.."\\"..name);removed_positions=removed_positions+1 end
+    end
+    local removed_objects=0
+    for _,name in ipairs(utils.readdir(object_audio_dir,"files") or {}) do
+        local path=object_audio_dir.."\\"..name
+        if name:match("%.audio$") and not keep_objects[path] then os.remove(path);removed_objects=removed_objects+1 end
+    end
+    if removed_positions>0 or removed_objects>0 then
+        log("AUDIO CACHE EVICT anchor="..anchor.." limit="..limit.." position_files="..removed_positions.." object_files="..removed_objects)
+    end
+end
+
+local function set_engine_status(phase,message,index)
+    write_json(engine_status_file,{
+        phase=phase or "",
+        message=message or "",
+        index=tonumber(index) or 0,
+        count=#order,
+        paused=mp.get_property_native("pause")==true,
+        unix=os.time(),
+        playback_spine="focused-r19",
+        repeat_mode=repeat_mode,
+        playback_subset_active=playback_subset_active,
+        playback_subset_count=playback_subset_active and #playback_subset or 0,
+        playback_subset_label=playback_subset_label,
+        slot_id=active_slot_id,
+        slot_name=active_slot_name,
+        runtime_id=runtime_id,
+        controller_demand={runtime_id=runtime_id,art=controller_want_art,video=controller_want_video,viz=controller_want_viz,serial=controller_demand_serial,unix=controller_demand_unix,token=controller_demand_token}
     })
 end
 
-local function prune_old_optional(current)
-    local out = {}
-    for _,j in ipairs(jobs) do
-        if j.kind == "audio" or j.i == current then
-            table.insert(out,j)
-        else
-            queued[j.key] = nil
-        end
-    end
-    jobs = out
-end
-
-local pump
-local start_play
-local schedule_for_current
-local request_bundle
-
-local function job_done(job)
-    if job.started_at then
-        if not metrics_by_track[job.i] then metrics_by_track[job.i] = {} end
-        metrics_by_track[job.i][job.kind] = math.max(0,mp.get_time()-job.started_at)
-    end
-    active[job.key] = nil
-    if job.decorative then decorative_active_count=math.max(0,decorative_active_count-1)
-    else active_count = math.max(0,active_count-1) end
-
-    -- Every completed step immediately unlocks the next missing pieces of the
-    -- same presentation bundle.
-    if request_bundle and bundle_priority[job.i] and not known_bad(job.i) then
-        request_bundle(job.i,bundle_priority[job.i])
-    end
-
-    if playing_index>0 then
-        local next_i = next_candidate(playing_index,1)
-        if job.i==playing_index or job.i==next_i then write_state(playing_index) end
-    end
-
-    -- The desired track is not allowed to start until every enabled visual
-    -- asset is READY or has explicitly FAILED.
-    if start_play
-        and desired_index == job.i
-        and playing_index ~= job.i
-        and requested_index ~= job.i
-        and bundle_ready(job.i) then
-        mp.add_timeout(0,function()
-            if desired_index == job.i
-                and playing_index ~= job.i
-                and requested_index ~= job.i
-                and bundle_ready(job.i) then
-                start_play(job.i)
-            end
-        end)
-    end
-
-    pump()
-end
-
-local function cleanup_cache(center)
-    local keep = {[center]=true}
-    local cursor = center
-    for _=1,prefetch_ahead+3 do
-        cursor = next_candidate(cursor,1)
-        if not cursor or keep[cursor] then break end
-        keep[cursor] = true
-    end
-    cursor = center
-    for _=1,2 do
-        cursor = next_candidate(cursor,-1)
-        if not cursor or keep[cursor] then break end
-        keep[cursor] = true
-    end
-    local dirs = {audio_dir,artwork_dir,video_dir,visualizer_dir,meta_dir,gain_dir,status_dir,comment_dir,telemetry_dir}
-
-    for _,dir in ipairs(dirs) do
-        for _,name in ipairs(utils.readdir(dir,"files") or {}) do
-            local n = tonumber(name:match("track%-(%d+)"))
-            if n and not keep[n] then
-                os.remove(dir .. "\\" .. name)
-            end
-        end
-    end
-
-    -- A quality-independent hard ceiling prevents 720p/Best mode from turning
-    -- a long playlist window into an unbounded video cache. Preserve the
-    -- playing track and its immediate successor; evict the farthest prepared
-    -- videos first and let the ordinary scheduler recreate them if needed.
-    local video_files = {}
-    local video_total = 0
-    local protected_next = next_candidate(center,1)
-    for _,name in ipairs(utils.readdir(video_dir,"files") or {}) do
-        local n = tonumber(name:match("^track%-(%d+)%.mp4$"))
-        if n then
-            local path = video_dir .. "\\" .. name
-            local size = fsize(path)
-            video_total = video_total + size
-            local direct = math.abs(n-center)
-            table.insert(video_files,{n=n,path=path,size=size,distance=math.min(direct,#urls-direct)})
-        end
-    end
-    table.sort(video_files,function(a,b) return a.distance > b.distance end)
-    for _,item in ipairs(video_files) do
-        if video_total <= video_cache_limit then break end
-        if item.n ~= center and item.n ~= protected_next then
-            os.remove(item.path)
-            os.remove(telemetry_video_path(item.n))
-            video_total = math.max(0,video_total-item.size)
-            log("VIDEO CACHE EVICT track " .. item.n .. " limit " .. math.floor(video_cache_limit/1024/1024) .. " MB")
-        end
-    end
-end
-
-local function audio_failure(job,stderr,is_permanent)
-    local i = job.i
-    bad[i] = true
-
-    if is_permanent then
-        mark(status_path(i,"audio.permanent"))
-        log("AUDIO PERMANENT track " .. i)
-    else
-        log("AUDIO FAILED track " .. i)
-    end
-
-    if desired_index == i and playing_index ~= i then
-        local n = next_candidate(i,1)
-        if n then
-            desired_index = n
-            requested_index = 0
-            set_engine_status(
-                "skipping",
-                "Skipping unavailable track " .. i .. "; preparing track " .. n .. "...",
-                n
-            )
-            bundle_priority[n] = 0
-            request_bundle(n,0)
-            pump()
-        else
-            set_engine_status("error","No playable tracks remain.",i)
-        end
-    elseif playing_index > 0 then
-        -- If the immediate prefetched successor died, promote the next known
-        -- candidate before any decorative current-track work.
-        schedule_for_current(playing_index)
-    end
-
-    job_done(job)
-end
-
-local function finish_audio_ready(job)
-    local i = job.i
-    audio_retries[i] = nil
-    log("AUDIO READY track " .. i)
-
-    -- Audio readiness is only one part of a synchronized presentation bundle.
-    -- job_done() will unlock artwork -> video -> visualizer in priority order.
-    job_done(job)
-end
-
-local function gain_scan(job)
-    local i = job.i
-    if exists(gain_path(i)) then
-        finish_audio_ready(job)
-        return
-    end
-
-    if not loudness_enabled then
-        write_all(gain_path(i),"0.000")
-        log("GAIN BYPASS track " .. i)
-        finish_audio_ready(job)
-        return
-    end
-
-    if desired_index == i and playing_index ~= i then
-        set_engine_status("gain","Scanning loudness for track " .. i .. "...",i)
-    end
-
-    log("GAIN START track " .. i)
-
-    run("idle",ffmpeg,{
-        "-hide_banner","-nostats",
-        "-i",audio_path(i),
-        "-af","replaygain",
-        "-f","null","NUL"
-    },function(success,result)
-        local gain = 0
-        if result then gain = parse_gain(result.stderr or "") end
-        write_all(gain_path(i),string.format("%.3f",gain))
-        log("GAIN READY track " .. i)
-        finish_audio_ready(job)
-    end)
-end
-
-local function source_download(job)
-    local i = job.i
-
-    if playback_ready(i) then
-        finish_audio_ready(job)
-        return
-    end
-
-    if exists(audio_path(i)) and exists(meta_path(i)) then
-        gain_scan(job)
-        return
-    end
-
-    if desired_index == i and playing_index ~= i then
-        set_engine_status("download","Downloading audio for track " .. i .. "...",i)
-    end
-
-    log("AUDIO START track " .. i)
-
-    local base = audio_dir .. "\\track-" .. i .. ".downloading.%(ext)s"
-    local args = ytdlp_common()
-
-    table.insert(args,"--ignore-errors")
-    table.insert(args,"--format")
-    table.insert(args,audio_format_selector())
-    table.insert(args,"--write-info-json")
-    table.insert(args,"--no-write-playlist-metafiles")
-    table.insert(args,"--output")
-    table.insert(args,base)
-    table.insert(args,urls[i])
-
-    run(cache_priority,ytdlp,args,function(success,result)
-        local stderr = result and result.stderr or ""
-        local src_audio = find_stage(audio_dir,i,audio_exts)
-        local good = success and result and result.status == 0 and src_audio ~= nil
-
-        if not good then
-            local permanent = permanent_error(stderr)
-            audio_retries[i] = (audio_retries[i] or 0) + 1
-
-            if permanent then
-                mp.msg.warn("YOMI audio " .. i .. ": " .. stderr)
-                audio_failure(job,stderr,true)
-                return
-            end
-
-            if audio_retries[i] < 2 then
-                log("AUDIO RETRY track " .. i)
-                if desired_index == i and playing_index ~= i then
-                    set_engine_status("retry","Retrying audio for track " .. i .. "...",i)
-                end
-                mp.add_timeout(1.0,function() source_download(job) end)
-                return
-            end
-
-            mp.msg.warn("YOMI audio " .. i .. ": " .. stderr)
-            audio_failure(job,stderr,false)
-            return
-        end
-
-        move_replace(src_audio,audio_path(i))
-
-        local info_stage = audio_dir .. "\\track-" .. i .. ".downloading.info.json"
-        if exists(info_stage) then move_replace(info_stage,meta_path(i)) end
-
-        if not exists(meta_path(i)) then
-            audio_failure(job,"metadata missing after audio download",false)
-            return
-        end
-
-        gain_scan(job)
-    end)
-end
-
-local function art_job(job)
-    local i = job.i
-    if optional_done("art",i) then job_done(job); return end
-
-    log("ARTWORK START track " .. i)
-
-    if desired_index == i and playing_index ~= i then
-        set_engine_status("artwork","Preparing artwork for track " .. i .. "...",i)
-    end
-
-    local base = artwork_dir .. "\\track-" .. i .. ".downloading.%(ext)s"
-    local args = ytdlp_common(nil)
-
-    table.insert(args,"--skip-download")
-    table.insert(args,"--write-thumbnail")
-    table.insert(args,"--output")
-    table.insert(args,base)
-    table.insert(args,urls[i])
-
-    run(cache_priority,ytdlp,args,function(success,result)
-        local src,ext = find_stage(artwork_dir,i,image_exts)
-
-        if not success or not result or result.status ~= 0
-            or not src or fsize(src) <= 0 then
-
-            if src then os.remove(src) end
-            mark(status_path(i,"artwork.failed"))
-            log("ARTWORK FAILED track " .. i)
-            job_done(job)
-            return
-        end
-
-        if not smart_crop then
-            local final = artwork_dir .. "\\track-" .. i .. "." .. tostring(ext or "jpg")
-            move_replace(src,final)
-            log("ARTWORK READY track " .. i .. " raw")
-
-            if playing_index == i then write_state(i) end
-            job_done(job)
-            return
-        end
-
-        local w = math.max(20,tonumber(cfg.media_width) or 160)
-        local h = math.max(20,tonumber(cfg.media_height) or 90)
-
-        -- Smart Crop's ONLY final file.
-        local final = artwork_dir .. "\\track-" .. i .. ".jpg"
-        local temp = artwork_dir .. "\\track-" .. i .. ".cropping.jpg"
-        local normalized = artwork_dir .. "\\track-" .. i .. ".detector.png"
-
-        os.remove(final)
-        os.remove(temp)
-        os.remove(normalized)
-
-        -- Kill any legacy/raw final formats for this same track.
-        for _,legacy_ext in ipairs({"jpeg","webp","png"}) do
-            os.remove(artwork_dir .. "\\track-" .. i .. "." .. legacy_ext)
-        end
-
-        log("ARTWORK SOURCE track " .. i .. " ." .. tostring(ext or "unknown"))
-        log("ARTWORK NORMALIZE track " .. i .. " -> PNG")
-
-        run("idle",ffmpeg,{
-            "-y",
-            "-hide_banner",
-            "-loglevel","error",
-            "-i",src,
-            "-frames:v","1",
-            normalized
-        },function(norm_ok,norm_res)
-
-            if not norm_ok or not norm_res or norm_res.status ~= 0
-                or not exists(normalized) or fsize(normalized) <= 0 then
-
-                os.remove(normalized)
-                os.remove(src)
-                mark(status_path(i,"artwork.failed"))
-                log("ARTWORK NORMALIZE FAILED track " .. i)
-                job_done(job)
-                return
-            end
-
-            log("ARTWORK NORMALIZED track " .. i)
-
-            local finished=false
-
-            local function finish_art(crop_expr,reason)
-                if finished then return end
-                finished=true
-
-                local filters={}
-
-                if crop_expr and crop_expr ~= "" then
-                    table.insert(filters,"crop=" .. crop_expr)
-                    log("ARTWORK APPLY CROP track " .. i .. " " .. crop_expr .. " via " .. tostring(reason))
-                else
-                    log("ARTWORK NO BORDER CROP track " .. i)
-                end
-
-                table.insert(
-                    filters,
-                    string.format(
-                        "scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d",
-                        w,h,w,h
-                    )
-                )
-
-                run("idle",ffmpeg,{
-                    "-y",
-                    "-hide_banner",
-                    "-loglevel","error",
-                    "-i",normalized,
-                    "-vf",table.concat(filters,","),
-                    "-frames:v","1",
-                    "-q:v","2",
-                    temp
-                },function(ok,res)
-
-                    os.remove(src)
-                    os.remove(normalized)
-
-                    if ok and res and res.status==0 and exists(temp) and fsize(temp)>0 then
-                        move_replace(temp,final)
-
-                        -- Final canonicalization: there can be no competing
-                        -- raw WEBP/PNG/JPEG file after Smart Crop succeeds.
-                        for _,legacy_ext in ipairs({"jpeg","webp","png"}) do
-                            os.remove(artwork_dir .. "\\track-" .. i .. "." .. legacy_ext)
-                        end
-
-                        log("ARTWORK READY CROPPED-CACHE track " .. i)
-                    else
-                        os.remove(temp)
-                        mark(status_path(i,"artwork.failed"))
-                        log("ARTWORK FAILED track " .. i)
-                    end
-
-                    if playing_index == i then write_state(i) end
-                    job_done(job)
-                end)
-            end
-
-            local function black_fallback()
-                log("ARTWORK BLACK FALLBACK track " .. i)
-
-                -- This is the exact static-image cropdetect pattern that worked
-                -- in the earlier YOMI/personal artwork pipeline.
-                run("idle",ffmpeg,{
-                    "-hide_banner",
-                    "-nostats",
-                    "-loglevel","info",
-                    "-loop","1",
-                    "-i",normalized,
-                    "-vf","cropdetect=limit=16:round=2:reset=0",
-                    "-frames:v","10",
-                    "-f","null",
-                    "NUL"
-                },function(_,detect_result)
-
-                    local stderr=detect_result and detect_result.stderr or ""
-                    local cw,ch,cx,cy=nil,nil,nil,nil
-
-                    -- Last cropdetect result is the stabilized result.
-                    for w1,h1,x1,y1 in stderr:gmatch("crop=(%d+):(%d+):(%d+):(%d+)") do
-                        cw=tonumber(w1)
-                        ch=tonumber(h1)
-                        cx=tonumber(x1)
-                        cy=tonumber(y1)
-                    end
-
-                    if not cw or not ch or not cx or not cy then
-                        log("ARTWORK BLACK FALLBACK NONE track " .. i)
-                        finish_art(nil,"none")
-                        return
-                    end
-
-                    local ffprobe = install_root .. "\\runtime\\ffmpeg\\ffprobe.exe"
-                    run("idle",ffprobe,{
-                        "-v","error",
-                        "-select_streams","v:0",
-                        "-show_entries","stream=width,height",
-                        "-of","csv=s=x:p=0",
-                        normalized
-                    },function(probe_success,probe)
-                        local ow,oh=nil,nil
-
-                        if probe_success and probe and probe.status==0 and probe.stdout then
-                            local a,b=probe.stdout:match("(%d+)%s*x%s*(%d+)")
-                            ow=tonumber(a)
-                            oh=tonumber(b)
-                        end
-
-                        if not ow or not oh then
-                            log("ARTWORK BLACK FALLBACK PROBE FAILED track " .. i)
-                            finish_art(nil,"none")
-                            return
-                        end
-
-                        local left=cx
-                        local top=cy
-                        local right=ow-(cx+cw)
-                        local bottom=oh-(cy+ch)
-
-                        local meaningful =
-                            left >= 8 or top >= 8 or right >= 8 or bottom >= 8
-
-                        local within_caps =
-                            left <= ow*0.30 and
-                            right <= ow*0.30 and
-                            top <= oh*0.30 and
-                            bottom <= oh*0.30 and
-                            cw >= ow*0.40 and
-                            ch >= oh*0.40
-
-                        if meaningful and within_caps then
-                            local crop_expr=string.format("%d:%d:%d:%d",cw,ch,cx,cy)
-
-                            log(
-                                "ARTWORK BLACK CROP track "..i.." "..crop_expr..
-                                " borders L"..left..
-                                " T"..top..
-                                " R"..right..
-                                " B"..bottom
-                            )
-
-                            finish_art(crop_expr,"black-fallback")
-                        else
-                            log(
-                                "ARTWORK BLACK FALLBACK REJECT track "..i..
-                                " borders L"..left..
-                                " T"..top..
-                                " R"..right..
-                                " B"..bottom
-                            )
-
-                            finish_art(nil,"none")
-                        end
-                    end)
-                end)
-            end
-
-            local detector = install_root .. "\\app\\ArtworkEdgeDetector.exe"
-            log("ARTWORK COLOR DETECT track " .. i)
-
-            run("idle",detector,{normalized,tostring(w),tostring(h)},function(det_success,det_result)
-                local stdout = det_result and det_result.stdout or ""
-                local stderr = det_result and det_result.stderr or ""
-
-                local cw,ch,cx,cy,left,top,right,bottom =
-                    stdout:match(
-                        "CROP%s+(%d+):(%d+):(%d+):(%d+)%s+L(%d+)%s+T(%d+)%s+R(%d+)%s+B(%d+)"
-                    )
-
-                if det_success and det_result and det_result.status==0
-                    and cw and ch and cx and cy then
-
-                    local crop_expr=
-                        tostring(cw)..":"..
-                        tostring(ch)..":"..
-                        tostring(cx)..":"..
-                        tostring(cy)
-
-                    log(
-                        "ARTWORK COLOR CROP track "..i.." "..crop_expr..
-                        " borders L"..tostring(left)..
-                        " T"..tostring(top)..
-                        " R"..tostring(right)..
-                        " B"..tostring(bottom)
-                    )
-
-                    finish_art(crop_expr,"color-detector")
-                    return
-                end
-
-                local reason=stdout:gsub("[\r\n]+"," "):match("^%s*(.-)%s*$")
-
-                if reason=="" and stderr~="" then
-                    reason=stderr:gsub("[\r\n]+"," "):match("^%s*(.-)%s*$")
-                end
-
-                if reason=="" then reason="no confident color edge band" end
-
-                log("ARTWORK COLOR NONE track "..i.." "..reason)
-
-                -- Guaranteed compatibility fallback for black/dark bars:
-                -- the older FFmpeg method that was previously working.
-                black_fallback()
-            end)
-        end)
-    end)
-end
-
-local function video_job(job)
-    local i = job.i
-    if optional_done("video",i) then job_done(job); return end
-    log("VIDEO START track " .. i)
-    if desired_index == i and playing_index ~= i then set_engine_status("video","Preparing tiny video for track " .. i .. "...",i) end
-    local temp = video_dir .. "\\track-" .. i .. ".downloading.mp4"
-
-    -- Each requested overlay quality is tried exactly first. A 240p request
-    -- may use the known-good 360p progressive recovery when YouTube does not
-    -- expose 240p; otherwise video stays optional and audio continues. Do not
-    -- silently replace a deliberately higher setting with a 144p cache file.
-    local quality = tostring(cfg.overlay_video_quality or "144p (fastest)")
-    local prefer_low = tostring(cfg.video_preference or "Prefer selected maximum") == "Prefer lowest compatible"
-    local cap = 144
-    if quality:find("240p",1,true) then cap = 240
-    elseif quality:find("360p",1,true) then cap = 360
-    elseif quality:find("480p",1,true) then cap = 480
-    elseif quality:find("720p",1,true) then cap = 720
-    elseif quality:find("Best",1,true) then cap = 0 end
-
-    local prefer_60 = tostring(cfg.video_fps or "30 FPS"):find("60",1,true) ~= nil
-    local function filtered_video(base,height,high_fps_only,exact_height)
-        local h = ""
-        if height and height > 0 then
-            h = exact_height and ("[height=" .. height .. "]") or ("[height<=" .. height .. "]")
-        end
-        local fps
-        if prefer_60 then fps = high_fps_only and "[fps>30][fps<=60]" or "[fps<=60]"
-        else fps = "[fps<=30]" end
-        return base .. h .. fps .. "[vcodec^=avc][ext=mp4]/" .. base .. h .. fps .. "[ext=mp4]"
-    end
-    local function labeled_video(base,height,high_fps_only)
-        local fps
-        if prefer_60 then fps = high_fps_only and "[fps>30][fps<=60]" or "[fps<=60]"
-        else fps = "[fps<=30]" end
-        local label = "[format_note^=" .. height .. "p]"
-        return base .. label .. fps .. "[vcodec^=avc][ext=mp4]/" .. base .. label .. fps .. "[ext=mp4]"
-    end
-    local max_formats = {}
-    for _,height in ipairs({144,240,360,480,720}) do
-        if prefer_60 then
-            max_formats[height] =
-                labeled_video("bestvideo",height,true) .. "/" ..
-                filtered_video("bestvideo",height,true,true) .. "/" ..
-                labeled_video("bestvideo",height,false) .. "/" ..
-                filtered_video("bestvideo",height,false,true)
-        else
-            -- YouTube's nominal quality label is authoritative here. A video
-            -- can be labeled 240p while its stored frame is 352x288, so a
-            -- literal height<=240 filter rejects the correct format. Try the
-            -- label first, then literal exact-height MP4. Fixed itags are separate
-            -- download routes because yt-dlp's slash fallback happens during
-            -- selection, not after a selected stream fails in transit.
-            max_formats[height] =
-                labeled_video("bestvideo",height,false) .. "/" ..
-                filtered_video("bestvideo",height,false,true)
-        end
-    end
-    local primary
-    if prefer_low then
-        if prefer_60 then primary = filtered_video("worstvideo",cap,true) .. "/" .. filtered_video("worstvideo",cap,false) .. "/160"
-        else primary = "160/" .. filtered_video("worstvideo",cap,false) end
-    elseif cap > 0 then
-        primary = max_formats[cap]
-    else
-        if prefer_60 then primary = filtered_video("bestvideo",0,true) .. "/" .. filtered_video("bestvideo",0,false)
-        else primary = filtered_video("bestvideo",0,false) end
-    end
-
-    local label_cap = cap > 0 and (tostring(cap) .. "p") or "best"
-    local label_pref = prefer_low and "lowest compatible" or "selected maximum"
-    local label_fps = prefer_60 and "60 FPS when available" or "30 FPS"
-    local minimum_heights = {[144]=100,[240]=180,[360]=300,[480]=400,[720]=600}
-    local routes = {}
-    local function add_route(label,clients,format,repeats,delay,min_height)
-        table.insert(routes,{label=label,clients=clients,format=format,repeats=repeats or 1,delay=delay or 1.0,min_height=min_height or 0})
-    end
-
-    add_route(
-        label_pref .. " " .. label_cap .. " " .. label_fps .. " MP4",
-        prefer_60 and "default,-web_safari" or (((cap > 0 and cap <= 240) or prefer_low) and "web_embedded,default" or "default,-web_safari"),
-        primary,
-        (cap == 144 and 3 or 2),
-        (cap == 144 and 1.5 or 1.0),
-        (not prefer_low and cap > 0) and minimum_heights[cap] or 0
-    )
-
-    if not prefer_low then
-        if cap == 240 then
-            add_route("240p fixed-format default-client recovery","default,-web_safari","133",1,0.4,minimum_heights[240])
-            add_route("240p unavailable -> 360p progressive recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
-        elseif cap == 360 then
-            add_route("360p progressive compatibility recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
-            add_route("360p adaptive embedded-client recovery","web_embedded,default","134",2,1.0,minimum_heights[360])
-        elseif cap == 480 then
-            add_route("480p fixed-format recovery","default,-web_safari","135",2,1.0,minimum_heights[480])
-            add_route("360p progressive resolution recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
-        elseif cap == 720 then
-            add_route("720p progressive compatibility recovery","default,-web_safari","22",2,1.0,minimum_heights[720])
-            add_route("720p adaptive embedded-client recovery","web_embedded,default","136",2,1.0,minimum_heights[720])
-            add_route("360p progressive resolution recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
-        elseif cap == 0 then
-            add_route("360p progressive compatibility recovery","default,-web_safari","18",2,1.0,minimum_heights[360])
-        end
-    end
-
-    if cap ~= 240 and cap ~= 360 then
-        local fallback_fps = prefer_60 and "[fps<=60]" or "[fps<=30]"
-        local automatic_cap=cap
-        if automatic_cap==0 then automatic_cap=480 end
-        local automatic_format="best[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]/bestvideo[height<="..automatic_cap.."]"..fallback_fps.."[ext=mp4]"
-        local automatic_min=0
-        if not prefer_low then
-            if cap==480 or cap==720 or cap==0 then automatic_min=minimum_heights[360]
-            elseif cap==144 then automatic_min=minimum_heights[144] end
-        end
-        add_route("automatic capped compatibility recovery",false,automatic_format,2,1.0,automatic_min)
-    end
-    if cap == 144 or prefer_low then
-        add_route("proven 144p compatibility recovery","web_embedded,default","160",3,1.5,100)
-    elseif cap ~= 240 and cap ~= 360 then
-        add_route("proven 144p final recovery","web_embedded,default","160",3,1.5,100)
-    end
-    local last_stderr=""; local try_route
-    local function compact_error(raw)
-        local s=tostring(raw or ""):gsub("[\r\n]+"," "):gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
-        if #s>360 then s=s:sub(1,360).."..." end
-        if s=="" then s="yt-dlp returned no diagnostic text" end
-        return s
-    end
-    local function finish_route_failure(rn,attempt,reason)
-        local spec=routes[rn]
-        os.remove(temp)
-        local detail=compact_error(reason)
-        log("VIDEO ATTEMPT FAILED track "..i.." route "..rn.." try "..attempt.." "..spec.label.." reason "..detail)
-        if permanent_error(reason or "") then mark(status_path(i,"video.failed"));log("VIDEO DEAD track "..i);job_done(job);return end
-        local unavailable=detail:lower():find("requested format is not available",1,true)~=nil
-        if attempt < spec.repeats and not unavailable then
-            log("VIDEO RETRY track "..i.." same route")
-            if desired_index==i and playing_index~=i then set_engine_status("video","Tiny video retry "..(attempt+1).."/"..spec.repeats.." for track "..i.."...",i) end
-            mp.add_timeout(spec.delay,function() try_route(rn,attempt+1) end);return
-        end
-        if rn < #routes then
-            log("VIDEO FALLBACK track "..i.." route "..(rn+1))
-            mp.add_timeout(0.4,function() try_route(rn+1,1) end);return
-        end
-        mark(status_path(i,"video.failed"));log("VIDEO FAILED track "..i.." after all routes");if desired_index==i and playing_index~=i then set_engine_status("video","Requested tiny-video quality unavailable; continuing audio only.",i) end;if detail~="" then mp.msg.warn("YOMI video "..i..": "..detail) end;if playing_index==i then write_state(i) end;job_done(job)
-    end
-    local function accept_video(rn,attempt,selected,height)
-        move_replace(temp,video_path(i))
-        log("VIDEO READY track "..i.." route "..rn.." try "..attempt.." selected "..selected.." verified-height "..tostring(height or "unknown"))
-        if playing_index==i then write_state(i) end
-        job_done(job)
-    end
-    try_route=function(rn,attempt)
-        os.remove(temp); local spec=routes[rn]; local args=ytdlp_common(spec.clients)
-        table.insert(args,"--retries");table.insert(args,"1");table.insert(args,"--fragment-retries");table.insert(args,"1")
-        table.insert(args,"--format");table.insert(args,spec.format);table.insert(args,"--output");table.insert(args,temp);table.insert(args,"--no-part");table.insert(args,urls[i])
-        table.insert(args,"--print");table.insert(args,"after_move:YOMI_FORMAT=%(format_id)s|%(height)s|%(fps)s|%(ext)s")
-        log("VIDEO ATTEMPT track "..i.." route "..rn.." try "..attempt.."/"..spec.repeats.." "..spec.label)
-        run(cache_priority,ytdlp,args,function(success,result)
-            last_stderr=(result and result.stderr) or ""
-            if success and result and result.status==0 and exists(temp) and fsize(temp)>0 then
-                mp.add_timeout(0.5,function()
-                    if exists(temp) and fsize(temp)>0 then
-                        local selected = result and result.stdout and result.stdout:match("YOMI_FORMAT=([^\r\n]+)") or "unknown"
-                        local printed_height=tonumber(selected:match("^[^|]*|([^|]+)|"))
-                        if printed_height and printed_height>0 then
-                            if spec.min_height>0 and printed_height<spec.min_height then
-                                finish_route_failure(rn,attempt,"selected stream height "..printed_height.." is below route minimum "..spec.min_height)
-                            else
-                                accept_video(rn,attempt,selected,printed_height)
-                            end
-                        elseif ffmpeg_available then
-                            local ffprobe=install_root.."\\runtime\\ffmpeg\\ffprobe.exe"
-                            run("idle",ffprobe,{"-v","error","-select_streams","v:0","-show_entries","stream=height","-of","default=noprint_wrappers=1:nokey=1",temp},function(probe_ok,probe_result)
-                                local measured=probe_result and probe_result.stdout and tonumber(probe_result.stdout:match("(%d+)")) or nil
-                                if not probe_ok or not probe_result or probe_result.status~=0 or not measured then
-                                    finish_route_failure(rn,attempt,"FFprobe could not validate completed video")
-                                elseif spec.min_height>0 and measured<spec.min_height then
-                                    finish_route_failure(rn,attempt,"completed stream height "..measured.." is below route minimum "..spec.min_height)
-                                else
-                                    accept_video(rn,attempt,selected,measured)
-                                end
-                            end)
-                        else
-                            accept_video(rn,attempt,selected,nil)
-                        end
-                    else
-                        finish_route_failure(rn,attempt,"downloaded temporary file disappeared before validation")
-                    end
-                end);return
-            end
-            finish_route_failure(rn,attempt,last_stderr)
-        end)
-    end
-    try_route(1,1)
-end
-
-local function viz_job(job)
-    local i = job.i
-    if optional_done("viz",i) then job_done(job); return end
-
-    log("VISUALIZER START track " .. i)
-    if desired_index == i and playing_index ~= i then
-        set_engine_status("visualizer","Preparing visualizer for track " .. i .. "...",i)
-    end
-    local temp = visualizer_dir .. "\\track-" .. i .. ".processing.mp4"
-    os.remove(temp)
-
-    local args = {
-        "-y","-hide_banner","-loglevel","error",
-        "-i",audio_path(i),
-        "-filter_complex",viz_filter(),
-        "-map","[v]","-an",
-        "-c:v","libx264",
-        "-preset","ultrafast",
-        "-tune","fastdecode",
-        "-crf","10",
-        "-g","1",
-        "-keyint_min","1",
-        "-sc_threshold","0",
-        "-bf","0",
-        "-movflags","+faststart",
-        "-threads","1",
-        "-filter_complex_threads","1",
-        temp
+local function meta_for(i)
+    if ensure_position_binding then ensure_position_binding(i) end
+    local info=load_json(meta_path(i)) or {}
+    local pool=pool_track_for(i) or {}
+    return {
+        title=tostring(info.title or pool.title or ("Track "..tostring(i))),
+        channel=tostring(info.channel or info.uploader or pool.channel or ""),
+        duration=tonumber(info.duration) or tonumber(pool.duration) or 0,
+        id=tostring(info.id or pool.id or "")
     }
+end
 
-    run("idle",ffmpeg,args,function(success,result)
-        if success and result and result.status == 0 and exists(temp) and fsize(temp) > 0 then
-            move_replace(temp,viz_path(i))
-            log("VISUALIZER READY track " .. i)
-        else
-            os.remove(temp)
-            mark(status_path(i,"visualizer.failed"))
-            log("VISUALIZER FAILED track " .. i)
-            if result and result.stderr and result.stderr ~= "" then
-                mp.msg.warn("YOMI visualizer " .. i .. ": " .. result.stderr)
-            end
+local function state_for(i,semantic_only)
+    local m=meta_for(i)
+    local pool=pool_track_for(i) or {}
+    local state={
+        index=i,
+        occurrence_id=i,
+        position=current_slot(i),
+        playlist_count=#order,
+        title=m.title,
+        channel=m.channel,
+        duration=m.duration,
+        -- Optional presentation media is published only after the producer-side decode contract passes.
+        -- Do not leak a merely-existing legacy/processing file into WPF or OBS.
+        artwork=optional_validation_ready("art",i) and (artwork_path(i) or "") or "",
+        video=(configured_video or controller_want_video) and optional_validation_ready("video",i) and video_path(i) or "",
+        visualizer=optional_validation_ready("viz",i) and viz_path(i) or "",
+        audio=audio_ready(i) and audio_path(i) or "",
+        source_index=i,
+        pool_name=pool_name,
+        pool_source_indexes=type(pool.source_indexes)=="table" and pool.source_indexes or {},
+        pool_source_labels=type(pool.source_labels)=="table" and pool.source_labels or {},
+        unix=os.time(),
+        playback_spine="focused-r19",
+        repeat_mode=repeat_mode,
+        slot_id=active_slot_id,
+        slot_name=active_slot_name,
+        runtime_id=runtime_id,
+        controller_demand={runtime_id=runtime_id,art=controller_want_art,video=controller_want_video,viz=controller_want_viz,serial=controller_demand_serial,unix=controller_demand_unix,token=controller_demand_token}
+    }
+    if semantic_only then
+        state.unix=nil
+        if state.controller_demand then
+            state.controller_demand.serial=nil
+            state.controller_demand.unix=nil
         end
+    end
+    return state
+end
 
-        if playing_index == i then write_state(i) end
-        job_done(job)
+local function write_current(i)
+    if not i or i<1 or i>#urls then return false end
+    local semantic_obj=state_for(i,true)
+    local ok,semantic=pcall(utils.format_json,semantic_obj)
+    if not ok or not semantic then return false end
+    if semantic==last_current_semantic and exists(current_file) then return false end
+    local committed=write_json(current_file,state_for(i,false))
+    if committed then last_current_semantic=semantic end
+    return committed
+end
+
+function write_active_slot_bookmark()
+    if active_slot_id=="" then return end
+    local descriptor=load_json(active_slot_file) or {}
+    if tostring(descriptor.id or "")~=active_slot_id then return end
+    local i=(playing_index and playing_index>0 and playing_index) or current_index or slot_bookmark_occurrence
+    descriptor.bookmark_occurrence=math.max(0,math.floor(tonumber(i) or 0))
+    descriptor.bookmark_seconds=math.max(0,tonumber((mp.get_property_number("time-pos",0))) or 0)
+    descriptor.paused=mp.get_property_native("pause")==true
+    descriptor.engine_updated_unix=os.time()
+    write_json(active_slot_file,descriptor)
+end
+
+function queue_stage(kind,i,required)
+    if not required then return "NOT_REQUIRED" end
+    local key=job_key and job_key(kind,i) or (kind..":"..tostring(i))
+    if kind=="audio" and audio_ready(i) then return "READY" end
+    if kind=="art" and optional_validation_ready("art",i) then return "READY" end
+    if kind=="video" and optional_validation_ready("video",i) then return "READY" end
+    if kind=="viz" and optional_validation_ready("viz",i) then return "READY" end
+    if active[key] then return "ACTIVE" end
+    if queued[key] then return "QUEUED" end
+    return "WAITING"
+end
+
+local function write_queue_runtime()
+    local base=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    local sequence=playback_subset_active and playback_subset or order
+    local positions=playback_subset_active and playback_subset_position or order_position
+    local lane_slot=tonumber(positions[base]) or 0
+    if playback_subset_active and lane_slot<1 then lane_slot=playback_subset_cursor end
+    if lane_slot<1 then lane_slot=1 end
+    local items={}
+    local start=math.max(1,lane_slot-2)
+    local finish=math.min(#sequence,lane_slot+math.max(active_prefetch_ahead(),4))
+    for lane=start,finish do
+        local i=sequence[lane]
+        local audio=queue_stage("audio",i,true)
+        local art_required=configured_art or controller_want_art
+        local video_required=configured_video or controller_want_video
+        local viz_required=configured_viz or controller_want_viz
+        local art=queue_stage("art",i,art_required)
+        local video=queue_stage("video",i,video_required)
+        local viz=queue_stage("viz",i,viz_required)
+        local function busy(v) return v=="ACTIVE" or v=="QUEUED" end
+        local presentation_complete=audio=="READY" and (not art_required or art=="READY") and (not video_required or video=="READY") and (not viz_required or viz=="READY")
+        local phase=(i==playing_index and "PLAYING") or ((busy(audio) or busy(art) or busy(video) or busy(viz)) and "BUILDING") or (audio=="READY" and "READY") or "WAITING"
+        table.insert(items,{
+            index=i,
+            order_slot=current_slot(i),
+            lane_slot=lane,
+            phase=phase,
+            audio=audio,
+            artwork=art,
+            video=video,
+            visualizer=viz,
+            transition_ready=audio=="READY",
+            sync_ready=audio=="READY",
+            presentation_complete=presentation_complete,
+            playback_ready=audio=="READY",
+            state=(i==playing_index and "PLAYING") or (audio=="READY" and "READY") or (busy(audio) and "PREPARING") or "WAITING",
+            title=meta_for(i).title
+        })
+    end
+    local payload={
+        schema=5,
+        count=#order,
+        current_index=base,
+        current_order_slot=current_slot(base),
+        revision=order_revision,
+        items=items,
+        playback_spine="focused-r19",
+        repeat_mode=repeat_mode,
+        playback_subset_active=playback_subset_active,
+        playback_subset_count=playback_subset_active and #playback_subset or 0,
+        playback_subset_label=playback_subset_label,
+        playback_subset_cursor=playback_subset_active and playback_subset_cursor or 0,
+        cache_plan={serial=cache_plan_serial,reason=cache_plan_reason,prefetch_ahead=active_prefetch_ahead(),optional_budget_mb=optional_cache_budget_mb,optional_bytes=optional_cache_last_bytes,last_evicted_bytes=optional_cache_last_evicted_bytes,last_evicted_occurrences=optional_cache_last_evicted_occurrences},
+        slot_id=active_slot_id,
+        slot_name=active_slot_name,
+        unix=os.time()
+    }
+    local stamp=payload.unix
+    payload.unix=nil
+    local ok,semantic=pcall(utils.format_json,payload)
+    payload.unix=stamp
+    if not ok or not semantic then return false end
+    if semantic==last_queue_runtime_semantic and exists(queue_file) then return false end
+    local committed=write_json(queue_file,payload)
+    if committed then last_queue_runtime_semantic=semantic end
+    return committed
+end
+
+local function ensure_projection_files()
+    if playlist_changed or not exists(order_file) then
+        write_json(order_file,{schema=3,session_id=session_id,revision=order_revision,command_serial=order_command_serial,last_command_status="idle",last_command_reason=playlist_changed and "playlist-source-change" or "focused-r19",order=order,inserted={},reason=playlist_changed and "playlist-source-change" or "focused-r19",slot_id=active_slot_id,slot_name=active_slot_name})
+    end
+    if playlist_changed or not exists(session_file) then
+        local occurrences={}
+        for i=1,#urls do
+            local pool=pool_track_for(i) or {}
+            table.insert(occurrences,{
+                position=i,source_index=i,url=urls[i],source_key=source_cache_key(urls[i]),
+                id=tostring(pool.id or ""),title=tostring(pool.title or ("Track "..i)),channel=tostring(pool.channel or ""),duration=tonumber(pool.duration) or 0,
+                pool_name=pool_name,pool_source_indexes=type(pool.source_indexes)=="table" and pool.source_indexes or {},pool_source_labels=type(pool.source_labels)=="table" and pool.source_labels or {}
+            })
+        end
+        write_json(session_file,{schema=3,session_id=session_id,count=#urls,occurrences=occurrences,playlist_changed=playlist_changed,pool_name=pool_name,slot_id=active_slot_id,slot_name=active_slot_name})
+    else
+        local existing=load_json(session_file)
+        if existing then
+            existing.slot_id=active_slot_id;existing.slot_name=active_slot_name
+            if type(existing.occurrences)=="table" then
+                for i,occ in ipairs(existing.occurrences) do
+                    if type(occ)=="table" and urls[i] then occ.source_key=source_cache_key(urls[i]) end
+                end
+            end
+            write_json(session_file,existing)
+        end
+    end
+    if playlist_changed then write_all(resume_file,tostring(current_index)) end
+    if pool_reset_requested then os.remove(pool_reset_file) end
+end
+write_startup_flight("session_ready",current_index,"Session/order state restored.",false,false)
+
+local function write_runtime_lease()
+    if shutting_down then return end
+    write_json(runtime_lease_file,{
+        schema=1,
+        runtime_id=runtime_id,
+        session_id=session_id,
+        unix=os.time(),
+        occurrence=(playing_index>0 and playing_index) or current_index,
+        order_slot=current_slot((playing_index>0 and playing_index) or current_index),
+        order_revision=order_revision,
+        work_generation=work_generation,
+        safe_mode=false,
+        failure_domain="FOCUSED_PLAYBACK",
+        slot_id=active_slot_id,
+        slot_name=active_slot_name
+    })
+end
+
+local function subprocess_argv(priority,exe,args,bypass_runner)
+    local argv={}
+    if not bypass_runner and exists(runner) then
+        table.insert(argv,runner);table.insert(argv,tostring(priority or "idle"));table.insert(argv,exe)
+    else
+        table.insert(argv,exe)
+    end
+    for _,v in ipairs(args or {}) do table.insert(argv,tostring(v)) end
+    return argv
+end
+
+local function run(priority,exe,args,callback)
+    mp.command_native_async({
+        name="subprocess",playback_only=false,capture_stdout=true,capture_stderr=true,args=subprocess_argv(priority,exe,args,false)
+    },function(success,result,error_text)
+        yomi_safe_invoke("subprocess",callback,success,result or {},error_text or "")
     end)
 end
 
-local function sanitize_comment(text)
-    local s = tostring(text or "")
-    s = s:gsub("https?://%S+","")
-    s = s:gsub("[%z\1-\8\11\12\14-\31]","")
-    s = s:gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
-    local max_chars = math.max(40,math.min(500,tonumber(cfg.comment_max_chars) or 220))
-    local count,cut = 0,nil
-    for pos in s:gmatch("()[%z\1-\127\194-\244]") do
-        count = count + 1
-        if count > max_chars then cut = pos-1; break end
+-- R61.45: every yt-dlp lane that can occupy playback/cache authority is wall-clock bounded. mpv's async subprocess API has no wall-clock timeout of its own. yt-dlp's
+-- --socket-timeout only covers individual network operations, so an extractor/JS child can
+-- still live forever. This wrapper owns a real deadline and aborts the async subprocess.
+-- Fast-start resolution bypasses PriorityRun as well: first sound must not depend on a
+-- secondary wrapper process whose child lifetime cannot be authoritatively observed here.
+local function run_bounded(priority,exe,args,timeout_seconds,bypass_runner,callback)
+    local finished=false
+    local request_id=nil
+    local timer=nil
+    local function finish(success,result,error_text,timed_out)
+        if finished then return end
+        finished=true
+        if timer then timer:kill();timer=nil end
+        yomi_safe_invoke("bounded-subprocess",callback,success,result or {},error_text or "",timed_out==true)
     end
-    if cut then s = s:sub(1,cut):gsub("%s+%S*$","") .. "…" end
-    return s
+    local submitted,id_or_error=pcall(mp.command_native_async,{
+        name="subprocess",playback_only=false,capture_stdout=true,capture_stderr=true,args=subprocess_argv(priority,exe,args,bypass_runner==true)
+    },function(success,result,error_text)
+        finish(success,result,error_text,false)
+    end)
+    if not submitted then
+        finish(false,{status=-1,stdout="",stderr=tostring(id_or_error or "subprocess submission failed")},"submit",false)
+        return nil
+    end
+    request_id=id_or_error
+    local seconds=math.max(1,tonumber(timeout_seconds) or 1)
+    timer=safe_timeout(seconds,function()
+        if finished then return end
+        finished=true
+        if request_id then pcall(mp.abort_async_command,request_id) end
+        yomi_safe_invoke("bounded-timeout",callback,false,{status=-1,stdout="",stderr="YOMI subprocess wall-clock timeout after "..tostring(seconds).." seconds"},"timeout",true)
+    end)
+    return request_id
 end
 
-local function comment_allowed(text)
-    local mode = tostring(cfg.comment_filter_mode or "Basic safety")
-    if mode == "Off" then return true end
-    local s = tostring(text or ""):lower()
-    local basic_words = {"nigger","faggot","kike","chink","spic"}
-    local strict_words = {"fuck","shit","bitch","cunt","cock","dick","pussy","whore","slut"}
-    for _,word in ipairs(basic_words) do
-        if s:find("%f[%w]" .. word .. "%f[%W]") then return false end
-    end
-    if s:find("kill yourself",1,true) or s:find("rape you",1,true) then return false end
-    if mode == "Strict" then
-        for _,word in ipairs(strict_words) do
-            if s:find("%f[%w]" .. word .. "%f[%W]") then return false end
+-- R61.88: bounded cache producers use the job-owning PriorityRun helper. R61.78 had to
+-- bypass the old helper because aborting its parent could leave FFmpeg alive. PriorityRun R61.88
+-- launches the child suspended, assigns it to a KILL_ON_JOB_CLOSE Windows Job Object, then resumes
+-- it. mpv can therefore abort the wrapper without orphaning the producer tree, while cache_priority
+-- finally becomes an actual process-priority authority. Fast first-sound stream resolution remains
+-- direct because it is latency-critical rather than background cache work.
+function media_error_summary(result,error_text,timed_out)
+    local status=tonumber((result or {}).status or -1) or -1
+    local text=tostring((result or {}).stderr or "").." "..tostring(error_text or "")
+    text=text:gsub("[\r\n\t]+"," "):gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
+    if #text>700 then text=text:sub(1,700).."..." end
+    return "status="..tostring(status).." timeout="..tostring(timed_out==true)..(text~="" and (" stderr="..text) or "")
+end
+function run_ffmpeg_media(args,timeout_seconds,expected_path,callback)
+    return run_bounded(cache_priority,ffmpeg,args,timeout_seconds,false,function(success,result,error_text,timed_out)
+        local status=tonumber((result or {}).status or -1) or -1
+        local output_ok=(not expected_path) or (exists(expected_path) and fsize(expected_path)>0)
+        if not (success and status==0 and output_ok) then
+            log("FFMPEG MEDIA FAIL "..media_error_summary(result,error_text,timed_out).." output="..tostring(expected_path or ""))
         end
+        callback(success,result,error_text,timed_out,false)
+    end)
+end
+
+local function ytdlp_common()
+    local a={"--no-playlist","--quiet","--no-warnings","--cache-dir",ytdlp_cache_dir,"--socket-timeout","20","--retries","2","--fragment-retries","2"}
+    if deno_available then
+        table.insert(a,"--js-runtimes");table.insert(a,"deno:"..deno)
+    end
+    if ffmpeg_available then
+        table.insert(a,"--ffmpeg-location");table.insert(a,ffmpeg_dir)
+    end
+    return a
+end
+
+local function ytdlp_fast_common(use_js)
+    local a={"--no-playlist","--quiet","--no-warnings","--cache-dir",ytdlp_cache_dir,"--socket-timeout","6","--retries","0","--fragment-retries","0","--extractor-retries","0"}
+    if use_js and deno_available then
+        table.insert(a,"--js-runtimes");table.insert(a,"deno:"..deno)
+    end
+    return a
+end
+
+local function audio_selector()
+    local quality=tostring(cfg.audio_quality or "Best available")
+    local low=tostring(cfg.audio_preference or "Prefer selected maximum")=="Prefer lowest compatible"
+    local cap=nil
+    if quality:find("64",1,true) then cap=64 elseif quality:find("128",1,true) then cap=128 elseif quality:find("160",1,true) then cap=160 end
+    if low then
+        return cap and ("worstaudio[abr<="..cap.."]/worstaudio/bestaudio/best") or "worstaudio/bestaudio/best"
+    end
+    return cap and ("bestaudio[abr<="..cap.."]/bestaudio/best") or "bestaudio/best"
+end
+
+local function permanent_error(raw)
+    local s=tostring(raw or ""):lower()
+    return s:find("video unavailable",1,true) or s:find("private video",1,true) or s:find("has been removed",1,true)
+        or s:find("account associated with this video has been terminated",1,true) or s:find("copyright",1,true)
+end
+
+local audio_failures={}
+local stream_resolving={}
+local stream_failures={}
+local stream_consecutive_failures=0
+stream_route_degraded_until={js=0,["no-js"]=0}
+stream_route_failures={js=0,["no-js"]=0}
+function stream_route_mark(mode,success,timed_out)
+    mode=tostring(mode or "no-js")
+    if success then
+        stream_route_failures[mode]=0
+        stream_route_degraded_until[mode]=0
+        return
+    end
+    stream_route_failures[mode]=(stream_route_failures[mode] or 0)+1
+    if timed_out or stream_route_failures[mode]>=2 then
+        stream_route_degraded_until[mode]=os.time()+(mode=="js" and 300 or 90)
+    end
+end
+function stream_route_order()
+    local now=os.time()
+    local nojs=(stream_route_degraded_until["no-js"] or 0)<=now
+    local js=(stream_route_degraded_until.js or 0)<=now
+    if nojs and js then return {"no-js","js"} end
+    if nojs then return {"no-js"} end
+    if js then return {"js"} end
+    return {"no-js"}
+end
+local playing_from_cache=true
+local pump
+local request_bundle
+local play_index
+local start_fast_stream
+
+local function job_key(kind,i) return kind..":"..tostring(i) end
+
+local function enqueue(kind,i,priority)
+    local key=job_key(kind,i)
+    if active[key] or queued[key] then return end
+    queued[key]=true
+    table.insert(jobs,{key=key,kind=kind,i=i,priority=tonumber(priority) or 100,generation=work_generation})
+end
+
+-- R61.63: loading media is itself a bounded transition. Deferring EOF handoff prevents
+-- re-entrant loadfile calls, but a decoder/network/cache load that never reaches file-loaded
+-- must not strand transport authority forever. One retry is allowed; then YOMI fails forward.
+local load_watchdog_timer=nil
+local load_watchdog_serial=0
+local load_watchdog_target=0
+local load_watchdog_failures={}
+
+local function cancel_load_watchdog()
+    load_watchdog_serial=load_watchdog_serial+1
+    load_watchdog_target=0
+    if load_watchdog_timer then load_watchdog_timer:kill();load_watchdog_timer=nil end
+end
+
+local function arm_load_watchdog(i,route)
+    i=math.floor(tonumber(i) or 0)
+    if i<1 or i>#urls then return end
+    cancel_load_watchdog()
+    load_watchdog_target=i
+    local serial=load_watchdog_serial
+    local ceiling=(route=="direct") and 12.0 or 7.0
+    load_watchdog_timer=safe_timeout(ceiling,function()
+        load_watchdog_timer=nil
+        if shutting_down or serial~=load_watchdog_serial or load_watchdog_target~=i or desired_index~=i or playing_index==i then return end
+        load_watchdog_target=0
+        requested_index=0
+        load_watchdog_failures[i]=(load_watchdog_failures[i] or 0)+1
+        local attempt=load_watchdog_failures[i]
+        log("LOAD WATCHDOG track "..i.." route "..tostring(route).." attempt "..attempt)
+        pcall(function() mp.commandv("stop") end)
+
+        if route=="direct" then
+            set_engine_status("preparing","Stream load stalled; switching to durable cache for track "..i.."...",i)
+            if audio_ready(i) then
+                safe_timeout(0.08,function() if not shutting_down and desired_index==i then play_index(i) end end)
+            else
+                enqueue("audio",i,0);pump()
+            end
+            return
+        end
+
+        if attempt<=1 then
+            set_engine_status("starting","Local audio load stalled; retrying track "..i.."...",i)
+            safe_timeout(0.08,function() if not shutting_down and desired_index==i then play_index(i) end end)
+            return
+        end
+
+        if transport_pending_target==i and cancel_pending_transport then cancel_pending_transport() end
+        -- A local decoder/load stall is not proof the occurrence is bad. Never silently skip a
+        -- song that may work on the next explicit retry; preserve transport authority at i.
+        desired_index=i;requested_index=0
+        set_engine_status("error","Track "..i.." would not open after a bounded retry. Press Play to retry or Next to skip.",i)
+        log("LOAD WATCHDOG hold track "..i.." after bounded retry")
+        write_queue_runtime()
+    end)
+end
+
+local function optional_ready(kind,i)
+    if ensure_position_binding then ensure_position_binding(i) end
+    if kind=="art" then return optional_validation_ready("art",i)
+    -- Presentation readiness is intentionally separate from generation-policy readiness.
+    -- A decode-valid old video may remain visible while a new FPS/quality profile rebuilds.
+    elseif kind=="video" then return optional_validation_ready("video",i)
+    elseif kind=="viz" then return optional_validation_ready("viz",i) end
+    return false
+end
+
+-- R61.79: a periodic controller-demand lease is a liveness mechanism, not an instruction to
+-- hammer a deterministic media failure every four seconds. Failure markers carry their own
+-- revision/timestamp and suppress automatic retries for a bounded interval. User/config state
+-- changes can explicitly clear the marker and retry immediately.
+yomi_optional_backoff_log_token={}
+function optional_failure_path(kind,i)
+    if kind=="art" then return status_path(i,"artwork.failed") end
+    if kind=="video" then return status_path(i,"video.failed") end
+    if kind=="viz" then return status_path(i,"visualizer.failed") end
+    return nil
+end
+function clear_optional_failure(kind,i)
+    local p=optional_failure_path(kind,i)
+    if p then os.remove(p) end
+    yomi_optional_backoff_log_token[job_key(kind,i)]=nil
+end
+function mark_optional_failure(kind,i,reason)
+    local p=optional_failure_path(kind,i)
+    if not p then return end
+    write_all(p,"r6179|"..tostring(os.time()).."|"..tostring(reason or "failure"))
+    yomi_optional_backoff_log_token[job_key(kind,i)]=nil
+end
+function optional_failure_blocked(kind,i)
+    local p=optional_failure_path(kind,i)
+    if not p or not exists(p) then return false end
+    local raw=tostring(read_all(p) or "")
+    local stamp=tonumber(raw:match("^r6179|(%d+)|"))
+    if not stamp then return false end -- pre-R61.79 markers are allowed one fresh retry
+    local age=math.max(0,os.time()-stamp)
+    local current=(i==playing_index or i==desired_index or i==current_index)
+    local cooldown=current and 45 or 180
+    if age>=cooldown then return false end
+    local key=job_key(kind,i)
+    local token=tostring(stamp)..":"..tostring(cooldown)
+    if yomi_optional_backoff_log_token[key]~=token then
+        yomi_optional_backoff_log_token[key]=token
+        log("OPTIONAL BACKOFF kind="..kind.." track="..i.." retry_in="..math.max(1,cooldown-age).."s")
     end
     return true
 end
 
-local function comment_job(job)
-    local i = job.i
-    if decorative_done("comment",i) then job_done(job); return end
-    log("COMMENT START track " .. i)
-    local temp_info = comment_dir .. "\\track-" .. i .. ".comments.info.json"
-    os.remove(temp_info)
-    local args = ytdlp_common(false)
-    table.insert(args,"--skip-download")
-    table.insert(args,"--write-info-json")
-    table.insert(args,"--write-comments")
-    table.insert(args,"--extractor-retries")
-    table.insert(args,"1")
-    table.insert(args,"--extractor-args")
-    table.insert(args,"youtube:player_client=web_embedded,default;comment_sort=top;max_comments=1,1,0,0,1")
-    table.insert(args,"--output")
-    table.insert(args,comment_dir .. "\\track-" .. i .. ".comments")
-    table.insert(args,urls[i])
+local function job_done(job)
+    job.request_id=nil
+    active[job.key]=nil
+    active_count=math.max(0,active_count-1)
+    if job.kind~="audio" then
+        optional_active_count=math.max(0,optional_active_count-1)
+        local inflight=math.max(0,(tonumber(optional_inflight[job.i]) or 1)-1)
+        optional_inflight[job.i]=(inflight>0) and inflight or nil
+        touch_optional_occurrence(job.i)
+        local anchor=(desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+        prune_optional_cache(anchor,false)
+    end
+    if job.kind=="audio" and audio_ready(job.i) then
+        local anchor=(desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+        prune_audio_cache(anchor)
+        prune_optional_cache(anchor,false)
+        if (tonumber(job.priority) or 100)<=0 or optional_should_retain(job.i,anchor) then request_bundle(job.i,job.priority) end
+        if desired_index==job.i and playing_index~=job.i and requested_index~=job.i then play_index(job.i) end
+    end
+    if playing_index==job.i then write_current(job.i) end
+    write_queue_runtime()
+    pump()
+end
 
-    run("idle",ytdlp,args,function(success,result)
-        local info = load_json(temp_info) or {}
-        local comments = info.comments
-        local c = type(comments)=="table" and comments[1] or nil
-        local text = c and sanitize_comment(c.text) or ""
-        if success and result and result.status==0 and c and text~="" and comment_allowed(text) and not exists(status_path(i,"comment.hidden")) then
-            local slim = {
-                text = text,
-                author = c.author or c.author_id or "YouTube viewer",
-                author_id = c.author_id or "",
-                like_count = tonumber(c.like_count),
-                timestamp = tonumber(c.timestamp),
-                source = "YouTube relevance sorting"
-            }
-            local ok,json = pcall(utils.format_json,slim)
-            if ok then write_all(comment_path(i),json) end
-            log("COMMENT READY track " .. i)
-        else
-            if not exists(status_path(i,"comment.hidden")) then mark(status_path(i,"comment.failed")) end
-            log("COMMENT UNAVAILABLE track " .. i)
+local function cleanup_prefix(dir,prefix)
+    for _,name in ipairs(utils.readdir(dir,"files") or {}) do
+        if name:sub(1,#prefix)==prefix then os.remove(dir.."\\"..name) end
+    end
+end
+
+local function audio_job(job)
+    local i=job.i
+    if audio_ready(i) then job_done(job);return end
+    local prefix="track-"..i..".focused."
+    cleanup_prefix(audio_dir,prefix)
+    local template=audio_dir.."\\track-"..i..".focused.%(ext)s"
+    local a=ytdlp_common()
+    table.insert(a,"--format");table.insert(a,audio_selector())
+    table.insert(a,"--write-info-json")
+    table.insert(a,"--no-part")
+    table.insert(a,"--output");table.insert(a,template)
+    table.insert(a,urls[i])
+    log("AUDIO START track "..i)
+    run_bounded(cache_priority,ytdlp,a,75,false,function(success,result,error_text,timed_out)
+        local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
+        local media=nil
+        for _,name in ipairs(utils.readdir(audio_dir,"files") or {}) do
+            if name:sub(1,#prefix)==prefix and not name:match("%.info%.json$") then
+                local p=audio_dir.."\\"..name
+                if fsize(p)>0 then media=p;break end
+            end
         end
-        os.remove(temp_info)
-        if playing_index==i then write_state(i) end
+        local info=audio_dir.."\\track-"..i..".focused.info.json"
+        if success and tonumber(result.status or 0)==0 and media then
+            os.remove(audio_path(i));os.rename(media,audio_path(i))
+            if exists(info) then os.remove(meta_path(i));os.rename(info,meta_path(i)) end
+            if not exists(gain_path(i)) then write_all(gain_path(i),"0") end
+            promote_object(audio_path(i),audio_object_path(i))
+            if exists(meta_path(i)) then promote_object(meta_path(i),meta_object_path(i)) end
+            if exists(gain_path(i)) then promote_object(gain_path(i),gain_object_path(i)) end
+            audio_failures[i]=nil
+            os.remove(status_path(i,"audio.failed"));os.remove(status_path(i,"audio.permanent"))
+            log("AUDIO READY track "..i)
+            job_done(job)
+            return
+        end
+        cleanup_prefix(audio_dir,prefix)
+        audio_failures[i]=(audio_failures[i] or 0)+1
+        if permanent_error(stderr) then
+            write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
+            log("AUDIO PERMANENT track "..i)
+            if desired_index==i then
+                local n=next_occurrence(i,1)
+                if n then desired_index=n;requested_index=0;safe_timeout(0.05,function() play_index(n) end) end
+            end
+        elseif audio_failures[i]<3 then
+            log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1))
+            safe_timeout(1.0,function() enqueue("audio",i,job.priority);pump() end)
+        else
+            write_all(status_path(i,"audio.failed"),"1")
+            log("AUDIO FAILED track "..i.." transient; holding requested occurrence")
+            if desired_index==i then
+                requested_index=0
+                set_engine_status("error","Track "..i.." could not be prepared after retries. Press Play to retry or Next to skip.",i)
+            end
+        end
         job_done(job)
     end)
 end
 
-local function probe_one(i,label,path,out_path,failed_path,callback)
-    if not exists(path) or fsize(path)<=0 then callback(); return end
-    local ffprobe = install_root .. "\\runtime\\ffmpeg\\ffprobe.exe"
-    run("idle",ffprobe,{
-        "-v","error",
-        "-show_entries","format=format_name,duration,size,bit_rate:stream=index,codec_name,codec_long_name,codec_type,profile,width,height,pix_fmt,level,r_frame_rate,avg_frame_rate,sample_rate,channels,channel_layout,bit_rate",
-        "-of","json",
-        path
-    },function(success,result)
-        local raw = result and result.stdout or ""
-        local parsed = nil
-        if raw~="" then
-            local ok,value = pcall(utils.parse_json,raw)
-            if ok then parsed=value end
-        end
-        if success and result and result.status==0 and parsed then
-            write_all(out_path,raw)
-            log("PROBE " .. label .. " READY track " .. i)
+start_fast_stream=function(i)
+    i=math.floor(tonumber(i) or 0)
+    if i<1 or i>#urls or known_bad(i) then return end
+    if audio_ready(i) then play_index(i);return end
+    if stream_resolving[i] then return end
+    stream_resolving[i]=true
+    if not startup_first_sound then write_startup_flight("stream_resolving",i,"Resolving the direct audio stream.",false,false) end
+    set_engine_status("preparing","Resolving stream for track "..i.."...",i)
+    log("STREAM RESOLVE track "..i)
+
+    local routes=stream_route_order()
+    local route_pos=1
+    local stderr_parts={}
+    local timed_out_any=false
+    local function finish_failure()
+        stream_resolving[i]=nil
+        stream_failures[i]=(stream_failures[i] or 0)+1
+        local stderr=table.concat(stderr_parts," ")
+        local permanent=permanent_error(stderr)
+        if permanent then
+            write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
+            stream_consecutive_failures=0
+            log("STREAM PERMANENT track "..i.."; advancing")
         else
-            mark(failed_path)
-            log("PROBE " .. label .. " FAILED track " .. i)
+            stream_consecutive_failures=stream_consecutive_failures+1
+            -- A bounded direct-stream miss means only "not instant", not "unplayable". Keep the
+            -- requested occurrence authoritative and let the durable audio job finish it.
+            log("STREAM RESOLVE FAIL track "..i..(timed_out_any and " timeout" or "").."; waiting for durable cache")
+            requested_index=0
+            enqueue("audio",i,0);pump()
         end
-        callback()
+        if desired_index~=i then return end
+        if not startup_first_sound then
+            write_startup_flight("stream_resolve_failed",i,permanent and "Track is unavailable; advancing." or "Direct stream missed the fast-start window; waiting for durable cache.",false,false)
+        end
+        if permanent then
+            local n=next_occurrence(i,1)
+            if n and n~=i then
+                desired_index=n;requested_index=0
+                set_engine_status("preparing","Track "..i.." is unavailable; trying track "..n.."...",n)
+                safe_timeout(0.08,function() if desired_index==n then play_index(n) end end)
+            else
+                set_engine_status("error","Track "..i.." is unavailable.",i)
+            end
+        else
+            set_engine_status("preparing","Preparing track "..i.." from durable cache...",i)
+            write_queue_runtime()
+        end
+    end
+
+    local function attempt()
+        local mode=routes[route_pos] or "no-js"
+        local use_js=(mode=="js")
+        local timeout_seconds=use_js and 8 or 4
+        local a=ytdlp_fast_common(use_js)
+        table.insert(a,"--format");table.insert(a,audio_selector())
+        table.insert(a,"--get-url")
+        table.insert(a,urls[i])
+        if not startup_first_sound then write_startup_flight("stream_route",i,"Trying "..mode.." direct-stream resolver ("..timeout_seconds.."s ceiling).",false,false) end
+        log("STREAM ROUTE track "..i.." "..mode.." timeout "..timeout_seconds.."s")
+        run_bounded(cache_priority,ytdlp,a,timeout_seconds,true,function(success,result,error_text,timed_out)
+            if not stream_resolving[i] then return end
+            local raw=tostring(result.stdout or "")
+            local direct=raw:match("([^\r\n]+)") or ""
+            direct=direct:match("^%s*(.-)%s*$") or ""
+            if success and tonumber(result.status or 0)==0 and direct:match("^https?://") then
+                stream_route_mark(mode,true,false)
+                stream_resolving[i]=nil
+                stream_failures[i]=nil
+                stream_consecutive_failures=0
+                if desired_index==i and playing_index~=i then
+                    current_index=i;requested_index=i;playing_from_cache=false
+                    set_engine_status("starting","Starting streamed track "..i.."...",i)
+                    write_current(i);write_queue_runtime()
+                    if not startup_first_sound then write_startup_flight("loadfile_stream",i,"Direct audio stream handed to mpv via "..mode.." resolver.",false,false) end
+                    mp.commandv("loadfile",direct,"replace")
+                    arm_load_watchdog(i,"direct")
+                    enqueue("audio",i,0);pump()
+                else
+                    enqueue("audio",i,20);pump()
+                end
+                log("STREAM READY track "..i.." "..mode)
+                return
+            end
+            stream_route_mark(mode,false,timed_out)
+            local diagnostic="["..mode.."] "..tostring(result.stderr or "").." "..tostring(error_text or "")
+            table.insert(stderr_parts,diagnostic)
+            if timed_out then timed_out_any=true end
+            route_pos=route_pos+1
+            if route_pos<=#routes then
+                if desired_index==i and not startup_first_sound then write_startup_flight("stream_retry",i,"Direct resolver did not complete; trying alternate route.",false,false) end
+                safe_timeout(0.05,attempt)
+            else
+                finish_failure()
+            end
+        end)
+    end
+    attempt()
+end
+
+function promote_art_source_pass(i,found)
+    if not found or not exists(found) or fsize(found)<=0 then return false end
+    local ext=(tostring(found):match("%.([%w]+)$") or ""):lower()
+    if ext~="jpg" and ext~="jpeg" and ext~="png" and ext~="webp" then return false end
+    local final=artwork_dir.."\\track-"..i.."."..ext
+    for _,old_ext in ipairs({"jpg","jpeg","png","webp"}) do
+        local old=artwork_dir.."\\track-"..i.."."..old_ext
+        if old~=final then os.remove(old) end
+    end
+    os.remove(final)
+    local moved=os.rename(found,final)~=nil
+    if not moved then moved=copy_file_atomic(found,final) end
+    if moved and mark_optional_source_pass("art",i) then
+        clear_optional_failure("art",i);log("ART READY SOURCE-PASS track "..i.." ext="..ext);return true
+    end
+    return false
+end
+
+local function art_job(job)
+    local i=job.i
+    if optional_ready("art",i) then clear_optional_failure("art",i);job_done(job);return end
+    clear_optional_failure("art",i);clear_optional_validation("art",i)
+    local prefix="track-"..i..".focused-art"
+    cleanup_prefix(artwork_dir,prefix)
+    local a=ytdlp_common()
+    table.insert(a,"--skip-download");table.insert(a,"--write-thumbnail")
+    table.insert(a,"--output");table.insert(a,artwork_dir.."\\"..prefix)
+    table.insert(a,urls[i])
+    log("ART START track "..i)
+    run_bounded(cache_priority,ytdlp,a,45,false,function(success,result,error_text,timed_out)
+        local found=nil
+        for _,name in ipairs(utils.readdir(artwork_dir,"files") or {}) do
+            if name:sub(1,#prefix)==prefix and not name:match("%.part$") then
+                local p=artwork_dir.."\\"..name
+                if fsize(p)>0 then found=p;break end
+            end
+        end
+        if not (success and tonumber(result.status or 0)==0 and found) then
+            local summary=media_error_summary(result,error_text,timed_out)
+            local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
+            if permanent then
+                log("ART PERMANENT SOURCE track "..i.." "..summary)
+            end
+            cleanup_prefix(artwork_dir,prefix);mark_optional_failure("art",i,permanent and "permanent-source" or "download");log("ART OPTIONAL FAIL track "..i.." "..summary);job_done(job);return
+        end
+        if not ffmpeg_available then
+            if not promote_art_source_pass(i,found) then mark_optional_failure("art",i,"source-pass") end
+            cleanup_prefix(artwork_dir,prefix);job_done(job);return
+        end
+        local normalized=artwork_dir.."\\track-"..i..".focused-art-normalized.png"
+        os.remove(normalized)
+        run_ffmpeg_media({"-y","-hide_banner","-loglevel","error","-i",found,"-frames:v","1","-vf","format=rgba",normalized},25,normalized,function(ok,probe,probe_error,probe_timeout,direct_fallback)
+            local final=artwork_dir.."\\track-"..i..".png"
+            if ok and tonumber(probe.status or 0)==0 and exists(normalized) and fsize(normalized)>0 then
+                for _,ext in ipairs({"jpg","jpeg","png","webp"}) do os.remove(artwork_dir.."\\track-"..i.."."..ext) end
+                os.rename(normalized,final)
+                if mark_optional_validated("art",i) then clear_optional_failure("art",i);log("ART READY+DECODED track "..i)
+                else mark_optional_failure("art",i,"validate");log("ART VALIDATION FAIL track "..i) end
+            elseif not promote_art_source_pass(i,found) then
+                os.remove(normalized);mark_optional_failure("art",i,"decode");log("ART DECODE+SOURCE FAIL track "..i)
+            end
+            cleanup_prefix(artwork_dir,prefix);job_done(job)
+        end)
     end)
 end
 
-local function probe_job(job)
-    local i = job.i
-    if decorative_done("probe",i) then job_done(job); return end
-    log("PROBE START track " .. i)
-    probe_one(i,"AUDIO",audio_path(i),telemetry_audio_path(i),status_path(i,"probe-audio.failed"),function()
-        probe_one(i,"VIDEO",video_path(i),telemetry_video_path(i),status_path(i,"probe-video.failed"),function()
-            if playing_index==i then write_state(i) end
+local function video_quality_rank(quality)
+    quality=tostring(quality or "")
+    if quality:find("Best",1,true) then return 10000 end
+    local h=tonumber(quality:match("(%d+)%s*p")) or 0
+    return h
+end
+
+local function effective_video_quality()
+    local unified=tostring(cfg.video_quality or "")
+    if unified~="" then return unified end
+    local overlay=tostring(cfg.overlay_video_quality or "240p")
+    if player_video_enabled and overlay_video_enabled then
+        return video_quality_rank(player_video_quality)>=video_quality_rank(overlay) and player_video_quality or overlay
+    elseif player_video_enabled then
+        return player_video_quality
+    end
+    return overlay
+end
+
+local function video_formats()
+    local quality=effective_video_quality()
+    if quality:find("240p",1,true) then
+        return {"bestvideo[height=240][ext=mp4]/133","18","bestvideo[height=144][ext=mp4]/160"}
+    elseif quality:find("360p",1,true) then
+        return {"18/bestvideo[height=360][ext=mp4]/134","bestvideo[height=240][ext=mp4]/133","bestvideo[height=144][ext=mp4]/160"}
+    elseif quality:find("480p",1,true) then
+        return {"bestvideo[height=480][ext=mp4]/135","18","bestvideo[height=240][ext=mp4]/133","bestvideo[height=144][ext=mp4]/160"}
+    elseif quality:find("720p",1,true) then
+        return {"22/bestvideo[height=720][ext=mp4]/136","18","bestvideo[height=240][ext=mp4]/133","bestvideo[height=144][ext=mp4]/160"}
+    elseif quality:find("Best",1,true) then
+        return {"bestvideo[ext=mp4]/best[ext=mp4]","18","bestvideo[height=240][ext=mp4]/133","bestvideo[height=144][ext=mp4]/160"}
+    elseif quality:find("144p",1,true) then
+        return {"bestvideo[height=144][ext=mp4]/160","18"}
+    end
+    return {"bestvideo[height=144][ext=mp4]/160","18"}
+end
+
+function restore_sidecar_text(path,value)
+    if value==nil then os.remove(path) else write_all(path,value) end
+end
+
+function promote_video_candidate(i,candidate,source_pass)
+    if not (candidate and exists(candidate) and fsize(candidate)>0) then return false end
+    local final=video_path(i)
+    local backup=video_dir.."\\track-"..i..".replacement-backup.mp4"
+    local validation_path=optional_validation_sidecar("video",i)
+    local profile_path=status_path(i,"video.profile")
+    local old_validation=read_all(validation_path)
+    local old_profile=read_all(profile_path)
+    os.remove(backup)
+    local had_old=exists(final) and fsize(final)>0
+    if had_old and not os.rename(final,backup) then return false end
+    local moved=os.rename(candidate,final)~=nil
+    if not moved then moved=copy_file_atomic(candidate,final) end
+    local marked=false
+    if moved then
+        marked=source_pass and mark_optional_source_pass("video",i) or mark_optional_validated("video",i)
+    end
+    if moved and marked then
+        os.remove(candidate);os.remove(backup)
+        return true
+    end
+    os.remove(final)
+    if had_old then os.rename(backup,final) end
+    restore_sidecar_text(validation_path,old_validation)
+    restore_sidecar_text(profile_path,old_profile)
+    return false
+end
+
+function promote_visualizer_candidate(i,candidate,profile)
+    if not (candidate and exists(candidate) and fsize(candidate)>0) then return false end
+    local final=viz_path(i)
+    local backup=visualizer_dir.."\\track-"..i..".replacement-backup.mp4"
+    local validation_path=optional_validation_sidecar("viz",i)
+    local profile_path=status_path(i,"visualizer.profile")
+    local old_validation=read_all(validation_path)
+    local old_profile=read_all(profile_path)
+    os.remove(backup)
+    local had_old=exists(final) and fsize(final)>0
+    if had_old and not os.rename(final,backup) then return false end
+    local moved=os.rename(candidate,final)~=nil
+    if not moved then moved=copy_file_atomic(candidate,final) end
+    local marked=false
+    if moved then
+        write_all(profile_path,profile)
+        marked=mark_optional_validated("viz",i)
+    end
+    if moved and marked then
+        os.remove(candidate);os.remove(backup)
+        return true
+    end
+    os.remove(final)
+    if had_old then os.rename(backup,final) end
+    restore_sidecar_text(validation_path,old_validation)
+    restore_sidecar_text(profile_path,old_profile)
+    return false
+end
+
+local function video_job(job)
+    local i=job.i
+    if not (configured_video or controller_want_video) then job_done(job);return end
+    local profile_ready=video_profile_ready(i)
+    local legacy_ready=legacy_video_validation_ready(i) and profile_ready
+    if profile_ready and not legacy_ready then job_done(job);return end
+    local quality=effective_video_quality()
+    local formats=video_formats()
+    local temp=video_dir.."\\track-"..i..".focused-video.mp4"
+    local normalized=video_dir.."\\track-"..i..".focused-video-normalized.mp4"
+    local legacy_backup=video_dir.."\\track-"..i..".legacy-video-backup.mp4"
+    clear_optional_failure("video",i)
+
+    -- R61.85: do not redownload good legacy cache merely because its codec predates the
+    -- native MediaElement path. Ahead-of-current jobs migrate those bytes to H.264 once;
+    -- the current track stays presentation-ready and is never held behind transcoding.
+    -- The original survives until replacement is proven; a failed migration becomes a
+    -- new source-pass marker so the same file never enters an infinite conversion loop.
+    if legacy_ready then
+        if not ffmpeg_available then
+            if mark_optional_source_pass("video",i) then
+                log("VIDEO LEGACY NATIVE KEEP track "..i.." reason ffmpeg-unavailable")
+                job_done(job);return
+            end
+        else
+            os.remove(normalized);os.remove(legacy_backup)
+            log("VIDEO LEGACY NATIVE MIGRATE START track "..i)
+            local migrate=video_transcode_args(video_path(i),normalized)
+            job.request_id=run_ffmpeg_media(migrate,180,normalized,function(ok,vr,ve,vt,direct_fallback)
+                job.request_id=nil
+                if not (configured_video or controller_want_video) then os.remove(normalized);job_done(job);return end
+                if ok and tonumber(vr.status or 0)==0 and exists(normalized) and fsize(normalized)>0 then
+                    local backed=os.rename(video_path(i),legacy_backup)~=nil
+                    if backed then
+                        local replaced=os.rename(normalized,video_path(i))~=nil
+                        if replaced and mark_optional_validated("video",i) then
+                            os.remove(legacy_backup);clear_optional_failure("video",i)
+                            log("VIDEO LEGACY NATIVE MIGRATE READY track "..i)
+                            job_done(job);return
+                        end
+                        os.remove(video_path(i));os.rename(legacy_backup,video_path(i))
+                    end
+                end
+                os.remove(normalized)
+                if mark_optional_source_pass("video",i) then
+                    clear_optional_failure("video",i);log("VIDEO LEGACY NATIVE KEEP track "..i.." reason migrate-failed")
+                    job_done(job);return
+                end
+                clear_optional_validation("video",i)
+                safe_timeout(0.2,function() video_job(job) end)
+            end)
+            return
+        end
+    end
+
+    -- Keep any decode-valid previous cache published while the replacement is prepared.
+    -- Its profile remains stale, so this job will continue until a proven replacement lands.
+    log("VIDEO START track "..i.." quality "..quality)
+    local route=1
+    local function source_pass()
+        if not (exists(temp) and fsize(temp)>0) then return false end
+        if promote_video_candidate(i,temp,true) then
+            clear_optional_failure("video",i);log("VIDEO READY SOURCE-PASS track "..i.." route "..route.." quality "..quality);return true
+        end
+        return false
+    end
+    local function attempt()
+        if not (configured_video or controller_want_video) then os.remove(temp);os.remove(normalized);job_done(job);return end
+        os.remove(temp);os.remove(normalized)
+        local a=ytdlp_common()
+        table.insert(a,"--format");table.insert(a,formats[route])
+        table.insert(a,"--no-part");table.insert(a,"--output");table.insert(a,temp);table.insert(a,urls[i])
+        job.request_id=run_bounded(cache_priority,ytdlp,a,120,false,function(success,result,error_text,timed_out)
+            job.request_id=nil
+            if not (configured_video or controller_want_video) then os.remove(temp);os.remove(normalized);job_done(job);return end
+            if success and tonumber(result.status or 0)==0 and exists(temp) and fsize(temp)>0 then
+                if not ffmpeg_available then
+                    if video_fps_mode()=="source" and source_pass() then job_done(job);return end
+                    mark_optional_failure("video",i,"fps-requires-ffmpeg");job_done(job);return
+                else
+                    local trans=video_transcode_args(temp,normalized)
+                    job.request_id=run_ffmpeg_media(trans,180,normalized,function(ok,vr,ve,vt,direct_fallback)
+                        job.request_id=nil
+                        if not (configured_video or controller_want_video) then os.remove(temp);os.remove(normalized);job_done(job);return end
+                        if ok and tonumber(vr.status or 0)==0 and exists(normalized) and fsize(normalized)>0 then
+                            if promote_video_candidate(i,normalized,false) then os.remove(temp);clear_optional_failure("video",i);log("VIDEO READY+DECODED track "..i.." route "..route.." quality "..quality);job_done(job);return end
+                        end
+                        os.remove(normalized)
+                        if source_pass() then job_done(job);return end
+                        os.remove(temp);route=route+1
+                        if route<=#formats and (configured_video or controller_want_video) then safe_timeout(0.2,attempt) else if (configured_video or controller_want_video) then mark_optional_failure("video",i,"decode");log("VIDEO OPTIONAL FAIL track "..i) end;job_done(job) end
+                    end)
+                    return
+                end
+            end
+            local summary=media_error_summary(result,error_text,timed_out)
+            local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
+            log("VIDEO ROUTE FAIL track "..i.." route "..route.." "..summary)
+            os.remove(temp);os.remove(normalized)
+            if permanent then
+                mark_optional_failure("video",i,"permanent-source")
+                log("VIDEO PERMANENT SOURCE track "..i.." route "..route)
+                job_done(job);return
+            end
+            route=route+1
+            if route<=#formats and (configured_video or controller_want_video) then safe_timeout(0.2,attempt)
+            else if (configured_video or controller_want_video) then mark_optional_failure("video",i,"routes");log("VIDEO OPTIONAL FAIL track "..i) end;job_done(job) end
+        end)
+    end
+    attempt()
+end
+
+function visualizer_audio_prefix()
+    local activity=tostring(cfg.visualizer_activity or "Active")
+    local gain=activity=="Subtle" and 1 or (activity=="Normal" and 3 or 5)
+    local fill=tostring(cfg.visualizer_adaptive_fill or "Adaptive")
+    if fill=="Aggressive" then gain=gain+3 elseif fill=="Off" then gain=math.max(0,gain-2) end
+    local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 4))
+    local chain={"highpass=f=30"}
+    if lift>0 then table.insert(chain,"highshelf=f=4200:g="..tostring(lift)) end
+    if gain>0 then table.insert(chain,"volume="..tostring(gain).."dB") end
+    return table.concat(chain,",")
+end
+
+function visualizer_frequency_parameters()
+    local activity=tostring(cfg.visualizer_activity or "Active")
+    local averaging,win=1,1024
+    if activity=="Subtle" then averaging,win=4,2048 elseif activity=="Normal" then averaging,win=2,1024 end
+    local fill=tostring(cfg.visualizer_adaptive_fill or "Adaptive")
+    local ascale=fill=="Off" and "sqrt" or (fill=="Aggressive" and "log" or "cbrt")
+    local fscale=tostring(cfg.visualizer_frequency_scale or "Logarithmic")=="Linear" and "lin" or "log"
+    return averaging,win,ascale,fscale
+end
+
+function visualizer_hex_rgb(color,fr,fg,fb)
+    color=tostring(color or "")
+    if not color:match("^#%x%x%x%x%x%x$") then return fr,fg,fb end
+    return tonumber(color:sub(2,3),16) or fr,tonumber(color:sub(4,5),16) or fg,tonumber(color:sub(6,7),16) or fb
+end
+
+function visualizer_color()
+    local mode=tostring(cfg.visualizer_color_mode or "Solid")
+    if mode~="Solid" then return "0xFFFFFF" end
+    local color=tostring(cfg.visualizer_solid_color or "#8A8A84")
+    if not color:match("^#%x%x%x%x%x%x$") then color="#8A8A84" end
+    return "0x"..color:sub(2)
+end
+
+function visualizer_gradient_endpoints()
+    local preset=tostring(cfg.visualizer_gradient_preset or "Sunset")
+    if preset=="Ocean" then return "#00B4D8","#023E8A" end
+    if preset=="Pastel" then return "#FFAFCC","#BDE0FE" end
+    if preset=="Fire" then return "#FF3B30","#FFD60A" end
+    if preset=="Forest" then return "#2D6A4F","#B7E4C7" end
+    if preset=="Mono" then return "#6E6E68","#F2F0E8" end
+    return "#FF6B6B","#7B2CBF"
+end
+
+function visualizer_binary_filter()
+    local mode=tostring(cfg.visualizer_color_mode or "Solid")
+    local color=tostring(cfg.visualizer_solid_color or "#8A8A84")
+    if not color:match("^#%x%x%x%x%x%x$") then color="#8A8A84" end
+    local r,g,b=visualizer_hex_rgb(color,138,138,132)
+    if mode=="Solid" then
+        return ",format=rgb24,lutrgb=r='if(gt(val,3),"..r..",0)':g='if(gt(val,3),"..g..",0)':b='if(gt(val,3),"..b..",0)'"
+    end
+
+    -- Threshold to one white occupancy mask first. Spatial coloring then changes only
+    -- presentation hue; bar geometry/frequency energy remains identical across modes.
+    local orientation=tostring(cfg.visualizer_gradient_orientation or "Horizontal")
+    local pos=orientation=="Vertical" and "Y/H" or "X/W"
+    local mask=",format=gray,lutyuv=y='if(gt(val,3),255,0)',format=rgb24"
+    if mode=="Rainbow" then
+        local phase="2*PI*"..pos
+        return mask..",geq=r='r(X,Y)*(127.5+127.5*sin("..phase.."))/255':g='g(X,Y)*(127.5+127.5*sin("..phase.."-2.094395))/255':b='b(X,Y)*(127.5+127.5*sin("..phase.."+2.094395))/255'"
+    end
+
+    local c1,c2=visualizer_gradient_endpoints()
+    local r1,g1,b1=visualizer_hex_rgb(c1,255,107,107)
+    local r2,g2,b2=visualizer_hex_rgb(c2,123,44,191)
+    local function interp(a,z) return tostring(a).."+("..tostring(z-a)..")*"..pos end
+    return mask..",geq=r='r(X,Y)*("..interp(r1,r2)..")/255':g='g(X,Y)*("..interp(g1,g2)..")/255':b='b(X,Y)*("..interp(b1,b2)..")/255'"
+end
+
+function visualizer_frequency_trim_filter(w,h)
+    local trim=math.max(0,math.min(60,tonumber(cfg.visualizer_high_frequency_trim) or 0))
+    if trim<=0 then return "" end
+    local keep=math.max(2,math.floor(w*(1-trim/100)+0.5))
+    if keep%2==1 and keep>2 then keep=keep-1 end
+    return ",crop="..tostring(keep)..":"..tostring(h)..":0:0,scale="..tostring(w)..":"..tostring(h)..":flags=neighbor"
+end
+
+function visualizer_spacing_filter(shape,spacing,w)
+    if spacing=="None" then return "" end
+    if shape=="Oscilloscope" or shape=="Dots" or shape=="Particle Field" or shape=="Skyline" or shape=="Twin Rails" then return "" end
+    local cell=spacing=="Wide" and 7 or 4
+    if w<48 then cell=spacing=="Wide" and 5 or 3 end
+    return ",drawgrid=w="..tostring(cell)..":h=100000:t=1:c=black:replace=1"
+end
+
+function viz_filter()
+    local w,h=visualizer_render_dimensions()
+    local fps=visualizer_fps()
+    local shape=tostring(cfg.visualizer_shape or "Spectrum")
+    local spacing=tostring(cfg.visualizer_bar_spacing or "None")
+    local direction=tostring(cfg.visualizer_direction or "Normal")
+    local anchor=tostring(cfg.visualizer_vertical_anchor or "Source")
+    local averaging,win,ascale,fscale=visualizer_frequency_parameters()
+    local color=visualizer_color()
+    local render_w=w
+    if spacing=="Light" then render_w=math.max(8,math.floor(w/1.5)) elseif spacing=="Wide" then render_w=math.max(8,math.floor(w/2.5)) end
+    if render_w%2==1 then render_w=render_w+1 end
+    local audio=visualizer_audio_prefix()
+    local tail=""
+    if render_w~=w then tail=tail..",scale="..w..":"..h..":flags=neighbor" end
+    if direction=="Mirrored" then tail=tail..",hflip" end
+
+    if shape=="Oscilloscope" then
+        local mode=anchor=="Top" and "cline" or "line"
+        local out="[0:a]"..audio..",showwaves=s="..render_w.."x"..h..":mode="..mode..":scale=cbrt:rate="..fps..":colors="..color
+        if render_w~=w then out=out..",scale="..w..":"..h..":flags=neighbor" end
+        if direction=="Mirrored" then out=out..",hflip" end
+        return out..visualizer_binary_filter()..",format=yuv420p[v]"
+    end
+
+    local mode="bar"
+    if shape=="Dots" or shape=="Particle Field" then mode="dot" elseif shape=="Skyline" or shape=="Twin Rails" then mode="line" end
+    local mirror=(shape=="Center Mirror" or shape=="Twin Rails" or anchor=="Center")
+    if mirror then
+        local half=math.max(2,math.floor(h/2));if half%2==1 then half=half+1 end
+        local base="[0:a]"..audio..",showfreqs=s="..render_w.."x"..half..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..fps..":colors="..color..":averaging="..averaging..":win_size="..win.."[base];"
+        local post="[base]split=2[up][down];[up]vflip[top];[top][down]vstack=inputs=2"
+        if render_w~=w then post=post..",scale="..w..":"..h..":flags=neighbor" end
+        post=post..visualizer_frequency_trim_filter(w,h)
+        if direction=="Mirrored" then post=post..",hflip" end
+        post=post..visualizer_spacing_filter(shape,spacing,w)
+        return base..post..visualizer_binary_filter()..",format=yuv420p[v]"
+    end
+
+    local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..h..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..fps..":colors="..color..":averaging="..averaging..":win_size="..win
+    if render_w~=w then out=out..",scale="..w..":"..h..":flags=neighbor" end
+    out=out..visualizer_frequency_trim_filter(w,h)
+    if anchor=="Top" then out=out..",vflip" end
+    if direction=="Mirrored" then out=out..",hflip" end
+    out=out..visualizer_spacing_filter(shape,spacing,w)
+    if shape=="Particle Field" then out=out..",gblur=sigma=0.35" end
+    return out..visualizer_binary_filter()..",format=yuv420p[v]"
+end
+
+function viz_filter_compat()
+    local w,h=visualizer_render_dimensions()
+    return string.format("[0:a]showfreqs=s=%dx%d:mode=bar:ascale=cbrt:rate=%d:colors=%s",w,h,visualizer_fps(),visualizer_color())..visualizer_frequency_trim_filter(w,h)..visualizer_binary_filter()..",format=yuv420p[v]"
+end
+
+local function viz_job(job)
+    local i=job.i
+    if visualizer_profile_ready(i) and optional_validation_ready("viz",i) then clear_optional_failure("viz",i);job_done(job);return end
+    -- Keep the last decode-valid visualizer published while a changed render profile is built.
+    clear_optional_failure("viz",i)
+    if not ffmpeg_available or not audio_ready(i) then job_done(job);return end
+    local temp=visualizer_dir.."\\track-"..i..".focused-processing.mp4"
+    os.remove(temp)
+    local fps=visualizer_fps()
+    local profile=visualizer_profile()
+    local function render_args(filter)
+        return {"-y","-hide_banner","-loglevel","error","-i",audio_path(i),"-filter_complex",filter,"-map","[v]","-an","-r",tostring(fps),"-fps_mode","cfr","-c:v","libx264","-preset","ultrafast","-tune","fastdecode","-qp","0","-pix_fmt","yuv420p","-g","1","-keyint_min","1","-sc_threshold","0","-bf","0","-movflags","+faststart","-threads","1","-filter_complex_threads","1",temp}
+    end
+    local function validate_render()
+        run_bounded(cache_priority,ffmpeg,{"-hide_banner","-loglevel","error","-i",temp,"-frames:v","1","-f","null","NUL"},25,false,function(ok,probe,probe_error,probe_timeout)
+            if ok and tonumber(probe.status or 0)==0 then
+                if promote_visualizer_candidate(i,temp,profile) then clear_optional_failure("viz",i);log("VISUALIZER READY+DECODED track "..i.." "..fps.."fps")
+                else mark_optional_failure("viz",i,"validate") end
+            else
+                os.remove(temp);mark_optional_failure("viz",i,"decode");log("VISUALIZER DECODE FAIL track "..i.." "..media_error_summary(probe,probe_error,probe_timeout))
+            end
             job_done(job)
         end)
+    end
+    local function compatibility_render()
+        os.remove(temp)
+        log("VISUALIZER COMPAT RETRY track "..i)
+        run_ffmpeg_media(render_args(viz_filter_compat()),180,temp,function(ok,result,error_text,timed_out,direct_fallback)
+            if ok and tonumber(result.status or 0)==0 and exists(temp) and fsize(temp)>0 then validate_render();return end
+            os.remove(temp);mark_optional_failure("viz",i,"render");log("VISUALIZER OPTIONAL FAIL track "..i);job_done(job)
+        end)
+    end
+    log("VISUALIZER START track "..i.." "..fps.."fps profile "..profile)
+    run_ffmpeg_media(render_args(viz_filter()),180,temp,function(success,result,error_text,timed_out,direct_fallback)
+        if success and tonumber(result.status or 0)==0 and exists(temp) and fsize(temp)>0 then validate_render();return end
+        compatibility_render()
     end)
 end
 
 local function start_job(job)
-    queued[job.key] = nil
-    job.decorative = (job.kind=="comment" or job.kind=="probe")
-    active[job.key] = job
-    if job.decorative then decorative_active_count=decorative_active_count+1
-    else active_count = active_count + 1 end
-    job.started_at = mp.get_time()
-
-    if job.kind == "audio" then source_download(job)
-    elseif job.kind == "art" then art_job(job)
-    elseif job.kind == "video" then video_job(job)
-    elseif job.kind == "viz" then viz_job(job)
-    elseif job.kind == "comment" then comment_job(job)
-    elseif job.kind == "probe" then probe_job(job)
+    queued[job.key]=nil;active[job.key]=job;active_count=active_count+1
+    if job.kind~="audio" then
+        optional_active_count=optional_active_count+1
+        optional_inflight[job.i]=(tonumber(optional_inflight[job.i]) or 0)+1
+    end
+    write_queue_runtime()
+    if job.kind=="audio" then audio_job(job)
+    elseif job.kind=="art" then art_job(job)
+    elseif job.kind=="video" then video_job(job)
+    elseif job.kind=="viz" then viz_job(job)
     else job_done(job) end
 end
 
-pump = function()
-    if #jobs == 0 then return end
-
-    table.sort(jobs,function(a,b)
-        if a.priority == b.priority then return a.i < b.i end
-        return a.priority < b.priority
-    end)
-
-    while active_count < workers and #jobs > 0 do
-        local job = table.remove(jobs,1)
-        if queued[job.key] then
-            if (job.kind=="comment" or job.kind=="probe") and decorative_active_count>=2 then
-                table.insert(jobs,1,job)
-                break
-            end
-            start_job(job)
+pump=function()
+    if #jobs==0 then return end
+    table.sort(jobs,function(a,b) if a.priority==b.priority then return a.i<b.i end return a.priority<b.priority end)
+    while active_count<workers and #jobs>0 do
+        local pick=1
+        if optional_active_count>=optional_worker_limit and jobs[pick].kind~="audio" then
+            pick=nil
+            for n,candidate in ipairs(jobs) do if candidate.kind=="audio" then pick=n;break end end
+            if not pick then break end
         end
+        local job=table.remove(jobs,pick)
+        if queued[job.key] then start_job(job) end
     end
 end
 
-request_bundle = function(i,base_priority)
-    if not i or i < 1 or i > #urls or known_bad(i) then return end
-
-    local base = tonumber(base_priority) or 0
-    local old = bundle_priority[i]
-    if old == nil or base < old then
-        bundle_priority[i] = base
-    else
-        base = old
-    end
-
-    if not playback_ready(i) then
-        enqueue("audio",i,base)
-        return
-    end
-
-    -- Once audio + metadata + gain are complete, build the presentation
-    -- pieces in a deterministic order. With one Gaming worker this is:
-    -- artwork -> tiny video -> visualizer.
-    if want_art then enqueue("art",i,base+1) end
-    if want_video then enqueue("video",i,base+2) end
-    if want_viz then enqueue("viz",i,base+3) end
+request_bundle=function(i,priority)
+    if not i or i<1 or i>#urls or known_bad(i) then return end
+    local p=tonumber(priority) or 10
+    if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
+    if not audio_ready(i) then enqueue("audio",i,p) end
+    local is_current=(i==playing_index or i==desired_index)
+    if (configured_art or controller_want_art) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
+    local video_profile_current=video_profile_ready(i)
+    local video_migrate_ahead=(not is_current) and legacy_video_validation_ready(i) and video_profile_current
+    if (configured_video or controller_want_video) and (not video_profile_current or video_migrate_ahead) and not optional_failure_blocked("video",i) then enqueue("video",i,p+(is_current and 6 or 45)) end
+    -- The visualizer is the only optional media lane that actually requires cached audio.
+    if audio_ready(i) and (configured_viz or controller_want_viz) and not visualizer_profile_ready(i) and not optional_failure_blocked("viz",i) then enqueue("viz",i,p+(is_current and 8 or 40)) end
 end
 
-schedule_for_current = function(i)
-    if not i or i < 1 then return end
-
-    -- Prepare COMPLETE future bundles, not a pile of future audio files.
-    -- Track N+1 is completely prepared before N+2 receives worker time.
-    local cursor = i
-    for n=1,prefetch_ahead do
-        local candidate = next_candidate(cursor,1)
-        if not candidate or candidate == i then break end
-
-        request_bundle(candidate,n*10)
-        cursor = candidate
+local function schedule_ahead(i)
+    local cursor=i
+    local audio_tracks_ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
+    for n=1,audio_tracks_ahead do
+        local next_i=next_occurrence(cursor,1)
+        if not next_i or next_i==i then break end
+        request_bundle(next_i,n)
+        cursor=next_i
     end
-
+    if i then request_bundle(i,0) end
     pump()
 end
 
-start_play = function(i)
-    if not i then
-        set_engine_status("error","No playable tracks remain.",0)
-        return
-    end
-
-    if known_bad(i) then
-        local n = next_candidate(i,1)
-        if n then
-            desired_index = n
-            requested_index = 0
-            bundle_priority[n] = 0
-            set_engine_status(
-                "skipping",
-                "Skipping unavailable track " .. i .. "; preparing track " .. n .. "...",
-                n
-            )
-            request_bundle(n,0)
-            pump()
-        else
-            set_engine_status("error","No playable tracks remain.",i)
-        end
-        return
-    end
-
-    desired_index = i
-    bundle_priority[i] = 0
-    if bundle_cache_hit[i] == nil then bundle_cache_hit[i] = bundle_ready(i) end
-
-    if not bundle_ready(i) then
-        local stage = bundle_stage(i)
-
-        if stage == "audio" then
-            set_engine_status("preparing","Preparing audio for track " .. i .. " of " .. #urls .. "...",i)
-        elseif stage == "artwork" then
-            set_engine_status("artwork","Preparing artwork for track " .. i .. "...",i)
-        elseif stage == "tiny video" then
-            set_engine_status("video","Preparing tiny video for track " .. i .. "...",i)
-        elseif stage == "visualizer" then
-            set_engine_status("visualizer","Preparing visualizer for track " .. i .. "...",i)
-        else
-            set_engine_status("preparing","Preparing track " .. i .. "...",i)
-        end
-
-        request_bundle(i,0)
-        pump()
-        return
-    end
-
-    current_index = i
-    desired_index = i
-    requested_index = i
-    bundle_priority[i] = nil
-
-    write_all(resume_file,tostring(i))
-    mp.set_property_number("volume-gain",read_gain(i))
-    set_engine_status("starting","Starting synchronized track " .. i .. " of " .. #urls .. "...",i)
-
-    cleanup_cache(i)
-    log("BUNDLE READY track " .. i)
-    if player_stream_video then
-        log("PLAYER VIDEO STREAM track " .. i .. " quality " .. tostring(cfg.player_video_quality))
-        mp.commandv("loadfile",urls[i],"replace")
-    else
-        mp.commandv("loadfile",audio_path(i),"replace")
-    end
+function cache_plan_anchor()
+    if desired_index and desired_index>0 then return desired_index end
+    if playing_index and playing_index>0 then return playing_index end
+    return current_index
 end
 
-local player_rescue_active = false
+function clear_stale_queued_prefetch()
+    local kept={}
+    local dropped=0
+    for _,job in ipairs(jobs) do
+        local lane_disabled=(job.kind=="video" and not (configured_video or controller_want_video)) or (job.kind=="art" and not (configured_art or controller_want_art)) or (job.kind=="viz" and not (configured_viz or controller_want_viz))
+        local pin=(job.i==desired_index or job.i==playing_index or job.i==requested_index or (tonumber(job.priority) or 100)<=0)
+        if lane_disabled then
+            queued[job.key]=nil
+            dropped=dropped+1
+        elseif pin then
+            table.insert(kept,job)
+        else
+            queued[job.key]=nil
+            dropped=dropped+1
+        end
+    end
+    jobs=kept
+    return dropped
+end
+
+function replan_cache_horizon(reason,force_prune)
+    cache_plan_serial=cache_plan_serial+1
+    cache_plan_reason=tostring(reason or "lane-change")
+    local anchor=math.floor(tonumber(cache_plan_anchor()) or 0)
+    if anchor<1 or anchor>#urls then return end
+    local dropped=clear_stale_queued_prefetch()
+    schedule_ahead(anchor)
+    prune_audio_cache(anchor)
+    prune_optional_cache(anchor,force_prune)
+    log("CACHE PLAN serial="..cache_plan_serial.." reason="..cache_plan_reason.." anchor="..anchor.." lane="..(playback_subset_active and "subset" or "main").." dropped_queued="..dropped.." budget_mb="..optional_cache_budget_mb)
+end
+
+play_index=function(i)
+    i=math.floor(tonumber(i) or 0)
+    if i<1 or i>#urls then return end
+    -- A new navigation intent invalidates any older loaded-but-not-yet-audible handoff.
+    loaded_waiting_for_restart=0
+    if known_bad(i) then
+        local n=next_occurrence(i,1)
+        if n then sync_playback_subset_cursor(n);desired_index=n;requested_index=0;play_index(n) end
+        return
+    end
+    desired_index=i
+    current_index=i
+    write_all(resume_file,tostring(i))
+    if not startup_first_sound then write_startup_flight("cache_check",i,"Checking cache identity for the requested track.",false,false) end
+    if not audio_ready(i) then
+        requested_index=0
+        set_engine_status("preparing","Preparing fast start for track "..i.."...",i)
+        -- Publish the requested identity immediately, but keep phase=preparing. The controller then
+        -- shows the chosen title with a zeroed clock instead of letting the outgoing track appear
+        -- to keep playing silently during the direct-stream resolver window.
+        write_current(i);write_queue_runtime();start_fast_stream(i);return
+    end
+    requested_index=i
+    playing_from_cache=true
+    set_engine_status("starting","Starting track "..i.."...",i)
+    write_current(i);write_queue_runtime()
+    if not startup_first_sound then write_startup_flight("loadfile_cache",i,"Cached audio handed to mpv.",false,false) end
+    mp.commandv("loadfile",audio_path(i),"replace")
+    arm_load_watchdog(i,"cache")
+end
+
+cancel_pending_transport=function()
+    transport_serial=transport_serial+1
+    transport_pending_target=0
+    transport_pending_attempts=0
+    if transport_timer then transport_timer:kill();transport_timer=nil end
+end
+
+local function peek_pending_transport_target()
+    local n=math.floor(tonumber(transport_pending_target) or 0)
+    return n>0 and n or nil
+end
+
+local function acknowledge_pending_transport(i)
+    local n=peek_pending_transport_target()
+    if n and n==math.floor(tonumber(i) or 0) then
+        log("TRANSPORT ACK track "..n)
+        cancel_pending_transport()
+        return true
+    end
+    return false
+end
+
+local function commit_pending_transport(serial)
+    if serial~=transport_serial then return end
+    local n=peek_pending_transport_target()
+    transport_timer=nil
+    if not n then return end
+    transport_pending_attempts=transport_pending_attempts+1
+    desired_index=n;requested_index=0;work_generation=work_generation+1
+    log("TRANSPORT COMMIT track "..n.." attempt "..transport_pending_attempts)
+    play_index(n)
+end
 
 local function advance(step)
-    player_rescue_active = false
-    local base = current_index
-    local n = next_candidate(base,step or 1)
-
+    local direction=(tonumber(step) or 1)>=0 and 1 or -1
+    local base=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    local n=playback_subset_active and next_subset_transport_occurrence(base,direction) or next_occurrence(base,direction)
     if not n then
-        set_engine_status("error","No playable tracks remain.",base)
+        log("TRANSPORT boundary "..(direction>0 and "next" or "previous").." from track "..tostring(base))
         return
     end
-
-    desired_index = n
-    requested_index = 0
-    start_play(n)
+    desired_index=n
+    transport_pending_target=n
+    transport_pending_attempts=0
+    transport_serial=transport_serial+1
+    local serial=transport_serial
+    if transport_timer then transport_timer:kill() end
+    set_engine_status("advancing","Moving to track "..n.."...",n)
+    -- Listening-session transport moves the cache horizon with the intent cursor, not
+    -- only after the destination finishes loading. Rapid Next presses therefore keep
+    -- preparing the filtered lane ahead of the last requested occurrence.
+    if playback_subset_active then replan_cache_horizon("playback-subset-step") end
+    write_queue_runtime()
+    transport_timer=safe_timeout(transport_settle_seconds,function() commit_pending_transport(serial) end)
 end
 
-mp.register_script_message("yomi-next",function() advance(1) end)
-mp.register_script_message("yomi-prev",function() advance(-1) end)
-mp.register_script_message("yomi-jump",function(raw_index)
-    local n = math.floor(tonumber(raw_index) or 0)
-    if n < 1 or n > #urls then return end
-    player_rescue_active = false
-    desired_index = n
-    requested_index = 0
-    start_play(n)
+local order_undo={}
+local order_redo={}
+local original_order={}
+for _,v in ipairs(order) do table.insert(original_order,v) end
+
+local function clone_order(src)
+    local out={};for _,v in ipairs(src) do table.insert(out,v) end;return out
+end
+
+local function orders_equal(a,b)
+    if #a~=#b then return false end
+    for i=1,#a do if a[i]~=b[i] then return false end end
+    return true
+end
+
+local function rebuild_order_position()
+    order_position={};for slot,occ in ipairs(order) do order_position[occ]=slot end
+end
+
+local function find_order_slot(occ)
+    for slot,value in ipairs(order) do if value==occ then return slot end end
+    return 0
+end
+
+local function write_order_projection(reason,status)
+    rebuild_order_position()
+    write_json(order_file,{
+        schema=3,session_id=session_id,revision=order_revision,command_serial=order_command_serial,
+        last_command_status=status or "committed",last_command_reason=reason or "focused-r19",
+        order=order,inserted={},reason=reason or "focused-r19",slot_id=active_slot_id,slot_name=active_slot_name
+    })
+    replan_cache_horizon("order:"..tostring(reason or "update"))
+    write_queue_runtime()
+end
+
+local function publish_order_receipt(reason,status)
+    order_command_serial=order_command_serial+1
+    write_order_projection(reason,status or "no-op")
+end
+
+local function save_order(reason)
+    order_revision=order_revision+1
+    order_command_serial=order_command_serial+1
+    write_order_projection(reason,"committed")
+end
+
+local function mutate_order(mutator,reason)
+    local before=clone_order(order)
+    mutator()
+    if orders_equal(before,order) then
+        rebuild_order_position()
+        publish_order_receipt(reason,"no-op")
+        return false
+    end
+    table.insert(order_undo,before);if #order_undo>20 then table.remove(order_undo,1) end
+    order_redo={}
+    save_order(reason)
+    return true
+end
+
+local function move_occurrence(occ,target_slot)
+    local from=find_order_slot(occ);if from<1 then return false end
+    table.remove(order,from)
+    target_slot=math.max(1,math.min(#order+1,target_slot))
+    table.insert(order,target_slot,occ);return true
+end
+
+local function parse_occurrence_csv(raw,exclude_current)
+    local wanted={}
+    local seen={}
+    local current=(playing_index>0 and playing_index) or current_index
+    local invalid=false
+    for token in tostring(raw or ""):gmatch("[^,]+") do
+        local occ=math.floor(tonumber(token) or 0)
+        if occ<=0 or seen[occ] or find_order_slot(occ)<=0 or (exclude_current and occ==current) then
+            invalid=true
+        else
+            seen[occ]=true;table.insert(wanted,occ)
+        end
+    end
+    if #wanted==0 then invalid=true end
+    return wanted,invalid
+end
+
+local function selected_in_order(wanted)
+    local set={};for _,occ in ipairs(wanted) do set[occ]=true end
+    local out={};for _,occ in ipairs(order) do if set[occ] then table.insert(out,occ) end end
+    return out,set
+end
+
+local function move_occurrence_block(wanted,target_boundary)
+    local block,set=selected_in_order(wanted)
+    if #block==0 then return false end
+    local remaining={}
+    local removed_before=0
+    target_boundary=math.max(1,math.min(#order+1,math.floor(tonumber(target_boundary) or 1)))
+    for slot,occ in ipairs(order) do
+        if set[occ] then
+            if slot<target_boundary then removed_before=removed_before+1 end
+        else table.insert(remaining,occ) end
+    end
+    local adjusted=math.max(1,math.min(#remaining+1,target_boundary-removed_before))
+    for i=#block,1,-1 do table.insert(remaining,adjusted,block[i]) end
+    order=remaining
+    return true
+end
+
+safe_register_script_message("yomi-next",function() advance(1) end)
+safe_register_script_message("yomi-prev",function() advance(-1) end)
+function explicit_audio_retry(n,reason)
+    if not n or n<1 or n>#urls then return end
+    local permanent=status_path(n,"audio.permanent")
+    local failed=status_path(n,"audio.failed")
+    local had_marker=exists(permanent) or exists(failed)
+    os.remove(permanent);os.remove(failed)
+    audio_failures[n]=nil;stream_failures[n]=nil
+    if had_marker then log("AUDIO EXPLICIT RETRY track "..n.." reason="..tostring(reason or "manual")) end
+end
+
+safe_register_script_message("yomi-jump",function(raw)
+    local n=math.floor(tonumber(raw) or 0)
+    if n>=1 and n<=#urls then
+        explicit_audio_retry(n,"jump")
+        cancel_pending_transport();sync_playback_subset_cursor(n);desired_index=n;requested_index=0;work_generation=work_generation+1
+        -- "Play now" means play now even if the old occurrence happened to be paused.
+        mp.set_property_native("pause",false)
+        play_index(n)
+    end
 end)
-mp.register_script_message("yomi-hide-comment",function()
-    local i = playing_index>0 and playing_index or current_index
-    if not i or i<1 then return end
-    os.remove(comment_path(i))
-    mark(status_path(i,"comment.hidden"))
-    log("COMMENT HIDDEN track " .. i)
-    if playing_index==i then write_state(i) end
+function ensure_playback_subset(raw,label)
+    local seen={}
+    local subset={}
+    for token in tostring(raw or ""):gmatch("[^,]+") do
+        local n=math.floor(tonumber(token) or 0)
+        if n>=1 and n<=#urls and not seen[n] then seen[n]=true;table.insert(subset,n) end
+    end
+    if #subset<1 then return false,false end
+    local same=playback_subset_active and #subset==#playback_subset
+    if same then for i=1,#subset do if subset[i]~=playback_subset[i] then same=false;break end end end
+    local active_occ=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    playback_subset_label=tostring(label or "")
+    if not same then
+        playback_subset=subset
+        playback_subset_active=true
+        playback_subset_cursor=0
+        rebuild_playback_subset_position()
+        -- If the active track is outside a newly activated filtered lane, keep the
+        -- cursor just outside the lane. The first Next then lands on subset[1] and
+        -- the first Previous lands on the last item instead of silently skipping one.
+        playback_subset_cursor=tonumber(playback_subset_position[active_occ]) or 0
+        log("PLAYBACK SUBSET ON count="..tostring(#subset).." label="..playback_subset_label.." cursor="..tostring(playback_subset_cursor))
+    else
+        playback_subset_active=true
+        if playback_subset_cursor<1 then playback_subset_cursor=tonumber(playback_subset_position[active_occ]) or 1 end
+    end
+    return true,not same
+end
+
+safe_register_script_message("yomi-playback-subset",function(raw,label)
+    local ok,changed=ensure_playback_subset(raw,label)
+    if not ok then return end
+    -- Listen is deterministic: activating a filter always starts at its first visible occurrence.
+    local target=playback_subset[1]
+    local active_occ=(playing_index>0 and playing_index) or current_index
+    if target and (changed or active_occ~=target) then
+        cancel_pending_transport();playback_subset_cursor=1;desired_index=target;requested_index=0;work_generation=work_generation+1;mp.set_property_native("pause",false);play_index(target)
+    end
+    replan_cache_horizon("playback-subset-on")
+    write_queue_runtime()
 end)
 
-mp.register_event("file-loaded",function()
-    playing_index = current_index
-    requested_index = 0
+safe_register_script_message("yomi-playback-subset-step",function(raw,label,raw_step)
+    local ok,changed=ensure_playback_subset(raw,label)
+    if not ok then return end
+    if changed then replan_cache_horizon("playback-subset-reassert") end
+    advance((tonumber(raw_step) or 1)>=0 and 1 or -1)
+    write_queue_runtime()
+end)
+safe_register_script_message("yomi-playback-subset-clear",function()
+    playback_subset={}
+    playback_subset_position={}
+    playback_subset_active=false
+    playback_subset_label=""
+    playback_subset_cursor=0
+    log("PLAYBACK SUBSET OFF")
+    replan_cache_horizon("playback-subset-clear")
+    write_queue_runtime()
+end)
+safe_register_script_message("yomi-repeat-mode",function(raw)
+    local v=tostring(raw or "all"):lower()
+    if v=="off" or v=="all" or v=="one" then repeat_mode=v;persist_repeat();write_current((playing_index>0 and playing_index) or current_index);write_queue_runtime();log("REPEAT "..repeat_mode) end
+end)
+safe_register_script_message("yomi-repeat-cycle",function()
+    repeat_mode=(repeat_mode=="all" and "one") or (repeat_mode=="one" and "off") or "all"
+    persist_repeat();write_current((playing_index>0 and playing_index) or current_index);write_queue_runtime();log("REPEAT "..repeat_mode)
+end)
+safe_register_script_message("yomi-prepare",function(raw) local n=math.floor(tonumber(raw) or current_index);if n>=1 and n<=#urls then explicit_audio_retry(n,"prepare");request_bundle(n,0);pump() end end)
+local function controller_demand_bool(raw)
+    local v=tostring(raw or ""):lower()
+    return v=="1" or v=="true" or v=="on" or v=="yes"
+end
+local function publish_controller_demand(reason,token)
+    controller_demand_serial=controller_demand_serial+1
+    controller_demand_unix=os.time()
+    if token~=nil then controller_demand_token=tostring(token or "") end
+    local i=(playing_index>0 and playing_index) or current_index
+    if i>0 and (controller_want_art or controller_want_video or controller_want_viz) then
+        request_bundle(i,0);pump()
+        log("OPTIONAL MEDIA KICK track="..tostring(i).." active="..tostring(active_count).." queued="..tostring(#jobs).." ffmpeg="..tostring(ffmpeg_available).." runner="..tostring(exists(runner)))
+    end
+    write_current(i)
+    log("CONTROLLER DEMAND "..tostring(reason or "update").." art="..tostring(controller_want_art).." video="..tostring(controller_want_video).." viz="..tostring(controller_want_viz).." token="..controller_demand_token)
+end
+safe_register_script_message("yomi-controller-demand",function(raw_art,raw_video,raw_viz,raw_token)
+    local next_art=controller_demand_bool(raw_art)
+    local next_video=controller_demand_bool(raw_video) and cfg._video_master_enabled
+    local next_viz=controller_demand_bool(raw_viz)
+    local token=tostring(raw_token or "")
+    local token_changed=token~="" and token~=controller_demand_token
+    local demand_changed=next_art~=controller_want_art or next_video~=controller_want_video or next_viz~=controller_want_viz
+    local i=(playing_index>0 and playing_index) or current_index
+    if i>0 then
+        if token_changed or (next_art and not controller_want_art) then clear_optional_failure("art",i) end
+        if token_changed or (next_video and not controller_want_video) then clear_optional_failure("video",i) end
+        if token_changed or (next_viz and not controller_want_viz) then clear_optional_failure("viz",i) end
+    end
+    controller_want_art=next_art
+    controller_want_video=next_video
+    controller_want_viz=next_viz
+    publish_controller_demand("lease",raw_token)
+    if demand_changed then replan_cache_horizon("controller-demand-change") end
+end)
+safe_register_script_message("yomi-controller-visualizer",function(raw)
+    local next_viz=controller_demand_bool(raw)
+    local changed=next_viz~=controller_want_viz
+    local i=(playing_index>0 and playing_index) or current_index
+    if i>0 and next_viz and not controller_want_viz then clear_optional_failure("viz",i) end
+    controller_want_viz=next_viz
+    publish_controller_demand("legacy-viz",controller_demand_token)
+    if changed then replan_cache_horizon("controller-viz-change") end
+end)
+safe_register_script_message("yomi-controller-media",function(raw_art,raw_video)
+    local next_art=controller_demand_bool(raw_art)
+    local next_video=controller_demand_bool(raw_video) and cfg._video_master_enabled
+    local changed=next_art~=controller_want_art or next_video~=controller_want_video
+    local i=(playing_index>0 and playing_index) or current_index
+    if i>0 and next_art and not controller_want_art then clear_optional_failure("art",i) end
+    if i>0 and next_video and not controller_want_video then clear_optional_failure("video",i) end
+    controller_want_art=next_art
+    controller_want_video=next_video
+    publish_controller_demand("legacy-media",controller_demand_token)
+    if changed then replan_cache_horizon("controller-media-change") end
+end)
+safe_register_script_message("yomi-reload-config",function()
+    local next_cfg=load_json(config_file) or {}
+    local before_profile=visualizer_profile()
+    local before_video_profile=video_profile()
+    apply_config(next_cfg)
+    if not cfg._video_master_enabled then
+        controller_want_video=false
+        for _,job in pairs(active) do
+            if job.kind=="video" and job.request_id then pcall(mp.abort_async_command,job.request_id) end
+        end
+    end
+    local after_profile=visualizer_profile()
+    local after_video_profile=video_profile()
+    local i=(playing_index>0 and playing_index) or current_index
+    if before_profile~=after_profile and i>0 then
+        clear_optional_failure("viz",i)
+    end
+    if before_video_profile~=after_video_profile and i>0 then
+        clear_optional_failure("video",i)
+    end
+    if i>0 then replan_cache_horizon("config-reload",true);write_current(i) end
+    write_queue_runtime()
+    log("CONFIG RELOADED workers="..workers.." prefetch="..prefetch_ahead.." obs_cache="..tostring(cfg.obs_media_cache_enabled ~= false).." video="..after_video_profile.." viz="..after_profile.." optional_budget_mb="..optional_cache_budget_mb)
+end)
+safe_register_script_message("yomi-order-play-next",function(raw)
+    local occ=math.floor(tonumber(raw) or 0)
+    local current=(playing_index>0 and playing_index) or current_index
+    local here=find_order_slot(current)
+    local from=find_order_slot(occ)
+    if occ>0 and occ~=current and here>0 and from>0 then
+        -- R61.33 target semantics retained: if the requested occurrence is before
+        -- current, its removal shifts current left before insertion.
+        local target=here+1
+        if from<here then target=here end
+        mutate_order(function() move_occurrence(occ,target) end,"play-next")
+    else
+        publish_order_receipt("play-next-invalid","rejected")
+    end
+end)
+safe_register_script_message("yomi-order-move-later",function(raw,delta)
+    local occ=math.floor(tonumber(raw) or 0);local d=math.max(1,math.floor(tonumber(delta) or 1));local from=find_order_slot(occ)
+    if from>0 then mutate_order(function() move_occurrence(occ,from+d) end,"move-later")
+    else publish_order_receipt("move-later-invalid","rejected") end
+end)
+safe_register_script_message("yomi-order-move-block",function(raw,boundary)
+    local wanted,invalid=parse_occurrence_csv(raw,true)
+    local target=math.floor(tonumber(boundary) or 0)
+    if invalid or target<1 then publish_order_receipt("move-block-invalid","rejected");return end
+    mutate_order(function() move_occurrence_block(wanted,target) end,"move-block")
+end)
+safe_register_script_message("yomi-order-play-next-block",function(raw)
+    local wanted,invalid=parse_occurrence_csv(raw,true)
+    local current=(playing_index>0 and playing_index) or current_index
+    local here=find_order_slot(current)
+    if invalid or here<1 then publish_order_receipt("play-next-block-invalid","rejected");return end
+    mutate_order(function() move_occurrence_block(wanted,here+1) end,"play-next-block")
+end)
+safe_register_script_message("yomi-order-move-later-many",function(raw,delta)
+    local wanted,invalid=parse_occurrence_csv(raw,true)
+    local d=math.max(1,math.min(25,math.floor(tonumber(delta) or 1)))
+    if invalid then publish_order_receipt("move-later-many-invalid","rejected");return end
+    local block=selected_in_order(wanted)
+    mutate_order(function()
+        for i=#block,1,-1 do
+            local occ=block[i]
+            local from=find_order_slot(occ)
+            if from>0 then move_occurrence(occ,from+d) end
+        end
+    end,"move-later-many")
+end)
+safe_register_script_message("yomi-order-remove",function(raw)
+    local occ=math.floor(tonumber(raw) or 0);local from=find_order_slot(occ)
+    local current=(playing_index>0 and playing_index) or current_index
+    if from>0 and #order>1 and occ~=current then mutate_order(function() table.remove(order,find_order_slot(occ)) end,"remove")
+    else publish_order_receipt("remove-invalid","rejected") end
+end)
+safe_register_script_message("yomi-order-remove-block",function(raw)
+    local wanted,invalid=parse_occurrence_csv(raw,true)
+    if invalid then publish_order_receipt("remove-block-invalid","rejected");return end
+    local _,set=selected_in_order(wanted)
+    if #order-#wanted<1 then publish_order_receipt("remove-block-would-empty-order","rejected");return end
+    mutate_order(function()
+        local remaining={};for _,occ in ipairs(order) do if not set[occ] then table.insert(remaining,occ) end end;order=remaining
+    end,"remove-block")
+end)
+safe_register_script_message("yomi-order-undo",function()
+    local prev=table.remove(order_undo)
+    if prev then
+        table.insert(order_redo,clone_order(order));order=prev;save_order("undo")
+    else publish_order_receipt("undo-empty","no-op") end
+end)
+safe_register_script_message("yomi-order-redo",function()
+    local next_order=table.remove(order_redo)
+    if next_order then
+        table.insert(order_undo,clone_order(order));order=next_order;save_order("redo")
+    else publish_order_receipt("redo-empty","no-op") end
+end)
+safe_register_script_message("yomi-order-restore",function()
+    mutate_order(function() order=clone_order(original_order) end,"restore")
+end)
+safe_register_script_message("yomi-order-apply-sequence",function(raw)
+    local proposed={};local seen={}
+    for token in tostring(raw or ""):gmatch("[^,]+") do
+        local occ=math.floor(tonumber(token) or 0)
+        if occ>0 and not seen[occ] then seen[occ]=true;table.insert(proposed,occ) else publish_order_receipt("apply-sequence-invalid","rejected");return end
+    end
+    if #proposed~=#order then publish_order_receipt("apply-sequence-count-mismatch","rejected");return end
+    for _,occ in ipairs(order) do if not seen[occ] then publish_order_receipt("apply-sequence-set-mismatch","rejected");return end end
+    mutate_order(function() order=clone_order(proposed) end,"apply-sequence")
+end)
+safe_register_script_message("yomi-order-reshuffle-unprepared",function()
+    local here=find_order_slot((playing_index>0 and playing_index) or current_index)
+    if here<1 or here>=#order then publish_order_receipt("reshuffle-tail-empty","no-op");return end
+    mutate_order(function()
+        math.randomseed(os.time()+order_revision+order_command_serial)
+        for n=#order,here+2,-1 do local j=math.random(here+1,n);order[n],order[j]=order[j],order[n] end
+    end,"reshuffle-tail")
+end)
+safe_register_script_message("yomi-hide-comment",function() end)
+safe_register_script_message("yomi-rehearse",function() end)
+safe_register_script_message("yomi-freeze-toggle",function() end)
 
-    mp.set_property_number("volume-gain",read_gain(current_index))
-    record_history(current_index)
-    write_state(current_index)
+safe_register_event("file-loaded",function()
+    local loaded=current_index
+    local requested_before_load=requested_index
+    cancel_load_watchdog()
+    if loaded and loaded>0 then load_watchdog_failures[loaded]=nil end
+    requested_index=0
+    -- Any successfully loaded media proves the resolver/cache path is healthy again.
+    stream_consecutive_failures=0
+    if not startup_first_sound then write_startup_flight("file_loaded",current_index,"mpv loaded the requested media; waiting for audible playback.",false,false) end
+    local pending=peek_pending_transport_target()
+    if pending then
+        if pending==current_index or pending==requested_before_load then
+            acknowledge_pending_transport(pending)
+        elseif transport_pending_attempts<transport_max_attempts then
+            log("TRANSPORT supersede loaded track "..current_index.." -> "..pending)
+            transport_serial=transport_serial+1
+            local serial=transport_serial
+            if transport_timer then transport_timer:kill() end
+            transport_timer=safe_timeout(0.03,function() commit_pending_transport(serial) end)
+            return
+        else
+            log("TRANSPORT target "..pending.." did not acknowledge after bounded retries; failing forward")
+            cancel_pending_transport()
+            local fallback=next_occurrence(current_index,1)
+            if fallback and fallback~=current_index then desired_index=fallback;work_generation=work_generation+1;play_index(fallback);return end
+        end
+    end
+    if playback_subset_active and not playback_subset_position[current_index] then
+        local guard_slot=tonumber(playback_subset_position[math.floor(tonumber(transport_pending_target) or 0)]) or playback_subset_cursor
+        if guard_slot<1 or guard_slot>#playback_subset then guard_slot=1 end
+        local guard_target=playback_subset[guard_slot]
+        if guard_target and guard_target~=current_index then
+            log("PLAYBACK SUBSET GUARD rejected outside-lane track "..tostring(current_index).." -> "..tostring(guard_target))
+            desired_index=guard_target;requested_index=0;work_generation=work_generation+1
+            play_index(guard_target)
+            return
+        end
+    end
 
-    local info = load_json(meta_path(current_index)) or {}
-    local title = info.title or ("Track " .. current_index)
-    set_engine_status("playing","Playing: " .. title,current_index)
+    -- file-loaded means the decoder accepted the source; it does NOT mean the listener has heard it.
+    -- Keep the incoming identity authoritative, but hold phase/clock/history at STARTING until
+    -- playback-restart proves mpv has actually resumed presentation.
+    playing_index=current_index
+    loaded_waiting_for_restart=current_index
+    sync_playback_subset_cursor(current_index)
+    if slot_bookmark_pending then
+        if slot_bookmark_occurrence==current_index and slot_bookmark_seconds>0.5 then
+            mp.commandv("seek",tostring(slot_bookmark_seconds),"absolute+exact")
+            log("SLOT BOOKMARK restore "..active_slot_name.." item "..current_index.." @ "..string.format("%.2f",slot_bookmark_seconds).."s")
+        end
+        slot_bookmark_pending=false
+    end
+    hydrate_supporting_objects(current_index)
+    local gain=tonumber((read_all(gain_path(current_index)) or "0"):match("[%+%-]?[%d%.]+")) or 0
+    mp.set_property_number("volume-gain",gain)
+    local m=meta_for(current_index)
+    local paused=mp.get_property_native("pause") == true
+    set_engine_status(paused and "paused" or "starting",(paused and "Paused, ready: " or "Loaded; starting: ")..m.title,current_index)
+    write_current(current_index);write_queue_runtime();write_runtime_lease()
+    schedule_ahead(current_index)
+    log("LOADED track "..current_index.." awaiting playback-restart")
+    if not startup_first_sound and paused then
+        startup_first_sound=true
+        write_startup_flight("media_ready_paused",current_index,"Requested media is loaded and intentionally paused.",true,false)
+        log("FIRST SOUND CONTRACT ready-paused track "..current_index.." @ "..tostring(startup_elapsed_ms()).."ms")
+    end
+end)
 
-    log("PLAYING track " .. current_index)
-    schedule_for_current(current_index)
-    if want_probe then enqueue("probe",current_index,9000) end
-    if want_comment then enqueue("comment",current_index,9010) end
-    pump()
+safe_register_event("playback-restart",function()
+    if shutting_down or mp.get_property_native("pause") == true then return end
+    local pending=math.floor(tonumber(loaded_waiting_for_restart) or 0)
+    local i=pending>0 and pending or ((playing_index>0 and playing_index) or current_index)
+    if pending>0 then
+        -- Only the most recently loaded occurrence may commit the visible PLAYING contract.
+        if i~=current_index and i~=desired_index then
+            log("PLAYBACK RESTART stale track "..tostring(i).." ignored; current="..tostring(current_index).." desired="..tostring(desired_index))
+            loaded_waiting_for_restart=0
+            return
+        end
+        loaded_waiting_for_restart=0
+        playing_index=i
+        sync_playback_subset_cursor(i)
+        local m=meta_for(i)
+        set_engine_status("playing","Playing: "..m.title,i)
+        write_current(i);write_queue_runtime();write_runtime_lease()
+        append_all(history_file,(utils.format_json({unix=os.time(),index=i,title=m.title,channel=m.channel}) or "{}").."\n")
+        schedule_ahead(i)
+        log("PLAYING track "..i.." confirmed by playback-restart")
+    end
+    if not startup_first_sound then
+        startup_first_sound=true
+        write_startup_flight("first_sound",i,"Playback reached mpv playback-restart.",true,false)
+        log("FIRST SOUND track "..tostring(i).." @ "..tostring(startup_elapsed_ms()).."ms")
+    end
 end)
 
 mp.observe_property("pause","bool",function(_,paused)
-    if playing_index > 0 then
-        local info = load_json(meta_path(playing_index)) or {}
-        local title = info.title or ("Track " .. playing_index)
-        if paused then
-            set_engine_status("paused","Paused: " .. title,playing_index)
+    if playing_index>0 then
+        local m=meta_for(playing_index)
+        if loaded_waiting_for_restart==playing_index then
+            set_engine_status(paused and "paused" or "starting",(paused and "Paused, ready: " or "Loaded; starting: ")..m.title,playing_index)
         else
-            set_engine_status("playing","Playing: " .. title,playing_index)
+            set_engine_status(paused and "paused" or "playing",(paused and "Paused: " or "Playing: ")..m.title,playing_index)
         end
     end
 end)
 
-mp.register_event("end-file",function(e)
-    if player_stream_video and e.reason == "error" and not player_rescue_active and exists(audio_path(current_index)) then
-        player_rescue_active = true
-        log("PLAYER VIDEO ERROR - RESCUE TO LOCAL AUDIO track " .. current_index)
-        set_engine_status("playing","Video stream failed; continuing with cached audio.",current_index)
-        mp.commandv("loadfile",audio_path(current_index),"replace")
-        return
-    end
-    if player_rescue_active and (e.reason == "eof" or e.reason == "error") then player_rescue_active = false end
-    if e.reason == "eof" or e.reason == "error" then
-        local ended = current_index
-        playing_index = 0
-        requested_index = 0
 
-        set_engine_status("advancing","Track ended; finding the next playable track...",ended)
-        log("END track " .. ended .. " reason " .. tostring(e.reason))
-        advance(1)
+local function defer_eof_play(target,label)
+    target=math.floor(tonumber(target) or 0)
+    if target<1 or target>#urls then return end
+    desired_index=target
+    work_generation=work_generation+1
+    local generation=work_generation
+    safe_timeout(0.01,function()
+        if shutting_down or generation~=work_generation or desired_index~=target then return end
+        log("EOF HANDOFF "..tostring(label or "next").." -> track "..target)
+        play_index(target)
+    end)
+end
+
+safe_register_event("end-file",function(e)
+    cancel_load_watchdog()
+    if shutting_down then return end
+    local reason=tostring(e and e.reason or "")
+    if reason=="eof" then
+        local ended=playing_index>0 and playing_index or current_index
+        loaded_waiting_for_restart=0
+        playing_index=0;requested_index=0
+        local pending=peek_pending_transport_target()
+        if pending then
+            set_engine_status("advancing","Track ended during transport; moving to requested track...",pending)
+            defer_eof_play(pending,"requested")
+        elseif repeat_mode=="one" then
+            set_engine_status("advancing","Track ended; repeating current track...",ended)
+            log("END track "..ended.." eof -> repeat one")
+            defer_eof_play(ended,"repeat-one")
+        else
+            set_engine_status("advancing","Track ended; advancing...",ended)
+            log("END track "..ended.." eof -> next")
+            local n=next_occurrence(ended,1)
+            if n then defer_eof_play(n,"next")
+            else set_engine_status("complete","End of queue.",ended);write_current(ended);write_queue_runtime() end
+        end
+    elseif reason=="error" then
+        local ended=playing_index>0 and playing_index or current_index
+        local failed_from_cache=playing_from_cache
+        loaded_waiting_for_restart=0
+        playing_index=0;requested_index=0
+        if not failed_from_cache then
+            -- A direct fast-start stream can occasionally expire or reject a request.
+            -- Keep the user's requested track authoritative and fall back to the durable
+            -- cache path instead of silently skipping to another song.
+            set_engine_status("preparing","Fast stream interrupted; finishing local cache for track "..ended.."...",ended)
+            if audio_ready(ended) then defer_eof_play(ended,"error-cache-retry") else enqueue("audio",ended,0);pump() end
+            return
+        end
+        os.remove(audio_path(ended))
+        local pending=peek_pending_transport_target()
+        if pending then
+            set_engine_status("advancing","Playback error during transport; moving to requested track...",pending)
+            log("END track "..ended.." error -> requested "..pending)
+            defer_eof_play(pending,"error-requested")
+        else
+            set_engine_status("advancing","Playback error; advancing...",ended)
+            log("END track "..ended.." error -> next")
+            local n=next_occurrence(ended,1)
+            if n then defer_eof_play(n,"error-next") else set_engine_status("complete","End of queue.",ended);write_current(ended);write_queue_runtime() end
+        end
     end
 end)
 
-mp.register_event("shutdown",function()
+safe_register_event("shutdown",function()
+    shutting_down=true
+    cancel_load_watchdog()
+    if cancel_pending_transport then cancel_pending_transport() end
+    if not startup_first_sound then write_startup_flight("shutdown_before_first_sound",(playing_index>0 and playing_index) or current_index,"Playback engine stopped before first sound confirmation.",false,false,startup_last_stage) end
+    write_active_slot_bookmark()
     write_all(resume_file,tostring(current_index))
+    os.remove(runtime_lease_file)
     set_engine_status("stopped","YOMI stopped.",current_index)
 end)
 
-set_engine_status("starting","Preparing playlist...",current_index)
+function apply_startup_volume()
+    local ui=load_json(controller_ui_file) or {}
+    local volume=tonumber(ui.volume)
+    if volume==nil then volume=100 end
+    volume=math.max(0,math.min(130,volume))
+    local muted=ui.muted==true
+    local ok_max=pcall(mp.set_property_number,"volume-max",130)
+    local ok_volume=pcall(mp.set_property_number,"volume",volume)
+    local ok_mute=pcall(mp.set_property_native,"mute",muted)
+    log("STARTUP VOLUME preplay="..tostring(volume).." muted="..tostring(muted).." applied="..tostring(ok_max and ok_volume and ok_mute))
+end
 
-mp.add_timeout(0.15,function()
-    start_play(current_index)
+ensure_projection_files()
+persist_repeat()
+apply_startup_volume()
+write_runtime_lease()
+write_startup_flight("runtime_ready",current_index,"Runtime lease armed; scheduling first play request.",false,false)
+safe_periodic_timer(5,write_runtime_lease)
+safe_periodic_timer(1,function()
+    if shutting_down or startup_first_sound or startup_deadline_reported then return end
+    if startup_elapsed_ms() >= startup_deadline_seconds*1000 then
+        startup_deadline_reported=true
+        local waiting=startup_last_stage
+        write_startup_flight("deadline_exceeded",(playing_index>0 and playing_index) or current_index,"First sound has not been confirmed within the startup deadline.",false,true,waiting)
+        log("FIRST SOUND DEADLINE exceeded @ "..tostring(startup_elapsed_ms()).."ms waiting="..tostring(waiting))
+    end
 end)
+safe_periodic_timer(5,write_active_slot_bookmark)
+safe_periodic_timer(20,function()
+    local anchor=(desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    if anchor and anchor>0 then prune_audio_cache(anchor) end
+end)
+safe_periodic_timer(2,function()
+    local i=(playing_index>0 and playing_index) or current_index
+    if i>0 then write_current(i);write_queue_runtime() end
+end)
+if slot_restore_paused then mp.set_property_native("pause",true) end
+log("SLOT ACTIVE "..(active_slot_name~="" and active_slot_name or "Main").." ["..active_slot_id.."]"..(prewarm_start and " prewarm-paused" or (slot_restore_paused and " paused" or (explicit_play_start and " explicit-play" or ""))))
+set_engine_status("starting","Preparing focused playback...",current_index)
+safe_timeout(0.10,function() play_index(current_index) end)

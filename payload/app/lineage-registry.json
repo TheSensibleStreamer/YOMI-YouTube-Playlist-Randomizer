@@ -1,0 +1,161 @@
+{
+  "schema": 2,
+  "product": "YOMI",
+  "version": "4.2.0.9",
+  "consolidation": "DEV13.59",
+  "law": "No gaps: every known development step is runtime-carried, explicitly superseded with behavioral preservation, or retained as named historical evidence.",
+  "ranges": [
+    {
+      "range": "DEV1-DEV13.28",
+      "domain": "foundation",
+      "status": "cumulative-authoritative"
+    },
+    {
+      "range": "DEV13.29-DEV13.37.2",
+      "domain": "product-shell",
+      "status": "authoritative-shell"
+    },
+    {
+      "range": "DEV13.37.3-DEV13.37.30",
+      "domain": "expedition",
+      "status": "cumulative-source-recovered"
+    },
+    {
+      "range": "DEV13.38-DEV13.52",
+      "domain": "core-return",
+      "status": "cumulative-authoritative"
+    },
+    {
+      "range": "DEV13.53-DEV13.58",
+      "domain": "grand-consolidation",
+      "status": "sealed-release-qualified-consolidation-base"
+    },
+    {
+      "range": "DEV13.59",
+      "domain": "product-development",
+      "status": "release-qualified-head"
+    }
+  ],
+  "known_expedition_systems": [
+    {
+      "id": "DEV13.37.18",
+      "name": "Complex Systems Laboratory"
+    },
+    {
+      "id": "DEV13.37.19",
+      "name": "Operations Research Empire"
+    },
+    {
+      "id": "DEV13.37.20",
+      "name": "Economic Civilization"
+    },
+    {
+      "id": "DEV13.37.21",
+      "name": "Spatial World Cartography"
+    },
+    {
+      "id": "DEV13.37.23",
+      "name": "Adversarial Security Fortress"
+    },
+    {
+      "id": "DEV13.37.24",
+      "name": "Data Foundry"
+    },
+    {
+      "id": "DEV13.37.25",
+      "name": "Software Genome Observatory"
+    },
+    {
+      "id": "DEV13.37.26",
+      "name": "Living Document & Intelligence Factory"
+    },
+    {
+      "id": "DEV13.37.27",
+      "name": "Grand Unified Expedition Command"
+    },
+    {
+      "id": "DEV13.37.30",
+      "name": "Unknown Unknowns / Civilization Closure"
+    }
+  ],
+  "research_layers": [
+    "Deep Systems",
+    "EXPΩ",
+    "METAΩ",
+    "SYNTHΩ",
+    "VOIDΩ"
+  ],
+  "resource_law": {
+    "closed_expedition_downloaders": 0,
+    "closed_expedition_decoders": 0,
+    "closed_expedition_pollers": 0,
+    "playback_authority": false,
+    "closed_expedition_source_modules_loaded_by_process": "assembly-resident-code-only",
+    "closed_expedition_background_execution": 0,
+    "closed_expedition_workers": 0
+  },
+  "civilization_source_artifact": {
+    "file": "YOMI-v4.2.0.8-dev13.37.30-unknown-unknowns-civilization-closure.zip",
+    "sha256": "e9657abe96bace1bfdf7844b4aa96f5d9edfec588253b33a3401f176ba533da8",
+    "module_source_files": 47,
+    "integration": "compiled-into-canonical-wpf-shell"
+  },
+  "workspace_navigation": {
+    "schema": 1,
+    "entry": "DeepSystems.OpenExpeditionWorkspace",
+    "persistent_path": "%LOCALAPPDATA%/YOMI/expedition/workspace-shell.json",
+    "top_level_routes": 28,
+    "authority": "navigation-only",
+    "exact_mission_resume_authority": "EXPΩ"
+  },
+  "installer_chassis": {
+    "name": "YOMI-v4.2.0.8-r6.zip",
+    "sha256": "a94fcb7208c9fa0cc6e0753c131527003d0db9087361d4a48a07bb3d6071b2b9",
+    "role": "public 4.2.0.7 -> cumulative DEV13.28 -> DEV13.40-52 isolated gate -> final promotion"
+  },
+  "dev13_57": {
+    "role": "no-gaps all-in-one reconciliation",
+    "runtime_authority": "latest correct descendant implementation",
+    "history_rule": "superseded revisions remain named in NO-GAPS-CONSOLIDATION-LEDGER.json",
+    "operational_scripts_installed": 8,
+    "recovered_civilization_modules": 47,
+    "compile_support_modules": 49,
+    "expedition_documents": 102,
+    "expedition_documents_note": "101 inherited through DEV13.56 + DEV13.57 construction ledger = 102 installed Expedition evidence files"
+  },
+  "dev13_58": {
+    "role": "release qualification and capability-retention gate",
+    "capability_contract": 36,
+    "required_files": 43,
+    "required_patch_receipts": 16,
+    "runtime_integrity": "SHA-256 manifest generated after final Windows compile and checked before + after Program Files promotion",
+    "promotion_law": "no promotion unless capability contract, patch receipt, integrity manifest, PowerShell parse, module census, no-gap ledger, and WPF self-test all pass"
+  },
+  "dev13_59": {
+    "role": "Library Memory & Listening Ledger",
+    "authority": "observational source-level listening history only; playback engine authority unchanged",
+    "library_schema": 2,
+    "identity": "stable source key with YouTube/url fallback",
+    "visit_dedup": "session_id + occurrence_id",
+    "observations": [
+      "plays",
+      "observed completions",
+      "short listens",
+      "observed listening seconds",
+      "first played",
+      "last played",
+      "last completed"
+    ],
+    "checkpoint_seconds": 15,
+    "queue_scopes": [
+      "Unheard",
+      "Frequent"
+    ],
+    "capability_contract": 37,
+    "required_patch_receipts": 17,
+    "playback_authority": false,
+    "background_media_workers_added": 0,
+    "reference_model_assertions": 377759,
+    "reference_model_status": "PASS"
+  }
+}

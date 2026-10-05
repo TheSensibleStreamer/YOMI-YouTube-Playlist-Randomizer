@@ -1,0 +1,685 @@
+{
+  "schema": 2,
+  "product": "YOMI",
+  "version": "4.2.0.9",
+  "consolidation": "DEV13.59",
+  "status": "NO_UNEXPLAINED_GAPS",
+  "acceptance_rule": "Every known development step is accounted for as runtime-carried, explicitly superseded with preserved behavior, or retained historical evidence. A missing standalone capsule is not silently invented.",
+  "installer_chassis": {
+    "artifact": "YOMI-v4.2.0.8-r6.zip",
+    "sha256": "a94fcb7208c9fa0cc6e0753c131527003d0db9087361d4a48a07bb3d6071b2b9",
+    "role": "transactional all-in-one installer through DEV13.52"
+  },
+  "runtime_chain": [
+    {
+      "range": "public 4.2.0.7",
+      "status": "verified-download-base",
+      "authority": "commit 9b7104e2743b9fc02697ce5bbb2d4f6787a257cc"
+    },
+    {
+      "range": "DEV through DEV13.28",
+      "status": "cumulative-runtime-authority",
+      "authority": "dev/apply-dev13.28.ps1"
+    },
+    {
+      "range": "DEV13.29-DEV13.39",
+      "status": "descendant-runtime-carried",
+      "authority": "DEV13.40 WPF payload explicitly identifies inherited transactional queue / Intent Fabric / route-continuity shell; DEV13.29 Performance reflow is reapplied by DEV13.57"
+    },
+    {
+      "range": "DEV13.40-DEV13.52",
+      "status": "explicit-runtime-patch-chain",
+      "authority": "r6 dev patchers + DEV13.52 final operational payload"
+    },
+    {
+      "range": "DEV13.37.3-DEV13.37.30",
+      "status": "cumulative-source-recovered",
+      "authority": "47 recovered civilization modules + retained Expedition documents"
+    },
+    {
+      "range": "DEV13.53-DEV13.56",
+      "status": "latest-descendant-integrated",
+      "authority": "DEV13.56 source payload and documentation, with DEV13.57 installer reconciliation"
+    },
+    {
+      "range": "DEV13.57",
+      "status": "sealed-consolidation-base",
+      "authority": "DEV13.57 no-gaps all-in-one package"
+    },
+    {
+      "range": "DEV13.58",
+      "status": "sealed-release-qualified-base",
+      "authority": "capability contract + patch execution receipt + post-compile runtime integrity manifest"
+    },
+    {
+      "range": "DEV13.59",
+      "status": "active-product-development-head",
+      "authority": "persistent Library Memory & Listening Ledger guarded by DEV13.59 release qualification"
+    }
+  ],
+  "foundation_census": [
+    {
+      "id": "DEV",
+      "capsule": "YOMI-v4.2.0.8-dev-implementation-slice.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV2",
+      "capsule": "YOMI-v4.2.0.8-dev2-next-trove.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV3",
+      "capsule": "YOMI-v4.2.0.8-dev3-predictive-trove.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV4",
+      "capsule": "YOMI-v4.2.0.8-dev4-reflex-trove.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV5",
+      "capsule": null,
+      "status": "covered-by-cumulative-successor; no standalone capsule asserted"
+    },
+    {
+      "id": "DEV6",
+      "capsule": "YOMI-v4.2.0.8-dev6-durability-trove.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV7",
+      "capsule": null,
+      "status": "covered-by-cumulative-successor; no standalone capsule asserted"
+    },
+    {
+      "id": "DEV8",
+      "capsule": "YOMI-v4.2.0.8-dev8-mutable-order-trove.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV9",
+      "capsule": null,
+      "status": "covered-by-cumulative-successor; no standalone capsule asserted"
+    },
+    {
+      "id": "DEV10",
+      "capsule": null,
+      "status": "covered-by-cumulative-successor; no standalone capsule asserted"
+    },
+    {
+      "id": "DEV11",
+      "capsule": null,
+      "status": "covered-by-cumulative-successor; no standalone capsule asserted"
+    },
+    {
+      "id": "DEV12",
+      "capsule": "YOMI-v4.2.0.8-dev12-oracle-engine.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13",
+      "capsule": "YOMI-v4.2.0.8-dev13-aegis-fabric.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.1",
+      "capsule": "YOMI-v4.2.0.8-dev13.1-aegis-validation-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.2",
+      "capsule": "YOMI-v4.2.0.8-dev13.2-literal-anchor-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.3",
+      "capsule": "YOMI-v4.2.0.8-dev13.3-rebase-anchor-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.4",
+      "capsule": "YOMI-v4.2.0.8-dev13.4-chain-consistency-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.5",
+      "capsule": "YOMI-v4.2.0.8-dev13.5-manifest-order-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.6",
+      "capsule": "YOMI-v4.2.0.8-dev13.6-stale-anchor-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.7",
+      "capsule": "YOMI-v4.2.0.8-dev13.7-shutdown-durability-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.8",
+      "capsule": "YOMI-v4.2.0.8-dev13.8-ambiguity-and-lineage-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.9",
+      "capsule": "YOMI-v4.2.0.8-dev13.9-resource-projection-hotfix.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.10",
+      "capsule": "YOMI-v4.2.0.8-dev13.10-full-validation-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.11",
+      "capsule": "YOMI-v4.2.0.8-dev13.11-ps51-object-construction-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.12",
+      "capsule": "YOMI-v4.2.0.8-dev13.12-generic-list-enumeration-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.13",
+      "capsule": "YOMI-v4.2.0.8-dev13.13-child-runner-output-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.14",
+      "capsule": "YOMI-v4.2.0.8-dev13.14-argument-forwarding-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.15",
+      "capsule": "YOMI-v4.2.0.8-dev13.15-negative-path-runner-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.16",
+      "capsule": "YOMI-v4.2.0.8-dev13.16-ast-verifier-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.17",
+      "capsule": "YOMI-v4.2.0.8-dev13.17-verifier-decomplexification-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.18",
+      "capsule": "YOMI-v4.2.0.8-dev13.18-aegis-boolean-expression-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.19",
+      "capsule": "YOMI-v4.2.0.8-dev13.19-controller-boolean-and-verifier-scope-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.20",
+      "capsule": "YOMI-v4.2.0.8-dev13.20-patcher-tail-orchestration-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.21",
+      "capsule": "YOMI-v4.2.0.8-dev13.21-lua-local-budget-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.22",
+      "capsule": "YOMI-v4.2.0.8-dev13.22-lua-function-budget-and-proof-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.23",
+      "capsule": "YOMI-v4.2.0.8-dev13.23-lua-string-integrity-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.24",
+      "capsule": "YOMI-v4.2.0.8-dev13.24-lua-multireturn-coercion-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.25",
+      "capsule": "YOMI-v4.2.0.8-dev13.25-lua-lexical-binding-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.26",
+      "capsule": "YOMI-v4.2.0.8-dev13.26-lua-temporal-bootstrap-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.27",
+      "capsule": "YOMI-v4.2.0.8-dev13.27-lua-script-entry-bootstrap-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    },
+    {
+      "id": "DEV13.28",
+      "capsule": "YOMI-v4.2.0.8-dev13.28-pre-log-lexical-safety-sweep.zip",
+      "status": "covered-by-DEV13.28"
+    }
+  ],
+  "product_shell_census": [
+    {
+      "id": "DEV13.29",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.29-ui-foundation.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.30",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.30-player-shell.zip",
+        "YOMI-v4.2.0.8-dev13.30-player-shell-r2.zip",
+        "YOMI-v4.2.0.8-dev13.30-player-shell-r3.zip",
+        "YOMI-v4.2.0.8-dev13.30-player-shell-r4.zip",
+        "YOMI-v4.2.0.8-dev13.30-player-shell-r5.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.31",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.31-product-shell.zip",
+        "YOMI-v4.2.0.8-dev13.31-product-shell-final.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.32",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.32-command-fabric.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.33",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.33-operator-intelligence.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.34",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.34-visual-identity.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.35",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.35-media-stage.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.36",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.36-playback-console.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.37",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.37-transactional-queue.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.37.1",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.37.1-operator-deck.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    },
+    {
+      "id": "DEV13.37.2",
+      "capsules": [
+        "YOMI-v4.2.0.8-dev13.37.2-intent-fabric.zip"
+      ],
+      "status": "carried-by-DEV13.40-and-later-WPF-descendant"
+    }
+  ],
+  "civilization_census": [
+    {
+      "id": "DEV13.37.3",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.3-deep-systems.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.4",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.4-temporal-observatory.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.5",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.5-causal-graph.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.6",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.6-research-workbench.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.7",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.7-coding-renaissance.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.8",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.8-cognitive-productivity.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.9",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.9-hadal-systems.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.10",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.10-universal-world-kernel.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.11",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.11-civilization-layer.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.12",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.12-epistemic-logic-foundry.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.13",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.13-axiomatic-verification-reactor.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.14",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.14-counterfactual-strategy-superstructure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.15",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.15-scientific-discovery-hyperstructure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.16",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.16-dyson-systems-engineering-megastructure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.17",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.17-cybernetic-digital-twin-metastructure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.18",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.18-complex-systems-laboratory.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.19",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.19-operations-research-empire.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.20",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.20-economic-civilization.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.21",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.21-spatial-world-cartography.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.22",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.22-distributed-systems-planetarium.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.23",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.23-adversarial-security-fortress.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.24",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.24-data-foundry.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.25",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.25-software-genome-observatory.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.26",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.26-living-document-intelligence-factory.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.27",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.27-grand-unified-expedition-command.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.28",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.28-knowledge-constellation-metastructure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.29",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.29-civilizational-synthesis-reactor.zip",
+      "status": "source-recovered-in-DEV13.56"
+    },
+    {
+      "id": "DEV13.37.30",
+      "capsule": "YOMI-v4.2.0.8-dev13.37.30-unknown-unknowns-civilization-closure.zip",
+      "status": "source-recovered-in-DEV13.56"
+    }
+  ],
+  "core_return_census": [
+    {
+      "id": "DEV13.38",
+      "capsule": "YOMI-v4.2.0.8-dev13.38-media-route-continuity-console.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.39",
+      "capsule": "YOMI-v4.2.0.8-dev13.39-queue-observatory.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.40",
+      "capsule": "YOMI-v4.2.0.8-dev13.40-visualizer-signal-shaper.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.41",
+      "capsule": "YOMI-v4.2.0.8-dev13.41-obs-composition-engine.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.42",
+      "capsule": "YOMI-v4.2.0.8-dev13.42-playback-handoff-engine.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.43",
+      "capsule": "YOMI-v4.2.0.8-dev13.43-predictive-continuity-governor.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.44",
+      "capsule": "YOMI-v4.2.0.8-dev13.44-media-admission-budget-governor.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.45",
+      "capsule": "YOMI-v4.2.0.8-dev13.45-media-fault-containment.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.46",
+      "capsule": "YOMI-v4.2.0.8-dev13.46-cache-coherence-artifact-integrity.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.47",
+      "capsule": "YOMI-v4.2.0.8-dev13.47-performance-attribution-stream-telemetry.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.48",
+      "capsule": "YOMI-v4.2.0.8-dev13.48-runtime-slo-regression-sentinel.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.49",
+      "capsule": "YOMI-v4.2.0.8-dev13.49-transactional-configuration-change-impact.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.50",
+      "capsule": "YOMI-v4.2.0.8-dev13.50-runtime-state-coherence-protocol.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.51",
+      "capsule": "YOMI-v4.2.0.8-dev13.51-crash-recovery-replay-engine.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    },
+    {
+      "id": "DEV13.52",
+      "capsule": "YOMI-v4.2.0.8-dev13.52-atomic-update-last-known-good.zip",
+      "status": "explicitly-retained-or-applied-by-r6"
+    }
+  ],
+  "consolidation_census": [
+    {
+      "id": "DEV13.53",
+      "capsule": "YOMI-v4.2.0.8-dev13.53-grand-consolidation-pass1.zip",
+      "status": "merged-into-DEV13.57"
+    },
+    {
+      "id": "DEV13.54",
+      "capsule": "YOMI-v4.2.0.8-dev13.54-expedition-civilization-recovery.zip",
+      "status": "merged-into-DEV13.57"
+    },
+    {
+      "id": "DEV13.55",
+      "capsule": "YOMI-v4.2.0.8-dev13.55-unified-expedition-workspace.zip",
+      "status": "merged-into-DEV13.57"
+    },
+    {
+      "id": "DEV13.56",
+      "capsule": "YOMI-v4.2.0.8-dev13.56-world-passport-evidence-spine.zip",
+      "status": "merged-into-DEV13.57"
+    },
+    {
+      "id": "DEV13.57",
+      "capsule": "YOMI-v4.2.0.8-dev13.57-no-gaps-all-in-one.zip",
+      "status": "merged-into-DEV13.58"
+    },
+    {
+      "id": "DEV13.58",
+      "capsule": "YOMI-v4.2.0.8-dev13.58-release-qualification.zip",
+      "status": "sealed-release-qualified-base"
+    }
+  ],
+  "revision_granularity": {
+    "DEV13.30": [
+      "base",
+      "r2",
+      "r3",
+      "r4",
+      "r5"
+    ],
+    "DEV13.31": [
+      "base",
+      "final"
+    ]
+  },
+  "deployment_proof": {
+    "operational_scripts": [
+      {
+        "name": "cache-integrity.ps1",
+        "sha256": "66282c71c7b6c8855426682190664a936ff3e90944f54d04df7b8b9e9b601e9d",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "config-transaction.ps1",
+        "sha256": "5bf1c09a43f4397eae52302c49939d3daba0dd2df60f68f31e42bc891e0e14b5",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "performance-attribution.ps1",
+        "sha256": "21b46ed37b8f24bdfc5f473fab76ae3fba26c304d8d6713024f50562aafff593",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "recovery-replay.ps1",
+        "sha256": "df9417af5616464303d92b53eba06cce1cd8928c97c5e908bd1cefe95f9847ca",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "slo-sentinel.ps1",
+        "sha256": "a535c3048f45c985acd4149e8d3ea22f1055c75d6017db8c67f67341cac3363e",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "state-coherence.ps1",
+        "sha256": "a826eba268a4037ddcf24d74277db87bb4fd54e1f9c6d3b57bf050c10b12f3bb",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "update-deployment.ps1",
+        "sha256": "d90c767b2210a14dc727b8906f7459380ed1074496cf843a9e57e6ca86df332f",
+        "authority": "DEV13.52 exact"
+      },
+      {
+        "name": "update.ps1",
+        "sha256": "a66c2463be66c39c93c6ab52d9f20753703e7cb0b35f6a79e346dcd3629291f1",
+        "authority": "DEV13.52 exact"
+      }
+    ],
+    "recovered_civilization_modules": 47,
+    "compile_support_modules": 49,
+    "expedition_documents": 102,
+    "workspace_model_assertions": 701446,
+    "world_passport_model_assertions": 300000,
+    "capability_contracts": 36,
+    "required_runtime_files": 43,
+    "required_patch_receipts": 16,
+    "sealed_runtime_integrity_manifest": "generated-after-final-Windows-compile",
+    "expedition_documents_note": "101 inherited through DEV13.56 + 1 DEV13.57 construction ledger",
+    "dev13_59_library_memory_model_assertions": 377759,
+    "dev13_59_library_memory_model": "PASS"
+  },
+  "known_gaps": [],
+  "notes": [
+    "The ledger distinguishes behavioral supersession from archival identity; it does not invent artifacts that were not found.",
+    "Duplicate library uploads with (1)/(2) suffixes are not treated as distinct development revisions unless their content or revision name differs.",
+    "DEV13.58 converts consolidation confidence into executable release qualification: capability signatures, patch execution receipts, and post-compile SHA-256 runtime integrity are all fail-closed promotion gates.",
+    "DEV13.59 resumes product development on the sealed consolidation base with persistent source-level listening memory, schema-2 library state migration, Unheard/Frequent queue scopes, and a 37th fail-closed capability contract; playback authority remains unchanged."
+  ],
+  "post_consolidation_census": [
+    {
+      "id": "DEV13.59",
+      "capsule": "YOMI-v4.2.0.8-dev13.59-library-memory-listening-ledger.zip",
+      "status": "current-release-qualified-product-head"
+    }
+  ]
+}

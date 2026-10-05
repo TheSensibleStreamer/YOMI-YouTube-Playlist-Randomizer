@@ -1,0 +1,545 @@
+{
+    "schema":  1,
+    "product":  "YOMI",
+    "version":  "4.2.0.9",
+    "seal":  "DEV13.59",
+    "generated_utc":  "2026-08-29T16:39:03.7251930Z",
+    "file_count":  107,
+    "files":  [
+                  {
+                      "path":  "app/aegis-repair.ps1",
+                      "bytes":  9440,
+                      "sha256":  "8db0f7c133246ca73f2f235974a2fc3428b77a5e764f0e6ae70d8a327d9c24dd"
+                  },
+                  {
+                      "path":  "app/ArtworkEdgeDetector.cs",
+                      "bytes":  14162,
+                      "sha256":  "5a2e3c4ad8b93f5a982a38b438c0fee8a6b76bc952d4b8d0e512f9501b1d5cc5"
+                  },
+                  {
+                      "path":  "app/ArtworkEdgeDetector.exe",
+                      "bytes":  9728,
+                      "sha256":  "8d3ff4108ff5e20177b41244302686964a50fb8d7520e2c443d8d9f7170db880"
+                  },
+                  {
+                      "path":  "app/cache-integrity.ps1",
+                      "bytes":  7921,
+                      "sha256":  "33bc134641c0c3f7c1f75f9fa8637916ef330cc7919436d728fab9d88d16c220"
+                  },
+                  {
+                      "path":  "app/common.ps1",
+                      "bytes":  25079,
+                      "sha256":  "b1d53f8585b428e9878f318e00dfa731a7ddbc4370958cb83f9d68ec367b385b"
+                  },
+                  {
+                      "path":  "app/components.ps1",
+                      "bytes":  4467,
+                      "sha256":  "d0793e63ad4a7f73836f229a621a148687d24a8ec7bbb6e3060f1d3db9665a7f"
+                  },
+                  {
+                      "path":  "app/config-history.ps1",
+                      "bytes":  3742,
+                      "sha256":  "cf26db58364829c80d88d3f448b18bf9e09babbf93ee9b94c07db5905692b821"
+                  },
+                  {
+                      "path":  "app/config-transaction.ps1",
+                      "bytes":  19506,
+                      "sha256":  "5bf1c09a43f4397eae52302c49939d3daba0dd2df60f68f31e42bc891e0e14b5"
+                  },
+                  {
+                      "path":  "app/contracts.ps1",
+                      "bytes":  3068,
+                      "sha256":  "5459b7dec69d354a312f3bf5b3b5a532897ff2e8b1c79ff9f9dcd8fde850808c"
+                  },
+                  {
+                      "path":  "app/controller.ps1",
+                      "bytes":  48237,
+                      "sha256":  "a710a935f3aedf306b4695ae1cd1574208297ed85db03ce41138187c8b8f6260"
+                  },
+                  {
+                      "path":  "app/default-config.json",
+                      "bytes":  6475,
+                      "sha256":  "0dce207a1e7ce8b0397646524d8e1ba82d794aa675b3e32043fba02242c4ae72"
+                  },
+                  {
+                      "path":  "app/diagnostics.ps1",
+                      "bytes":  4736,
+                      "sha256":  "c04e9f3a5400b768da34c09dd4292839a3c9c6ec9711eb05c1b38f51217c5c52"
+                  },
+                  {
+                      "path":  "app/doctor.ps1",
+                      "bytes":  31630,
+                      "sha256":  "533a3c97e73118f607674928db567fb6a7649797957ce0fea2627841cfa7d87e"
+                  },
+                  {
+                      "path":  "app/EXPEDITION-MODULE-REGISTRY.json",
+                      "bytes":  10754,
+                      "sha256":  "742fd07b417442ea0a77206275fa3d9a6f6973f1f6845c89948d80ccc50df6ba"
+                  },
+                  {
+                      "path":  "app/incident-replay.ps1",
+                      "bytes":  10623,
+                      "sha256":  "77386b25ee9159db33c55e748e47a2bae10c0f8651c7134716502b91cc1dee78"
+                  },
+                  {
+                      "path":  "app/INSTALLATION-RECEIPT.json",
+                      "bytes":  6318,
+                      "sha256":  "13d333db74dc93a626aa5596e51f1a48a3c030bed6ac50ce3c5f2018e29b902c"
+                  },
+                  {
+                      "path":  "app/lineage-registry.json",
+                      "bytes":  5032,
+                      "sha256":  "d46ccfef2a95af9c49b8bee5e6a96978fc9d6092e8a767ccde351b5f2699b7c2"
+                  },
+                  {
+                      "path":  "app/music.lua",
+                      "bytes":  232008,
+                      "sha256":  "ea1d857dcb4e50d1a9dbda5416eacaaa36f9967c5376103da741bfdef575a424"
+                  },
+                  {
+                      "path":  "app/NO-GAPS-CONSOLIDATION-LEDGER.json",
+                      "bytes":  21912,
+                      "sha256":  "b96656a8f1b6757fd77f90b3d4f1fcf754bdd53d3874b52871b0645a65d61e05"
+                  },
+                  {
+                      "path":  "app/operations-center.ps1",
+                      "bytes":  14714,
+                      "sha256":  "19366924fab825b5b1f1f050d390ef68f493ecd09bf1a38f5afb31d5c45255d5"
+                  },
+                  {
+                      "path":  "app/oracle-lab.ps1",
+                      "bytes":  18772,
+                      "sha256":  "19224f4fb32165655507ec499fad7cf1e30a8433982917b32e4fcf67c8011834"
+                  },
+                  {
+                      "path":  "app/performance-attribution.ps1",
+                      "bytes":  7594,
+                      "sha256":  "21b46ed37b8f24bdfc5f473fab76ae3fba26c304d8d6713024f50562aafff593"
+                  },
+                  {
+                      "path":  "app/playlist-refresh.ps1",
+                      "bytes":  186,
+                      "sha256":  "e87eb477c6ec0a19d8264bb1bf42078948c89447b690795d090ccca9f029a1f8"
+                  },
+                  {
+                      "path":  "app/preflight.ps1",
+                      "bytes":  7653,
+                      "sha256":  "25fc3995058b6192cf87a4048439689fff0c44e13d254e4b78f2f094fc8ec341"
+                  },
+                  {
+                      "path":  "app/PriorityRun.cs",
+                      "bytes":  3010,
+                      "sha256":  "343788fd63ca844ed4e27c38cdde6ae1572cb0e7d3133b98074ad95f94b68438"
+                  },
+                  {
+                      "path":  "app/PriorityRun.exe",
+                      "bytes":  5632,
+                      "sha256":  "659a06ec12e0bcf18a6b82f0efa1cd93efaa2a29af4075875ac937c3e094de72"
+                  },
+                  {
+                      "path":  "app/recovery-point.ps1",
+                      "bytes":  16372,
+                      "sha256":  "6a6e7f39696e32b973b2dd830bf16c165d464f8f62d19078f892b799ce43e55a"
+                  },
+                  {
+                      "path":  "app/recovery-replay.ps1",
+                      "bytes":  13313,
+                      "sha256":  "64c5ce282768e5963798bcd347ccf499c03e6651287b94ade576f7db39fdfa01"
+                  },
+                  {
+                      "path":  "app/release-qualification.ps1",
+                      "bytes":  11593,
+                      "sha256":  "2e25036637035550c41a721989e1388344f5ca58f3b1bdc42b28ee88923fd106"
+                  },
+                  {
+                      "path":  "app/reset-oracle-learning.ps1",
+                      "bytes":  2411,
+                      "sha256":  "8ea2abd5072741664340f4dc47ef524e4d98de027fe9599a42ea5ae9ccdade96"
+                  },
+                  {
+                      "path":  "app/self-test.ps1",
+                      "bytes":  8335,
+                      "sha256":  "e30c7f122fddb945cc491b22c4830337e9b8e17c403d60f6ac32dd788d695580"
+                  },
+                  {
+                      "path":  "app/server.ps1",
+                      "bytes":  21716,
+                      "sha256":  "939bfd5b6e59758ab5f433bac827c21840b3c9e8d37f4f8a5196d265ac32880d"
+                  },
+                  {
+                      "path":  "app/session-explorer.ps1",
+                      "bytes":  16119,
+                      "sha256":  "80cea64ff651af5752cfc6732b35dd8f8fd46c28f7b9587a5627111522ea7d82"
+                  },
+                  {
+                      "path":  "app/settings.ps1",
+                      "bytes":  144912,
+                      "sha256":  "1937a75dfdc052efe64d70412395a5aa10ff947d998c61a044e20b0abdd7be0c"
+                  },
+                  {
+                      "path":  "app/shuffle.ps1",
+                      "bytes":  12160,
+                      "sha256":  "f14bbe58460cf672fc831ffda5532ac9eb1c8f007e54512310e584e00d03279b"
+                  },
+                  {
+                      "path":  "app/slo-sentinel.ps1",
+                      "bytes":  4411,
+                      "sha256":  "a535c3048f45c985acd4149e8d3ea22f1055c75d6017db8c67f67341cac3363e"
+                  },
+                  {
+                      "path":  "app/state-coherence.ps1",
+                      "bytes":  3998,
+                      "sha256":  "cd9d9d7d169f5d24c0c3ee9ad93a926c1904d56b939c407d38c971ce9f9bcd4d"
+                  },
+                  {
+                      "path":  "app/supervisor.ps1",
+                      "bytes":  23033,
+                      "sha256":  "14702fd3898adf37b97431b33b6b33c603cbf0167fee318335c582b8cff8d524"
+                  },
+                  {
+                      "path":  "app/support-bundle.ps1",
+                      "bytes":  9302,
+                      "sha256":  "f7ddd28d09ca76ebacaf18d40f52f01b871373672fb1aba9432c837dd87969f7"
+                  },
+                  {
+                      "path":  "app/uninstall.ps1",
+                      "bytes":  5112,
+                      "sha256":  "bdbda0f33e3c97654eefb9659f9bbead76691a488b01f85480e97aaad2361d14"
+                  },
+                  {
+                      "path":  "app/update.ps1",
+                      "bytes":  8899,
+                      "sha256":  "ccfec3cb261bcc91a902322dfc9b5309de7a61a468e4e02c1066c70d57037bd3"
+                  },
+                  {
+                      "path":  "app/update-deployment.ps1",
+                      "bytes":  14173,
+                      "sha256":  "eadf3d9eca053dc3ed40d2fe3ee244654a6eeeb859a94b42184cdc2adaecf814"
+                  },
+                  {
+                      "path":  "app/windows-uninstall.ps1",
+                      "bytes":  3523,
+                      "sha256":  "c2dbaa61963be4c09dd632c19b29b420de7d7bb5762d7e1004d1ec0951976126"
+                  },
+                  {
+                      "path":  "app/YomiAbyssalKnowledgeEngine.cs",
+                      "bytes":  78971,
+                      "sha256":  "97f027c729ccd47736b332c317a57bd95f4e9d431ae89b5bda497d2d3f805d1c"
+                  },
+                  {
+                      "path":  "app/YomiAdversarialSecurityFortress.cs",
+                      "bytes":  105093,
+                      "sha256":  "847044863b6b87e9284beed77fb3d3de1c0997e864d275d7c5a8bb9ae43825fa"
+                  },
+                  {
+                      "path":  "app/YomiAdversarialSecurityKernel.cs",
+                      "bytes":  90765,
+                      "sha256":  "71d9c853e3446a69b13aa9147f0bd28236c982ad8d4fd7e20c3babf6f62b8426"
+                  },
+                  {
+                      "path":  "app/YomiAlgorithmicConservatory.cs",
+                      "bytes":  69326,
+                      "sha256":  "0dc3b8f5fec819929f89f0b5b317b06ae5a361092e7dfd93064266340424f64d"
+                  },
+                  {
+                      "path":  "app/YomiAxiomaticVerificationReactor.cs",
+                      "bytes":  110594,
+                      "sha256":  "0123888e3a4b956341122dae1d69c9b19421f03e35ca8f0a1f21aa687af7bf64"
+                  },
+                  {
+                      "path":  "app/YOMI-CAPABILITY-CONTRACT.json",
+                      "bytes":  14909,
+                      "sha256":  "edeef89365b019d6ff991f69c5e66d1471b22b5f6558d1a8c8f43cb64cf697bc"
+                  },
+                  {
+                      "path":  "app/YomiCausalGraphLab.cs",
+                      "bytes":  74161,
+                      "sha256":  "1f75277799536030a770607b3c93703e6878f7904287bf5ea4d04575f82d31f4"
+                  },
+                  {
+                      "path":  "app/YomiCivilizationalSynthesisKernel.cs",
+                      "bytes":  18219,
+                      "sha256":  "11e99594f78208559a96eebdc74601414b84d9b2dbaac45a64eff1fc461477dd"
+                  },
+                  {
+                      "path":  "app/YomiCivilizationalSynthesisReactor.cs",
+                      "bytes":  42514,
+                      "sha256":  "cd79a13054dacc3a3256d4d80185b1e8f8da94355a3afa3a9a0f8ad3ec01d570"
+                  },
+                  {
+                      "path":  "app/YomiCivilizationLayer.cs",
+                      "bytes":  145859,
+                      "sha256":  "d99ecd8915bac75af78df09dbad973fae2aa794ffd143a4beb45ed47e2b86357"
+                  },
+                  {
+                      "path":  "app/YomiComplexSystemsKernel.cs",
+                      "bytes":  91576,
+                      "sha256":  "4f3c84adb6836c60b11b1b1b7142bf99d74316266101593eb0f119b3d4d32c5e"
+                  },
+                  {
+                      "path":  "app/YomiComplexSystemsLaboratory.cs",
+                      "bytes":  91125,
+                      "sha256":  "a4d641fc01b6f949cc7d71e1d10adb1d8ec4ccfb11a11ea85f5723062a8d75e4"
+                  },
+                  {
+                      "path":  "app/YomiControllerWpf.cs",
+                      "bytes":  397455,
+                      "sha256":  "9aadd891f34af85c667d22c6037c0c857d623ec9a1ad92b40700eed06c6bd4a9"
+                  },
+                  {
+                      "path":  "app/YomiControllerWpf.exe",
+                      "bytes":  4542464,
+                      "sha256":  "593bf0372002c8bbe0c52d6bcc514192d220c30e2fc4e05ff6f5840ccbd39285"
+                  },
+                  {
+                      "path":  "app/YomiControllerWpf.exe.config",
+                      "bytes":  331,
+                      "sha256":  "ba3d46ff746085b2f01ac3e34071d6c896d29e74313127148b3029fab44c8322"
+                  },
+                  {
+                      "path":  "app/YomiControllerWpf.manifest",
+                      "bytes":  1125,
+                      "sha256":  "fb6e399e2d72f2d9673023abaad0add6be9c48e266ca34f75925c1f4da8d85fd"
+                  },
+                  {
+                      "path":  "app/YomiControllerWpf.xaml",
+                      "bytes":  81030,
+                      "sha256":  "55e6bfbe101245d6d3e5f62fda24883d97fb57f77d0f359ef1cf71e060d8a177"
+                  },
+                  {
+                      "path":  "app/YomiCounterfactualStrategyKernel.cs",
+                      "bytes":  61432,
+                      "sha256":  "05448100c45417523cf7320c7c9344b9ef825a4870dc96fcb2f9c18269ee1bd4"
+                  },
+                  {
+                      "path":  "app/YomiCounterfactualStrategySuperstructure.cs",
+                      "bytes":  103082,
+                      "sha256":  "3859c02af67ba8fdd6d5359317a8f2696e3df43e5542fa8953ce1fe54857f7aa"
+                  },
+                  {
+                      "path":  "app/YomiCyberneticDigitalTwinMetastructure.cs",
+                      "bytes":  82964,
+                      "sha256":  "9238c6180300751a58813c8e479d15f700481370dde74f2eba0880e2acae693a"
+                  },
+                  {
+                      "path":  "app/YomiCyberneticsKernel.cs",
+                      "bytes":  81241,
+                      "sha256":  "0b17095a1b133a1d48f0fae35cb66966efe7e721a88b71fd113713cf2ece25f2"
+                  },
+                  {
+                      "path":  "app/YomiDataFoundry.cs",
+                      "bytes":  77561,
+                      "sha256":  "8b14a791a715d5883f1c52f31b8b8fc067635bef608f9861b1556660df2fa624"
+                  },
+                  {
+                      "path":  "app/YomiDataFoundryKernel.cs",
+                      "bytes":  75923,
+                      "sha256":  "54cb16eec2ff798662c1c1c2e8e8423d237e6b3ca5aa05755df0012b95f23e84"
+                  },
+                  {
+                      "path":  "app/YomiDeepSystems.cs",
+                      "bytes":  126325,
+                      "sha256":  "4aee5a164e434261c93fd5f4c3a906c19b8452f42f344bfdf07af91268bbc7c9"
+                  },
+                  {
+                      "path":  "app/YomiDesign.xaml",
+                      "bytes":  25453,
+                      "sha256":  "6f9804a77275aa39128468ca74417aba78325249ca6bdd00a3179dea5e40bd12"
+                  },
+                  {
+                      "path":  "app/YomiDistributedSystemsKernel.cs",
+                      "bytes":  136271,
+                      "sha256":  "9140264648be28621033fa248a1d6f0905f430f4f7f7337566a96b2509df56ef"
+                  },
+                  {
+                      "path":  "app/YomiDistributedSystemsPlanetarium.cs",
+                      "bytes":  106100,
+                      "sha256":  "162e41625c6c12be45bbe6bf0ce788edf9f44a3fbdad6de056fed7af784851d9"
+                  },
+                  {
+                      "path":  "app/YomiDysonSystemsEngineeringMegastructure.cs",
+                      "bytes":  117899,
+                      "sha256":  "22968b649d21830388e26f0f2df3343c5f632899ea83fd24611bedb72123046f"
+                  },
+                  {
+                      "path":  "app/YomiEconomicCivilization.cs",
+                      "bytes":  99933,
+                      "sha256":  "8a80587241c1ee0a7a686c9bc6a1d91b548b7492ffaf068b69ebb351e5091e6c"
+                  },
+                  {
+                      "path":  "app/YomiEconomicKernel.cs",
+                      "bytes":  100321,
+                      "sha256":  "836bacd1fcb6a8a44b2a4319dfa17c203ae97067d3e98c482eef146dc1e15f9e"
+                  },
+                  {
+                      "path":  "app/YomiEpistemicLogicFoundry.cs",
+                      "bytes":  124836,
+                      "sha256":  "313885c84c5bb30c45dd4b16740cb92b9c22468b1d1c56e2c125567bd6e06936"
+                  },
+                  {
+                      "path":  "app/YomiExpeditionKernel.cs",
+                      "bytes":  28843,
+                      "sha256":  "9d46cf0778210439e2a946acdd2b21dcadb49eaf34ad9ed854fa410e6d013263"
+                  },
+                  {
+                      "path":  "app/YomiExpeditionWorkspace.cs",
+                      "bytes":  37631,
+                      "sha256":  "805e256e960031fdcc492c0c408f9851959eaccd90524fba19e280aebb525760"
+                  },
+                  {
+                      "path":  "app/YomiExperimentalDesignKernel.cs",
+                      "bytes":  56374,
+                      "sha256":  "4700bbef158d7aab27e10d56bf0219aebd409d9ec54aed8e12eebc2de1de9d3f"
+                  },
+                  {
+                      "path":  "app/YomiGrandUnifiedExpeditionCommand.cs",
+                      "bytes":  70510,
+                      "sha256":  "c77e17bdc52771b2385d4ae0247f86493e28726685c9a8f9fa62e767555fafd0"
+                  },
+                  {
+                      "path":  "app/YomiKnowledgeConstellationKernel.cs",
+                      "bytes":  24700,
+                      "sha256":  "6297c3ff82f4fef6c2d4ea6dd37de3cbbb95d9c6cba2451779a20f197f90f8d4"
+                  },
+                  {
+                      "path":  "app/YomiKnowledgeConstellationMetastructure.cs",
+                      "bytes":  40808,
+                      "sha256":  "5e68ce2c0218058a86599f07d1f6f0189d4247d880ef6eda266c654e80b0b88e"
+                  },
+                  {
+                      "path":  "app/YomiLauncher.cs",
+                      "bytes":  2816,
+                      "sha256":  "e419eb53a75cc6ccba0129cb3b94251f98d24b0c61f0f644164dc7242becf84a"
+                  },
+                  {
+                      "path":  "app/YomiLauncher.exe",
+                      "bytes":  34304,
+                      "sha256":  "47737c7656dd5b8f025d585d86896638b757c2bb9570cd0e9431be29b66e44fa"
+                  },
+                  {
+                      "path":  "app/YomiLivingDocumentIntelligenceFactory.cs",
+                      "bytes":  74852,
+                      "sha256":  "25ff13f66eb9dd908c3c1f19a7c156f1c431fdd865086b3b394aa904e26f1eb2"
+                  },
+                  {
+                      "path":  "app/YomiLivingDocumentKernel.cs",
+                      "bytes":  45713,
+                      "sha256":  "3651af4698bb8d2daa59d4b446b69899d0752baebffcb99b862450352fa4687f"
+                  },
+                  {
+                      "path":  "app/YomiLogicKernel.cs",
+                      "bytes":  26987,
+                      "sha256":  "3c6fdd51447100567539f531f3df163705140f4fab8665efe1fb662e52852fbf"
+                  },
+                  {
+                      "path":  "app/YomiOperationsResearchEmpire.cs",
+                      "bytes":  109623,
+                      "sha256":  "19a220abb17e3e6e330e495d107ec0f0d71c4173620c7daf86416454845fa932"
+                  },
+                  {
+                      "path":  "app/YomiOperationsResearchKernel.cs",
+                      "bytes":  116002,
+                      "sha256":  "d506f51d488b61a243ef8b27994f9d8efdbe7cc6b4359819f932856706935552"
+                  },
+                  {
+                      "path":  "app/YomiProductivityFabric.cs",
+                      "bytes":  93799,
+                      "sha256":  "56f37f0255fac76ae251e8c36249808db9e76ad7440fc8d10628e79b06c5b34a"
+                  },
+                  {
+                      "path":  "app/YomiResearchWorkbench.cs",
+                      "bytes":  59417,
+                      "sha256":  "94e6eba1ece73a223f8745b53b3cbb9e6ab2631c117a65df339caf642d5a912c"
+                  },
+                  {
+                      "path":  "app/YomiScientificDiscoveryHyperstructure.cs",
+                      "bytes":  84351,
+                      "sha256":  "5210eeffcfed97c4636c03ff9f6ac0d4da590e51c4d35a1aa6aabdd066734c55"
+                  },
+                  {
+                      "path":  "app/YomiSoftwareGenomeKernel.cs",
+                      "bytes":  49713,
+                      "sha256":  "0028f1453522da8d40e0cf38f2ecc9d2ef83044e3cf85b7887f03c5c9104e12c"
+                  },
+                  {
+                      "path":  "app/YomiSoftwareGenomeObservatory.cs",
+                      "bytes":  61906,
+                      "sha256":  "53af8b1eb684347316a05081a17f244913ef145be24bab9058bc770815f236f9"
+                  },
+                  {
+                      "path":  "app/YomiSpatialKernel.cs",
+                      "bytes":  87168,
+                      "sha256":  "9e40a0d87797fd01ed8749553c9ccbfd80544d3b1758369b347e0ead699e963c"
+                  },
+                  {
+                      "path":  "app/YomiSpatialWorldCartography.cs",
+                      "bytes":  93794,
+                      "sha256":  "5c2d10db7219b001b7f65dcb5009356265bcf93509d1dab8df37caa56c489880"
+                  },
+                  {
+                      "path":  "app/YomiSystemsEngineeringKernel.cs",
+                      "bytes":  75050,
+                      "sha256":  "421796ebe8e760e243867d4f7f888f8885f2e5b735695b2b8ee77140461be507"
+                  },
+                  {
+                      "path":  "app/YomiTemporalObservatory.cs",
+                      "bytes":  61627,
+                      "sha256":  "e5e6c0d5dcba063c767dfbad6fee88bcbceddfb78cc0c7fac2d63f22b73d804f"
+                  },
+                  {
+                      "path":  "app/YomiUnknownUnknownsKernel.cs",
+                      "bytes":  23954,
+                      "sha256":  "2881493369c21f9c34ee455fab5ee5aa627e3c8d9c6a1db93130d49a0fc317f2"
+                  },
+                  {
+                      "path":  "app/YomiUnknownUnknownsObservatory.cs",
+                      "bytes":  33756,
+                      "sha256":  "2f0453c96a13af4f8d17e625f73bef8320e18366242d5e507b923d04e7acfd3e"
+                  },
+                  {
+                      "path":  "app/YomiVerificationKernel.cs",
+                      "bytes":  45640,
+                      "sha256":  "44a4724a9ab694ec6e70110d52c956c289d1527ebfd552285316bbeef0301394"
+                  },
+                  {
+                      "path":  "app/YomiWorldKernel.cs",
+                      "bytes":  88019,
+                      "sha256":  "f0060bf7e246bb8e1960fab4e77b24a69fbdf69bb6d3f5c3b0a38da2da03b02f"
+                  },
+                  {
+                      "path":  "app/YomiWorldPassportSpine.cs",
+                      "bytes":  32377,
+                      "sha256":  "dc50d07e15e080b93271853d86fd488a5771ecaff978c4d2247bc74aaae7a921"
+                  },
+                  {
+                      "path":  "runtime/mpv/mpv.exe",
+                      "bytes":  57294336,
+                      "sha256":  "6145e63f026451a764077d53fd60860ec9f5c2bc76dcd6e62a88967ac375453d"
+                  },
+                  {
+                      "path":  "runtime/yt-dlp/yt-dlp.exe",
+                      "bytes":  17840399,
+                      "sha256":  "66674953fe251b89f4d08c5f0e35e0728679bd67ab3d7d05c0562af101dd3e7a"
+                  },
+                  {
+                      "path":  "VERSION.txt",
+                      "bytes":  9,
+                      "sha256":  "3aa590d5cc1998ec0d29a5aa93a1710c45618b6122e0d55893485a9a0e313bdd"
+                  },
+                  {
+                      "path":  "web/director.html",
+                      "bytes":  33882,
+                      "sha256":  "5885367f5dace0a252876b570b4321053cc6ef8780a263c7f1fe9b0d31044ed9"
+                  },
+                  {
+                      "path":  "web/overlay.html",
+                      "bytes":  21036,
+                      "sha256":  "a5e7377b64edfcb6cafcc2a9d298f6dc6024d9dc5d5ab1693afdceea36bac983"
+                  },
+                  {
+                      "path":  "web/visualizer.html",
+                      "bytes":  142,
+                      "sha256":  "2f453debd55b3e715e98e02db886ef2a69ba696e7be5f691c46c17790741cae5"
+                  }
+              ]
+}

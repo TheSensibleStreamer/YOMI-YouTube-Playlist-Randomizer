@@ -12,20 +12,40 @@ public static class YomiLauncher
         {
             string mode = (args.Length > 0 ? args[0] : "controller").ToLowerInvariant();
             string appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
+
+            if (mode == "controller" || mode == "player" || mode == "expedition")
+            {
+                string shell = Path.Combine(appDir, "YomiControllerWpf.exe");
+                if (File.Exists(shell))
+                {
+                    var shellPsi = new ProcessStartInfo();
+                    shellPsi.FileName = shell;
+                    shellPsi.Arguments = mode == "expedition" ? "--expedition" : "";
+                    shellPsi.WorkingDirectory = appDir;
+                    shellPsi.UseShellExecute = false;
+                    shellPsi.CreateNoWindow = false;
+                    Process.Start(shellPsi);
+                    return 0;
+                }
+
+                // Fail-safe only: old Controller remains a recoverability surface if the
+                // canonical WPF shell is missing or damaged.
+                mode = "legacy-controller";
+            }
+
             bool updateMode = mode == "update" || mode == "update-auto";
-            string scriptName = updateMode ? "update.ps1" : (mode == "settings" ? "settings.ps1" : "controller.ps1");
+            string scriptName = updateMode ? "update.ps1" :
+                (mode == "settings" ? "settings.ps1" : "controller.ps1");
             string script = Path.Combine(appDir, scriptName);
 
             if (!File.Exists(script))
                 return 2;
 
-            // Settings is a single working surface. A second click should
-            // foreground its existing window, not create a stale editor.
             if (mode == "settings")
             {
                 try
                 {
-                    using (EventWaitHandle activate = EventWaitHandle.OpenExisting("Local\\YOMI_SETTINGS_ACTIVATE_V4"))
+                    using (EventWaitHandle activate = EventWaitHandle.OpenExisting(@"Local\YOMI_SETTINGS_ACTIVATE_V4"))
                     {
                         activate.Set();
                         return 0;
@@ -33,7 +53,6 @@ public static class YomiLauncher
                 }
                 catch (WaitHandleCannotBeOpenedException)
                 {
-                    // Settings is not running yet; launch the first instance below.
                 }
             }
 

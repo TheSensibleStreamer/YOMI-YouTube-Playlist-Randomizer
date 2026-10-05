@@ -1,0 +1,324 @@
+{
+  "schema": 2,
+  "product": "YOMI",
+  "consolidation": "DEV13.56",
+  "source_artifact": {
+    "filename": "YOMI-v4.2.0.8-dev13.37.30-unknown-unknowns-civilization-closure.zip",
+    "sha256": "e9657abe96bace1bfdf7844b4aa96f5d9edfec588253b33a3401f176ba533da8"
+  },
+  "source_modules": [
+    "YomiAbyssalKnowledgeEngine.cs",
+    "YomiAdversarialSecurityFortress.cs",
+    "YomiAdversarialSecurityKernel.cs",
+    "YomiAlgorithmicConservatory.cs",
+    "YomiAxiomaticVerificationReactor.cs",
+    "YomiCausalGraphLab.cs",
+    "YomiCivilizationLayer.cs",
+    "YomiCivilizationalSynthesisKernel.cs",
+    "YomiCivilizationalSynthesisReactor.cs",
+    "YomiComplexSystemsKernel.cs",
+    "YomiComplexSystemsLaboratory.cs",
+    "YomiCounterfactualStrategyKernel.cs",
+    "YomiCounterfactualStrategySuperstructure.cs",
+    "YomiCyberneticDigitalTwinMetastructure.cs",
+    "YomiCyberneticsKernel.cs",
+    "YomiDataFoundry.cs",
+    "YomiDataFoundryKernel.cs",
+    "YomiDeepSystems.cs",
+    "YomiDistributedSystemsKernel.cs",
+    "YomiDistributedSystemsPlanetarium.cs",
+    "YomiDysonSystemsEngineeringMegastructure.cs",
+    "YomiEconomicCivilization.cs",
+    "YomiEconomicKernel.cs",
+    "YomiEpistemicLogicFoundry.cs",
+    "YomiExpeditionKernel.cs",
+    "YomiExperimentalDesignKernel.cs",
+    "YomiGrandUnifiedExpeditionCommand.cs",
+    "YomiKnowledgeConstellationKernel.cs",
+    "YomiKnowledgeConstellationMetastructure.cs",
+    "YomiLivingDocumentIntelligenceFactory.cs",
+    "YomiLivingDocumentKernel.cs",
+    "YomiLogicKernel.cs",
+    "YomiOperationsResearchEmpire.cs",
+    "YomiOperationsResearchKernel.cs",
+    "YomiProductivityFabric.cs",
+    "YomiResearchWorkbench.cs",
+    "YomiScientificDiscoveryHyperstructure.cs",
+    "YomiSoftwareGenomeKernel.cs",
+    "YomiSoftwareGenomeObservatory.cs",
+    "YomiSpatialKernel.cs",
+    "YomiSpatialWorldCartography.cs",
+    "YomiSystemsEngineeringKernel.cs",
+    "YomiTemporalObservatory.cs",
+    "YomiUnknownUnknownsKernel.cs",
+    "YomiUnknownUnknownsObservatory.cs",
+    "YomiVerificationKernel.cs",
+    "YomiWorldKernel.cs"
+  ],
+  "source_module_count": 47,
+  "systems": [
+    {
+      "id": "DEEP",
+      "name": "System Atlas / Deep Systems",
+      "entry": "DeepSystems.OpenAtlas"
+    },
+    {
+      "id": "TEMPORAL",
+      "name": "Temporal Observatory",
+      "entry": "DeepSystems.OpenTemporalObservatory"
+    },
+    {
+      "id": "CAUSAL",
+      "name": "Causal Graph Lab",
+      "entry": "DeepSystems.OpenCausalGraphLab"
+    },
+    {
+      "id": "RESEARCH",
+      "name": "Research Workbench",
+      "entry": "DeepSystems.OpenResearchWorkbench"
+    },
+    {
+      "id": "ALGORITHM",
+      "name": "Algorithmic Conservatory",
+      "entry": "DeepSystems.OpenAlgorithmicConservatory"
+    },
+    {
+      "id": "PRODUCTIVITY",
+      "name": "Productivity Fabric",
+      "entry": "DeepSystems.OpenProductivityFabric"
+    },
+    {
+      "id": "ABYSS",
+      "name": "Abyssal Knowledge Engine",
+      "entry": "DeepSystems.OpenAbyssalKnowledgeEngine"
+    },
+    {
+      "id": "WORLD",
+      "name": "World Kernel",
+      "entry": "DeepSystems.OpenWorldKernel"
+    },
+    {
+      "id": "CIVILIZATION",
+      "name": "Civilization Layer / World Institutions",
+      "entry": "DeepSystems.OpenCivilizationLayer"
+    },
+    {
+      "id": "EPISTEMIC_LOGIC",
+      "name": "Epistemic Logic Foundry",
+      "entry": "DeepSystems.OpenEpistemicLogicFoundry"
+    },
+    {
+      "id": "VERIFICATION",
+      "name": "Axiomatic Verification Reactor",
+      "entry": "DeepSystems.OpenAxiomaticVerificationReactor"
+    },
+    {
+      "id": "STRATEGY",
+      "name": "Counterfactual Strategy Superstructure",
+      "entry": "DeepSystems.OpenCounterfactualStrategySuperstructure"
+    },
+    {
+      "id": "SCIENTIFIC_DISCOVERY",
+      "name": "Scientific Discovery Hyperstructure",
+      "entry": "DeepSystems.OpenScientificDiscoveryHyperstructure"
+    },
+    {
+      "id": "SYSTEMS_ENGINEERING",
+      "name": "Dyson Systems Engineering Megastructure",
+      "entry": "DeepSystems.OpenDysonSystemsEngineeringMegastructure"
+    },
+    {
+      "id": "CYBERNETIC_TWIN",
+      "name": "Cybernetic Digital Twin Metastructure",
+      "entry": "DeepSystems.OpenCyberneticDigitalTwinMetastructure"
+    },
+    {
+      "id": "COMPLEX_SYSTEMS",
+      "name": "Complex Systems Laboratory",
+      "version": "DEV13.37.18",
+      "entry": "DeepSystems.OpenComplexSystemsLaboratory"
+    },
+    {
+      "id": "OPERATIONS_RESEARCH",
+      "name": "Operations Research Empire",
+      "version": "DEV13.37.19",
+      "entry": "DeepSystems.OpenOperationsResearchEmpire"
+    },
+    {
+      "id": "ECONOMIC_CIVILIZATION",
+      "name": "Economic Civilization",
+      "version": "DEV13.37.20",
+      "entry": "DeepSystems.OpenEconomicCivilization"
+    },
+    {
+      "id": "SPATIAL_CARTOGRAPHY",
+      "name": "Spatial World Cartography",
+      "version": "DEV13.37.21",
+      "entry": "DeepSystems.OpenSpatialWorldCartography"
+    },
+    {
+      "id": "DISTRIBUTED_SYSTEMS",
+      "name": "Distributed Systems Planetarium",
+      "version": "DEV13.37.22",
+      "entry": "DeepSystems.OpenDistributedSystemsPlanetarium"
+    },
+    {
+      "id": "ADVERSARIAL_SECURITY",
+      "name": "Adversarial Security Fortress",
+      "version": "DEV13.37.23",
+      "entry": "DeepSystems.OpenAdversarialSecurityFortress"
+    },
+    {
+      "id": "DATA_FOUNDRY",
+      "name": "Data Foundry",
+      "version": "DEV13.37.24",
+      "entry": "DeepSystems.OpenDataFoundry",
+      "shortcut": "Ctrl+Alt+D"
+    },
+    {
+      "id": "SOFTWARE_GENOME",
+      "name": "Software Genome Observatory",
+      "version": "DEV13.37.25",
+      "entry": "DeepSystems.OpenSoftwareGenomeObservatory",
+      "shortcut": "Ctrl+Alt+G"
+    },
+    {
+      "id": "LIVING_DOCUMENT",
+      "name": "Living Document & Intelligence Factory",
+      "version": "DEV13.37.26",
+      "entry": "DeepSystems.OpenLivingDocumentIntelligenceFactory",
+      "shortcut": "Ctrl+Alt+L"
+    },
+    {
+      "id": "EXP\u03a9",
+      "name": "Grand Unified Expedition Command",
+      "version": "DEV13.37.27",
+      "entry": "DeepSystems.OpenGrandUnifiedExpeditionCommand",
+      "shortcut": "Ctrl+Alt+X"
+    },
+    {
+      "id": "META\u03a9",
+      "name": "Knowledge Constellation Metastructure",
+      "version": "DEV13.37.28",
+      "entry": "DeepSystems.OpenKnowledgeConstellationMetastructure",
+      "shortcut": "Ctrl+Alt+C"
+    },
+    {
+      "id": "SYNTH\u03a9",
+      "name": "Civilizational Synthesis Reactor",
+      "version": "DEV13.37.29",
+      "entry": "DeepSystems.OpenCivilizationalSynthesisReactor",
+      "shortcut": "Ctrl+Alt+S"
+    },
+    {
+      "id": "VOID\u03a9",
+      "name": "Unknown Unknowns Observatory",
+      "version": "DEV13.37.30",
+      "entry": "DeepSystems.OpenUnknownUnknownsObservatory",
+      "shortcut": "Ctrl+Alt+V"
+    }
+  ],
+  "expedition_kernel_civilizations": [
+    "WORLD",
+    "CIVILIZATION",
+    "EPISTEMIC_LOGIC",
+    "VERIFICATION",
+    "STRATEGY",
+    "SCIENTIFIC_DISCOVERY",
+    "SYSTEMS_ENGINEERING",
+    "CYBERNETIC_TWIN",
+    "COMPLEX_SYSTEMS",
+    "OPERATIONS_RESEARCH",
+    "ECONOMIC_CIVILIZATION",
+    "SPATIAL_CARTOGRAPHY",
+    "DISTRIBUTED_SYSTEMS",
+    "ADVERSARIAL_SECURITY",
+    "DATA_FOUNDRY",
+    "SOFTWARE_GENOME",
+    "LIVING_DOCUMENT"
+  ],
+  "resource_firewall": {
+    "playback_authority": false,
+    "opens_only_on_explicit_user_action": true,
+    "background_worker_when_closed": 0,
+    "downloader_when_closed": 0,
+    "decoder_when_closed": 0,
+    "poller_when_closed": 0,
+    "network_request_when_closed": 0
+  },
+  "workspace": {
+    "entry": "DeepSystems.OpenExpeditionWorkspace",
+    "implementation": "YomiExpeditionWorkspace.cs",
+    "state_schema": 1,
+    "state_path": "%LOCALAPPDATA%/YOMI/expedition/workspace-shell.json",
+    "route_count": 28,
+    "back_limit": 64,
+    "forward_limit": 64,
+    "recent_limit": 128,
+    "pin_limit": 32,
+    "resource_law": "No background worker, decoder, downloader, poller, network request, or playback authority is created by the workspace."
+  },
+  "integration_notes": [
+    "All controller/command-palette civilization entry points enter through the persistent workspace route spine.",
+    "System Atlas civilization portals enter through the same route spine.",
+    "Data Foundry, Software Genome, Living Documents and EXP\u03a9 typed projections register cross-system transitions.",
+    "Deep object/file/evidence drill-downs update current-route detail without polluting browser-style back/forward history.",
+    "EXP\u03a9 remains authoritative for exact mission checkpoints and source-snapshot resume; workspace history is navigation state only."
+  ],
+  "dev13_55_integration": {
+    "recovered_modules_total": 47,
+    "byte_exact_unmodified_modules": 42,
+    "navigation_integrated_modules": [
+      "YomiDeepSystems.cs",
+      "YomiDataFoundry.cs",
+      "YomiSoftwareGenomeObservatory.cs",
+      "YomiLivingDocumentIntelligenceFactory.cs",
+      "YomiGrandUnifiedExpeditionCommand.cs"
+    ],
+    "new_modules": [
+      "YomiExpeditionWorkspace.cs"
+    ],
+    "rule": "The five modified modules preserve their recovered domain behavior and add only workspace navigation/transition integration; EXP\u03a9 mission authority is unchanged."
+  },
+  "world_passport_spine": {
+    "schema": 1,
+    "implementation": "YomiWorldPassportSpine.cs",
+    "storage": "%LOCALAPPDATA%/YOMI/deep-systems/world-passport-spine.json",
+    "object_cap": 2048,
+    "relation_cap": 8192,
+    "authority": {
+      "identity_graph": "World Kernel",
+      "mission_semantics": "META\u03a9 / Knowledge Constellation",
+      "spine": "selected persistent snapshots + explicit user-declared relationships"
+    },
+    "integrated_surfaces": [
+      "Deep object microscope",
+      "World Passport",
+      "Data Foundry dataset",
+      "Software Genome snapshot",
+      "Living Document version",
+      "EXP\u03a9 exact resume capsule",
+      "Unified Expedition Workspace",
+      "Product Shell command palette"
+    ],
+    "hotkey": "Ctrl+Alt+O",
+    "resource_law": "No worker, decoder, downloader, poller, or network activity while closed."
+  },
+  "dev13_56_integration": {
+    "recovered_modules_total": 47,
+    "byte_exact_unmodified_modules": 41,
+    "spine_integrated_recovered_modules": [
+      "YomiDeepSystems.cs",
+      "YomiWorldKernel.cs",
+      "YomiDataFoundry.cs",
+      "YomiSoftwareGenomeObservatory.cs",
+      "YomiLivingDocumentIntelligenceFactory.cs",
+      "YomiGrandUnifiedExpeditionCommand.cs"
+    ],
+    "new_support_modules": [
+      "YomiExpeditionWorkspace.cs",
+      "YomiWorldPassportSpine.cs"
+    ],
+    "rule": "Recovered domain behavior remains intact. DEV13.56 adds only explicit capture/persistence/navigation bridges; World Kernel and META\u03a9 authority are not forked."
+  }
+}

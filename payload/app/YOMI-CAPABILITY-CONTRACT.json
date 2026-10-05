@@ -1,0 +1,624 @@
+{
+  "schema": 1,
+  "product": "YOMI - YouTube OBS Music Interface",
+  "version": "4.2.0.9",
+  "qualification": "DEV13.59",
+  "purpose": "Fail closed if cumulative YOMI loses a required behavior-bearing capability, release invariant, or DEV13.59 persistent library-memory surface.",
+  "required_patch_ids": [
+    "DEV13.28",
+    "DEV13.40",
+    "DEV13.41",
+    "DEV13.42",
+    "DEV13.43",
+    "DEV13.44",
+    "DEV13.45",
+    "DEV13.46",
+    "DEV13.47",
+    "DEV13.48",
+    "DEV13.49",
+    "DEV13.50",
+    "DEV13.51",
+    "DEV13.52",
+    "DEV13.57",
+    "DEV13.58",
+    "DEV13.59"
+  ],
+  "required_files": [
+    "VERSION.txt",
+    "app/music.lua",
+    "app/common.ps1",
+    "app/settings.ps1",
+    "app/server.ps1",
+    "app/supervisor.ps1",
+    "app/shuffle.ps1",
+    "app/controller.ps1",
+    "app/doctor.ps1",
+    "app/self-test.ps1",
+    "app/support-bundle.ps1",
+    "app/recovery-point.ps1",
+    "app/incident-replay.ps1",
+    "app/config-history.ps1",
+    "app/preflight.ps1",
+    "app/session-explorer.ps1",
+    "app/oracle-lab.ps1",
+    "app/reset-oracle-learning.ps1",
+    "app/operations-center.ps1",
+    "app/aegis-repair.ps1",
+    "app/contracts.ps1",
+    "app/recovery-replay.ps1",
+    "app/state-coherence.ps1",
+    "app/config-transaction.ps1",
+    "app/cache-integrity.ps1",
+    "app/performance-attribution.ps1",
+    "app/slo-sentinel.ps1",
+    "app/update-deployment.ps1",
+    "app/update.ps1",
+    "app/YomiControllerWpf.exe",
+    "app/YomiControllerWpf.cs",
+    "app/YomiControllerWpf.xaml",
+    "app/YomiDesign.xaml",
+    "app/YomiLauncher.exe",
+    "app/YomiLauncher.cs",
+    "app/lineage-registry.json",
+    "app/EXPEDITION-MODULE-REGISTRY.json",
+    "app/NO-GAPS-CONSOLIDATION-LEDGER.json",
+    "app/NO-GAPS-CONSOLIDATION-LEDGER.txt",
+    "app/YOMI-CAPABILITY-CONTRACT.json",
+    "app/release-qualification.ps1",
+    "runtime/mpv/mpv.exe",
+    "runtime/yt-dlp/yt-dlp.exe"
+  ],
+  "capabilities": [
+    {
+      "id": "PLAYBACK.QUALITY_FALLBACK",
+      "name": "240 -> 360 -> 144 compatibility ladder",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "proven 144p compatibility recovery",
+            "cap == 240 or cap == 360"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PLAYBACK.ADAPTIVE_SCHEDULER",
+      "name": "adaptive deadline scheduler",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "Adaptive deadline",
+            "scheduler_strategy",
+            "presentation_sla_seconds"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PLAYBACK.PRESENTATION_SLA",
+      "name": "presentation SLA continuity yield",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "PRESENTATION_SLA_WAIT",
+            "PRESENTATION_SLA_YIELD"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QUEUE.RUNTIME_TRUTH",
+      "name": "authoritative queue runtime projection",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "queue-runtime.json",
+            "transition_ready"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QUEUE.TRANSACTIONAL_ORDER",
+      "name": "mutable occurrence order with undo/redo",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "yomi-order-undo",
+            "yomi-order-redo",
+            "yomi-order-restore",
+            "yomi-order-reshuffle-unprepared"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "QUEUE.REHEARSAL_FREEZE",
+      "name": "rehearsal and Broadcast Freeze",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "rehearsal_pins",
+            "BROADCAST FREEZE SET"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RUNTIME.SAFE_MODE",
+      "name": "crash-loop Safe Mode",
+      "probes": [
+        {
+          "file": "app/supervisor.ps1",
+          "contains_all": [
+            "YOMI_SAFE_MODE",
+            "rapid_failures",
+            "SAFE MODE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RUNTIME.LEASE",
+      "name": "runtime lease heartbeat contract",
+      "probes": [
+        {
+          "file": "app/music.lua",
+          "contains_all": [
+            "runtime-lease.json"
+          ]
+        },
+        {
+          "file": "app/supervisor.ps1",
+          "contains_all": [
+            "runtime-lease.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RECOVERY.RECOVERY_POINTS",
+      "name": "portable Recovery Points",
+      "probes": [
+        {
+          "file": "app/recovery-point.ps1",
+          "contains_any": [
+            "Recovery point",
+            "RECOVERY POINT"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RECOVERY.INCIDENT_REPLAY",
+      "name": "Incident Replay",
+      "probes": [
+        {
+          "file": "app/incident-replay.ps1",
+          "contains_any": [
+            "INCIDENT REPLAY",
+            "Incident Replay"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "RECOVERY.CRASH_REPLAY",
+      "name": "crash recovery replay engine",
+      "probes": [
+        {
+          "file": "app/recovery-replay.ps1",
+          "contains_all": [
+            "Invoke-YomiRecoveryReplay",
+            "recovery-checkpoint.json",
+            "recovery-plan.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CONFIG.TIME_MACHINE",
+      "name": "configuration history/time machine",
+      "probes": [
+        {
+          "file": "app/config-history.ps1",
+          "contains_any": [
+            "ConfigHistoryRoot",
+            "Save-YomiConfigHistorySnapshot",
+            "Config Time Machine"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CONFIG.TRANSACTIONAL",
+      "name": "transactional configuration CAS",
+      "probes": [
+        {
+          "file": "app/config-transaction.ps1",
+          "contains_all": [
+            "Get-YomiConfigClass",
+            "ENGINE_RESTART",
+            "RollbackLast"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIAGNOSTICS.DOCTOR",
+      "name": "read-only Doctor diagnostics",
+      "probes": [
+        {
+          "file": "app/doctor.ps1",
+          "contains_any": [
+            "YOMI DOCTOR",
+            "Doctor",
+            "doctor"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIAGNOSTICS.SUPPORT_BUNDLE",
+      "name": "support bundle evidence capture",
+      "probes": [
+        {
+          "file": "app/support-bundle.ps1",
+          "contains_any": [
+            "support bundle",
+            "SUPPORT BUNDLE"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIAGNOSTICS.PREFLIGHT",
+      "name": "startup preflight",
+      "probes": [
+        {
+          "file": "app/preflight.ps1",
+          "contains_any": [
+            "STARTUP PREFLIGHT",
+            "preflight"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIAGNOSTICS.SESSION_EXPLORER",
+      "name": "full session explorer",
+      "probes": [
+        {
+          "file": "app/session-explorer.ps1",
+          "contains_any": [
+            "Session Explorer",
+            "SESSION EXPLORER"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "INTELLIGENCE.ORACLE",
+      "name": "Oracle route intelligence",
+      "probes": [
+        {
+          "file": "app/oracle-lab.ps1",
+          "contains_any": [
+            "ORACLE",
+            "Oracle",
+            "oracle"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SAFETY.AEGIS",
+      "name": "Aegis provenance and repair",
+      "probes": [
+        {
+          "file": "app/aegis-repair.ps1",
+          "contains_any": [
+            "AEGIS",
+            "Aegis",
+            "aegis"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CACHE.INTEGRITY",
+      "name": "cache coherence/artifact integrity",
+      "probes": [
+        {
+          "file": "app/cache-integrity.ps1",
+          "contains_all": [
+            "Get-IdentityHash",
+            "sample_fingerprint",
+            "generation_signature"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "STATE.COHERENCE",
+      "name": "runtime state coherence protocol",
+      "probes": [
+        {
+          "file": "app/state-coherence.ps1",
+          "contains_all": [
+            "yomi-runtime-state-coherence",
+            "state-coherence.json"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PERF.ATTRIBUTION",
+      "name": "stream-safe performance attribution",
+      "probes": [
+        {
+          "file": "app/performance-attribution.ps1",
+          "contains_all": [
+            "YOMI-performance-attribution",
+            "Percentile"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PERF.SLO_SENTINEL",
+      "name": "runtime SLO regression sentinel",
+      "probes": [
+        {
+          "file": "app/slo-sentinel.ps1",
+          "contains_all": [
+            "SLO_",
+            "regression",
+            "baseline"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "UPDATE.LAST_KNOWN_GOOD",
+      "name": "atomic update and last-known-good rollback",
+      "probes": [
+        {
+          "file": "app/update-deployment.ps1",
+          "contains_all": [
+            "Save-Lkg",
+            "Restore-Lkg",
+            "last-known-good"
+          ]
+        },
+        {
+          "file": "app/update.ps1",
+          "contains_all": [
+            "Verified rollback",
+            "health verification"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SHELL.PLAYER",
+      "name": "WPF player shell",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "MediaContentGrid",
+            "VolumeSlider",
+            "SeekPreviewBubble"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SHELL.QUEUE",
+      "name": "visual queue workspace",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "QueueList",
+            "QueueSelectionBar",
+            "QueueFilterNextTen",
+            "NextUpStrip"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SHELL.COMMAND_FABRIC",
+      "name": "command palette",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "CommandPaletteOverlay",
+            "AddCommand("
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SHELL.OPERATOR_DECK",
+      "name": "Operator Deck",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "OperatorDeckOverlay",
+            "OperatorPrimeBroadcastButton"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SHELL.INTENT_FABRIC",
+      "name": "Intent Fabric",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "IntentFabricOverlay",
+            "IntentJournalList",
+            "IntentAbortButton"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "MEDIA.STAGE",
+      "name": "artwork/video media stage layouts",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "MediaStageLayout.Split",
+            "MediaStageLayout.PosterRail",
+            "MediaStageLayout.ArtworkStage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "VISUALIZER.PRESENTATION",
+      "name": "visualizer presentation and signal metadata",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "VisualizerPresentation.Compact",
+            "VisualizerPresentation.Cinema",
+            "visualizer_high_frequency_trim",
+            "visualizer_high_frequency_lift_db"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "OBS.COMPOSITION",
+      "name": "OBS-aware composition surface",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "Streamer / OBS",
+            "OBS setup instructions"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EXPEDITION.WORKSPACE",
+      "name": "unified Expedition workspace",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "OpenExpeditionWorkspace",
+            "Ctrl+Alt+W"
+          ]
+        },
+        {
+          "file": "app/YomiExpeditionWorkspace.cs",
+          "contains_all": [
+            "workspace-shell.json",
+            "Back = new List<ExpeditionNavEntry>",
+            "Pins = new List<ExpeditionNavEntry>"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EXPEDITION.WORLD_PASSPORT",
+      "name": "World Passport & Evidence Spine",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "OpenWorldPassportSpine",
+            "Ctrl+Alt+O"
+          ]
+        },
+        {
+          "file": "app/YomiWorldPassportSpine.cs",
+          "contains_all": [
+            "world-passport-spine.json",
+            "MaxObjects = 2048",
+            "MaxRelations = 8192"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EXPEDITION.CAPSTONES",
+      "name": "DATAΩ / GENOMEΩ / DOCΩ / EXPΩ / VOIDΩ retained",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "OpenDataFoundry",
+            "OpenSoftwareGenomeObservatory",
+            "OpenLivingDocumentIntelligenceFactory",
+            "OpenGrandUnifiedExpeditionCommand",
+            "OpenUnknownUnknownsObservatory"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EXPEDITION.RESOURCE_FIREWALL",
+      "name": "deep systems remain explicit-open/no playback authority",
+      "probes": [
+        {
+          "file": "app/EXPEDITION-MODULE-REGISTRY.json",
+          "contains_all": [
+            "\"playback_authority\": false",
+            "\"background_worker_when_closed\": 0",
+            "\"network_request_when_closed\": 0"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LIBRARY.LISTENING_MEMORY",
+      "name": "persistent source-level listening memory and library scopes",
+      "probes": [
+        {
+          "file": "app/YomiControllerWpf.cs",
+          "contains_all": [
+            "controller-library.json",
+            "internal sealed class ListeningRecord",
+            "ObserveListeningMemory",
+            "CheckpointActiveListening",
+            "LastVisitKey",
+            "ShortListens",
+            "QueueScope.Unheard",
+            "QueueScope.Frequent",
+            "BuildLibraryCoverageSummary",
+            "schema\", 2",
+            "LastVisitObservedSeconds"
+          ]
+        },
+        {
+          "file": "app/YomiControllerWpf.xaml",
+          "contains_all": [
+            "MemoryPill",
+            "QueueFilterUnheard",
+            "QueueFilterFrequent",
+            "InspectorMemoryText"
+          ]
+        }
+      ]
+    }
+  ]
+}

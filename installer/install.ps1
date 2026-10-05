@@ -17,12 +17,6 @@ if (-not (Test-Path (Join-Path $payload 'Uninstall YOMI.cmd'))) {
     exit 2
 }
 
-if (-not (Test-Path (Join-Path $payload 'web\director.html'))) {
-    Write-Host ''
-    Write-Host 'ERROR: Director Mode web engine is missing from the installer payload.' -ForegroundColor Red
-    Write-Host 'Fully extract the ZIP before running INSTALL YOMI.cmd.' -ForegroundColor Yellow
-    exit 2
-}
 
 # Relaunch elevated because Program Files is protected.
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -66,7 +60,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.7 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.9 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -119,7 +113,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.7-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.9-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -289,13 +283,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.7-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.7 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.9 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
@@ -417,7 +411,6 @@ try {
 
     $stage = Join-Path $tempRoot 'install-stage'
     $appStage = Join-Path $stage 'app'
-    $webStage = Join-Path $stage 'web'
     $runtimeStage = Join-Path $stage 'runtime'
     $assetsStage = Join-Path $stage 'assets'
     $mpvStage = Join-Path $runtimeStage 'mpv'
@@ -425,15 +418,13 @@ try {
     $ytdlpStage = Join-Path $runtimeStage 'yt-dlp'
     $denoStage = Join-Path $runtimeStage 'deno'
 
-    foreach ($dir in @($appStage,$webStage,$assetsStage,$mpvStage,$ffmpegStage,$ytdlpStage,$denoStage)) {
+    foreach ($dir in @($appStage,$assetsStage,$mpvStage,$ffmpegStage,$ytdlpStage,$denoStage)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
 
     Copy-Item (Join-Path $payload 'app\*') $appStage -Recurse -Force
-    Copy-Item (Join-Path $payload 'web\*') $webStage -Recurse -Force
     Copy-Item (Join-Path $payload 'assets\*') $assetsStage -Recurse -Force
     Copy-Item (Join-Path $payload 'README-EASY.txt') (Join-Path $stage 'README-EASY.txt') -Force
-    Copy-Item (Join-Path $payload 'README-TECHNICAL.txt') (Join-Path $stage 'README-TECHNICAL.txt') -Force
     Copy-Item (Join-Path $payload 'THIRD-PARTY.txt') (Join-Path $stage 'THIRD-PARTY.txt') -Force
     Copy-Item (Join-Path $payload 'VERSION.txt') (Join-Path $stage 'VERSION.txt') -Force
     Copy-Item (Join-Path $payload 'Uninstall YOMI.cmd') (Join-Path $stage 'Uninstall YOMI.cmd') -Force
@@ -521,6 +512,45 @@ try {
         -OutputType WindowsApplication
 
     if (-not (Test-Path $launcherExe)) { throw 'YomiLauncher.exe failed to compile.' }
+
+    Write-Host '      Compiling native YOMI controller...' -ForegroundColor DarkCyan
+    function Resolve-Csc {
+        foreach($candidate in @(
+            (Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),
+            (Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe')
+        )) { if(Test-Path -LiteralPath $candidate){ return $candidate } }
+        throw '.NET Framework C# compiler (csc.exe) was not found.'
+    }
+    function Resolve-FrameworkReferencePath([string]$Name) {
+        $loaded=[AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq $Name -and $_.Location } | Select-Object -First 1
+        if($loaded){ return [string]$loaded.Location }
+        $dirs=@()
+        try { $runtimeDir=[Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory(); if($runtimeDir){$dirs+=$runtimeDir;$dirs+=(Join-Path $runtimeDir 'WPF')} } catch {}
+        foreach($frameworkRoot in @((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319'))){$dirs+=$frameworkRoot;$dirs+=(Join-Path $frameworkRoot 'WPF')}
+        $pf86=[Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+        if($pf86){$refRoot=Join-Path $pf86 'Reference Assemblies\Microsoft\Framework\.NETFramework';if(Test-Path $refRoot){foreach($v in @(Get-ChildItem $refRoot -Directory -ErrorAction SilentlyContinue|Where-Object{$_.Name -like 'v4*'}|Sort-Object Name -Descending)){$dirs+=$v.FullName;$dirs+=(Join-Path $v.FullName 'Facades')}}}
+        foreach($dir in @($dirs|Where-Object{$_}|Select-Object -Unique)){$candidate=Join-Path $dir ($Name+'.dll');if(Test-Path $candidate){return $candidate}}
+        throw ('Required .NET Framework reference assembly was not found: '+$Name)
+    }
+    $csc=Resolve-Csc
+    $controllerSource=Join-Path $appStage 'YomiControllerWpf.cs'
+    $controllerExe=Join-Path $appStage 'YomiControllerWpf.exe'
+    $controllerManifest=Join-Path $appStage 'YomiControllerWpf.manifest'
+    $controllerRefs=@('PresentationFramework','PresentationCore','WindowsBase','System.Xaml','WindowsFormsIntegration','System.Windows.Forms','System.Drawing','System.Web.Extensions','System.Xml','System','System.Core')
+    $controllerArgs=@('/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',('/win32manifest:"'+$controllerManifest+'"'),('/out:"'+$controllerExe+'"'))
+    foreach($refName in $controllerRefs){$controllerArgs+=('/reference:"'+(Resolve-FrameworkReferencePath $refName)+'"')}
+    $controllerArgs+=('"'+$controllerSource+'"')
+    $controllerOutput=& $csc @controllerArgs 2>&1
+    if($LASTEXITCODE -ne 0){throw ("YOMI controller compile failed:`r`n"+($controllerOutput -join "`r`n"))}
+    if(-not(Test-Path $controllerExe)){throw 'YomiControllerWpf.exe failed to compile.'}
+
+    Write-Host '      Compiling OBS server host...' -ForegroundColor DarkCyan
+    $obsSource=Join-Path $appStage 'YomiObsServerHost.cs'
+    $obsExe=Join-Path $appStage 'YomiObsServer.exe'
+    $obsArgs=@('/nologo','/noconfig','/codepage:65001','/target:exe','/platform:anycpu','/optimize+','/debug-',('/out:"'+$obsExe+'"'),('/reference:"'+(Resolve-FrameworkReferencePath 'System')+'"'),('/reference:"'+(Resolve-FrameworkReferencePath 'System.Core')+'"'),('"'+$obsSource+'"'))
+    $obsOutput=& $csc @obsArgs 2>&1
+    if($LASTEXITCODE -ne 0){throw ("OBS server compile failed:`r`n"+($obsOutput -join "`r`n"))}
+    if(-not(Test-Path $obsExe)){throw 'YomiObsServer.exe failed to compile.'}
 
     # Source is useful for transparency but not needed at runtime.
     # Keep it in the installation so advanced users can inspect it.
@@ -760,12 +790,33 @@ try {
         New-AppShortcut (Join-Path $desktopFolder 'YOMI Settings.lnk') $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
     }
 
+    # Register focused update packages for future test/development updates.
+    try {
+        $classes='HKCU:\Software\Classes'
+        New-Item -Path (Join-Path $classes '.yomiupdate') -Force | Out-Null
+        Set-ItemProperty -Path (Join-Path $classes '.yomiupdate') -Name '(default)' -Value 'YOMI.UpdatePackage' -Force
+        $commandKey=Join-Path $classes 'YOMI.UpdatePackage\shell\open\command'
+        New-Item -Path $commandKey -Force | Out-Null
+        $hostScript=Join-Path $installRoot 'app\YomiUpdateHost.ps1'
+        $command='powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$hostScript+'" "%1"'
+        Set-ItemProperty -Path $commandKey -Name '(default)' -Value $command -Force
+    } catch { Write-Host ('      Update package association skipped: '+$_.Exception.Message) -ForegroundColor DarkYellow }
+
     Set-InstallStage 8 8 'Final verification...'
 
     $required = @(
         (Join-Path $installRoot 'runtime\mpv\mpv.exe'),
         (Join-Path $installRoot 'runtime\yt-dlp\yt-dlp.exe'),
         (Join-Path $installRoot 'app\PriorityRun.exe'),
+        (Join-Path $installRoot 'app\YomiControllerWpf.exe'),
+        (Join-Path $installRoot 'app\YomiControllerWpf.cs'),
+        (Join-Path $installRoot 'app\YomiControllerWpf.xaml'),
+        (Join-Path $installRoot 'app\YomiDesign.xaml'),
+        (Join-Path $installRoot 'app\YomiObsServer.exe'),
+        (Join-Path $installRoot 'app\YomiObsServerHost.cs'),
+        (Join-Path $installRoot 'app\YomiUpdateHost.ps1'),
+        (Join-Path $installRoot 'app\YomiDiagnosticBundle.ps1'),
+        (Join-Path $installRoot 'app\FOCUSED-BUILD.txt'),
         (Join-Path $installRoot 'app\ArtworkEdgeDetector.exe'),
         (Join-Path $installRoot 'app\YomiLauncher.exe'),
         (Join-Path $installRoot 'VERSION.txt'),
@@ -776,8 +827,6 @@ try {
         (Join-Path $installRoot 'app\uninstall.ps1'),
         (Join-Path $installRoot 'app\update.ps1'),
         (Join-Path $installRoot 'Uninstall YOMI.cmd'),
-        (Join-Path $installRoot 'web\overlay.html'),
-        (Join-Path $installRoot 'web\director.html'),
         (Join-Path $installRoot 'assets\yomi-v408.ico'),
         (Join-Path $installRoot 'assets\yomi-settings-v408.ico'),
         (Join-Path $installRoot 'app\components.ps1')

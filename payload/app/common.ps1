@@ -1,7 +1,12 @@
 $script:InstallRoot = Split-Path $PSScriptRoot -Parent
 $script:DataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
-$script:YomiFallbackVersion = '4.2.0.7'
+$script:ConfigPreviousPath = Join-Path $script:DataRoot 'config.previous.json'
+$script:ConfigHistoryRoot = Join-Path $script:DataRoot 'config-history'
+$script:ConfigWriteMutexName = 'Local\YOMI_CONFIG_WRITE'
+$script:YomiFallbackVersion = '4.2.0.9'
+$contractsPath = Join-Path $PSScriptRoot 'contracts.ps1'
+if(Test-Path $contractsPath){. $contractsPath}
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'
 
 function Get-YomiVersionText {
@@ -29,6 +34,123 @@ function Write-YomiUtf8NoBom {
     [System.IO.File]::WriteAllText($Path,$Text,$enc)
 }
 
+function Test-YomiJsonFile {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if(-not(Test-Path $Path)){return $false}
+    try{
+        $raw=Get-Content $Path -Raw
+        if([string]::IsNullOrWhiteSpace($raw)){return $false}
+        $null=$raw|ConvertFrom-Json
+        return $true
+    }catch{return $false}
+}
+
+function Save-YomiConfigHistorySnapshot {
+    param([Parameter(Mandatory=$true)][string]$SourcePath,[string]$IncomingJson='')
+
+    if(-not(Test-YomiJsonFile $SourcePath)){return}
+    try{
+        $currentText=Get-Content $SourcePath -Raw
+        if(-not [string]::IsNullOrWhiteSpace($IncomingJson) -and $currentText -ceq $IncomingJson){return}
+
+        New-Item -ItemType Directory -Path $script:ConfigHistoryRoot -Force|Out-Null
+        $bytes=[System.Text.Encoding]::UTF8.GetBytes($currentText)
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try{$hash=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}
+        finally{$sha.Dispose()}
+
+        $latest=Get-ChildItem $script:ConfigHistoryRoot -Filter 'config-*.json' -File -ErrorAction SilentlyContinue|
+            Sort-Object LastWriteTimeUtc -Descending|Select-Object -First 1
+        if($latest){
+            try{
+                $latestHash=(Get-FileHash $latest.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+                if($latestHash -eq $hash){return}
+            }catch{}
+        }
+
+        $stamp=[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff')
+        $dest=Join-Path $script:ConfigHistoryRoot ("config-$stamp-$($hash.Substring(0,12)).json")
+        Write-YomiUtf8NoBom -Path $dest -Text $currentText
+
+        $history=@(Get-ChildItem $script:ConfigHistoryRoot -Filter 'config-*.json' -File -ErrorAction SilentlyContinue|Sort-Object LastWriteTimeUtc -Descending)
+        if($history.Count -gt 8){
+            $history|Select-Object -Skip 8|Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+    }catch{}
+}
+
+function Invoke-YomiAtomicReplace {
+    param(
+        [Parameter(Mandatory=$true)][string]$Source,
+        [Parameter(Mandatory=$true)][string]$Destination
+    )
+
+    $Source=[System.IO.Path]::GetFullPath($Source)
+    $Destination=[System.IO.Path]::GetFullPath($Destination)
+
+    if(-not(Test-Path -LiteralPath $Destination)){
+        [System.IO.File]::Move($Source,$Destination)
+        return
+    }
+
+    $backup=$Destination+'.replace-backup.'+$PID+'.'+[Guid]::NewGuid().ToString('N')
+    $replaced=$false
+    try{
+        [System.IO.File]::Replace($Source,$Destination,$backup,$true)
+        $replaced=$true
+    }
+    finally{
+        if($replaced){
+            Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Write-YomiConfigAtomic {
+    param([Parameter(Mandatory=$true)]$Config)
+
+    $json=$Config|ConvertTo-Json -Depth 12
+    $null=$json|ConvertFrom-Json
+
+    $mutex=New-Object System.Threading.Mutex($false,$script:ConfigWriteMutexName)
+    $locked=$false
+    $temp=$script:ConfigPath+'.tmp.'+$PID+'.'+[Guid]::NewGuid().ToString('N')
+    $previousTemp=$script:ConfigPreviousPath+'.tmp.'+$PID+'.'+[Guid]::NewGuid().ToString('N')
+    try{
+        try{
+            $locked=$mutex.WaitOne([TimeSpan]::FromSeconds(10))
+        }catch [System.Threading.AbandonedMutexException]{
+            $locked=$true
+        }
+        if(-not $locked){throw 'Timed out waiting for the YOMI config write lock.'}
+
+        Write-YomiUtf8NoBom -Path $temp -Text $json
+        if(-not(Test-YomiJsonFile $temp)){throw 'Temporary config failed parse-back validation.'}
+
+        if(Test-YomiJsonFile $script:ConfigPath){
+            Save-YomiConfigHistorySnapshot -SourcePath $script:ConfigPath -IncomingJson $json
+            Copy-Item $script:ConfigPath $previousTemp -Force
+            if(-not(Test-YomiJsonFile $previousTemp)){throw 'Previous-good config backup failed validation.'}
+            if(Test-Path $script:ConfigPreviousPath){
+                Invoke-YomiAtomicReplace -Source $previousTemp -Destination $script:ConfigPreviousPath
+            }else{
+                [System.IO.File]::Move($previousTemp,$script:ConfigPreviousPath)
+            }
+        }
+
+        if(Test-Path $script:ConfigPath){
+            Invoke-YomiAtomicReplace -Source $temp -Destination $script:ConfigPath
+        }else{
+            [System.IO.File]::Move($temp,$script:ConfigPath)
+        }
+    }
+    finally{
+        Remove-Item $temp,$previousTemp -Force -ErrorAction SilentlyContinue
+        if($locked){try{$mutex.ReleaseMutex()}catch{}}
+        $mutex.Dispose()
+    }
+}
+
 function Initialize-YomiData {
     foreach ($dir in @(
         $script:DataRoot,
@@ -42,6 +164,16 @@ function Initialize-YomiData {
         (Join-Path $script:DataRoot 'cache\status'),
         (Join-Path $script:DataRoot 'cache\comments'),
         (Join-Path $script:DataRoot 'cache\telemetry'),
+        (Join-Path $script:DataRoot 'cache\objects'),
+        (Join-Path $script:DataRoot 'cache\objects\audio'),
+        (Join-Path $script:DataRoot 'cache\objects\meta'),
+        (Join-Path $script:DataRoot 'cache\objects\gain'),
+        (Join-Path $script:DataRoot 'cache\objects\artwork'),
+        (Join-Path $script:DataRoot 'cache\objects\video'),
+        (Join-Path $script:DataRoot 'cache\objects\visualizer'),
+        (Join-Path $script:DataRoot 'cache\capabilities'),
+        (Join-Path $script:DataRoot 'cache\objects\receipts'),
+        (Join-Path $script:DataRoot 'cache\objects\quarantine'),
         (Join-Path $script:DataRoot 'state'),
         (Join-Path $script:DataRoot 'logs')
     )) {
@@ -50,13 +182,27 @@ function Initialize-YomiData {
 
     $defaultPath = Join-Path $PSScriptRoot 'default-config.json'
     if (-not (Test-Path $script:ConfigPath)) {
-        Copy-Item $defaultPath $script:ConfigPath -Force
+        $fresh=Get-Content $defaultPath -Raw|ConvertFrom-Json
+        Write-YomiConfigAtomic $fresh
         return
     }
 
     try {
         $defaults = Get-Content $defaultPath -Raw | ConvertFrom-Json
         $current = Get-Content $script:ConfigPath -Raw | ConvertFrom-Json
+
+        $supportedSchema=2
+        if($script:YomiContractVersions){$supportedSchema=[int]$script:YomiContractVersions.config_schema}
+        $actualSchema=1
+        if($null -ne $current.PSObject.Properties['config_schema_version']){
+            $actualSchema=[int]$current.config_schema_version
+        }
+        if($actualSchema -gt $supportedSchema){
+            $notice=Join-Path $script:DataRoot 'state\config-incompatible.txt'
+            Write-YomiUtf8NoBom -Path $notice -Text ("Config schema $actualSchema is newer than supported schema $supportedSchema. File preserved without modification.")
+            throw "Config schema $actualSchema is newer than this YOMI build supports ($supportedSchema)."
+        }
+
         $changed = $false
 
         $originalVersion = [string]$current.version
@@ -134,11 +280,35 @@ function Initialize-YomiData {
 
         if ($changed -or $originalVersion -ne $targetVersion) {
             $current.version = $targetVersion
-            Write-YomiUtf8NoBom -Path $script:ConfigPath -Text ($current | ConvertTo-Json -Depth 12)
+            $current.config_schema_version = $supportedSchema
+            Write-YomiConfigAtomic $current
+            Remove-Item (Join-Path $script:DataRoot 'state\config-incompatible.txt') -Force -ErrorAction SilentlyContinue
         }
     }
     catch {
-        Copy-Item $defaultPath $script:ConfigPath -Force
+        # A valid user config is never overwritten merely because migration
+        # logic itself encountered an unexpected condition.
+        if(Test-YomiJsonFile $script:ConfigPath){
+            try{Write-YomiUtf8NoBom -Path (Join-Path $script:DataRoot 'state\config-recovery.txt') -Text ('Migration warning: '+$_.Exception.Message)}catch{}
+            return
+        }
+
+        # Preserve the broken bytes for diagnosis, then recover the last known
+        # parseable config. Factory defaults are the final fallback only.
+        if(Test-Path $script:ConfigPath){
+            $stamp=Get-Date -Format 'yyyyMMdd-HHmmss'
+            Copy-Item $script:ConfigPath (Join-Path $script:DataRoot ('config.corrupt-'+$stamp+'.json')) -Force -ErrorAction SilentlyContinue
+        }
+
+        if(Test-YomiJsonFile $script:ConfigPreviousPath){
+            $recovered=Get-Content $script:ConfigPreviousPath -Raw|ConvertFrom-Json
+            Write-YomiConfigAtomic $recovered
+            try{Write-YomiUtf8NoBom -Path (Join-Path $script:DataRoot 'state\config-recovery.txt') -Text 'Recovered config.previous.json after current config parse failure.'}catch{}
+        }else{
+            $fresh=Get-Content $defaultPath -Raw|ConvertFrom-Json
+            Write-YomiConfigAtomic $fresh
+            try{Write-YomiUtf8NoBom -Path (Join-Path $script:DataRoot 'state\config-recovery.txt') -Text 'Current config was invalid and no previous-good copy existed; factory defaults were restored.'}catch{}
+        }
     }
 }
 
@@ -149,7 +319,14 @@ function Get-YomiConfig {
 
 function Save-YomiConfig($Config) {
     Initialize-YomiData
-    Write-YomiUtf8NoBom -Path $script:ConfigPath -Text ($Config | ConvertTo-Json -Depth 12)
+    $supportedSchema=2
+    if($script:YomiContractVersions){$supportedSchema=[int]$script:YomiContractVersions.config_schema}
+    $actualSchema=if($null -ne $Config.PSObject.Properties['config_schema_version']){[int]$Config.config_schema_version}else{1}
+    Assert-YomiSchemaCompatible -Name 'Config' -Actual $actualSchema -Supported $supportedSchema
+    $Config.config_schema_version=$supportedSchema
+    Write-YomiConfigAtomic $Config
+    Remove-Item (Join-Path $script:DataRoot 'state\config-recovery.txt') -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path $script:DataRoot 'state\config-incompatible.txt') -Force -ErrorAction SilentlyContinue
 }
 
 function Get-OverlayUrl($Config) {
@@ -174,7 +351,7 @@ function Get-DirectorFixedSource($Config,[string]$Module) {
 
 function Clear-YomiCache {
     Initialize-YomiData
-    foreach ($name in @('audio','artwork','video','visualizer','meta','gain','status','comments','telemetry')) {
+    foreach ($name in @('audio','artwork','video','visualizer','meta','gain','status','comments','telemetry','objects','capabilities')) {
         $path = Join-Path $script:DataRoot ("cache\" + $name)
         Get-ChildItem $path -Force -ErrorAction SilentlyContinue |
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
@@ -243,6 +420,11 @@ function Get-YomiResolvedFps($Config) {
     if ([string]$Config.app_mode -ne 'Streamer / OBS') { return 15 }
     $modules = @()
     if ([bool]$Config.director_mode) {
+        foreach ($source in @($Config.director_fixed_sources)) {
+            if ([bool]$source.enabled) {
+                $modules += ([string]$source.module).Trim().ToLowerInvariant()
+            }
+        }
         foreach ($output in @($Config.director_outputs)) {
             if ([bool]$output.enabled) {
                 $modules += @(([string]$output.modules).ToLowerInvariant().Split(',') | ForEach-Object { $_.Trim() })

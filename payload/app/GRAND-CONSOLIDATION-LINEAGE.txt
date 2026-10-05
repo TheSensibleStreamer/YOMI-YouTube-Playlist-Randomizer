@@ -1,0 +1,212 @@
+YOMI 4.2.0.8 — GRAND CONSOLIDATION LINEAGE
+============================================
+
+GOVERNING RULE
+--------------
+Every legitimate YOMI iteration survives in the canonical product unless a later
+iteration explicitly supersedes its implementation. Supersession preserves the
+behavioral result; it does not mean historical work is discarded.
+
+FOUNDATION — DEV1 THROUGH DEV13.28
+----------------------------------
+DEV13.28 is the cumulative pre-product-shell foundation. Earlier waves explicitly
+superseded prior waves and DEV13.28 carries that reconciled result:
+- quality/correctness/session foundations
+- queue-runtime and preparation truth
+- predictive scheduling / runtime epochs / flight recorder / Doctor
+- failure containment / Safe Mode / rehearsal
+- resource and disk degradation / cached continuity / Broadcast Freeze
+- atomic configuration / previous-good recovery
+- content-addressed media identity
+- mutable occurrence order / undo / redo / session mutation journal
+- runtime leases, schema contracts and readiness
+- Recovery Points / Incident Replay / Config Time Machine
+- Oracle route intelligence / machine calibration / deterministic lab
+- Aegis provenance, mutation ledger, safe repair and resource governor
+
+PRODUCT SHELL — DEV13.29 THROUGH DEV13.37.2
+-------------------------------------------
+The evolved desktop product shell is authoritative:
+- DEV13.29 UI Foundation
+  Performance-page reflow, Operations doorway, Settings single-instance foreground
+  activation, explicit UTF-8 metadata reads.
+- DEV13.30 Player Shell
+  Compact YOMI // PLAYER surface, seek/time/technical strip, cached artwork/video/viz.
+- DEV13.31+ Product Shell
+  Commercial WPF product surface and deeper navigation.
+- Command Fabric / Operator Intelligence / Visual Identity / Media Stage
+- transactional queue and advanced queue drawer
+- Operator Deck
+- DEV13.37.2 Intent Fabric / provenance black box
+
+CIVILIZATION / DEEP SYSTEMS — DEV13.37.3 THROUGH DEV13.37.30
+------------------------------------------------------------
+This branch is being reincorporated as the dormant-on-demand Expedition domain.
+Opening Expedition must never grant playback authority or create background media work.
+
+Known concrete systems retained in the active recovery map include:
+- DEV13.37.18 Complex Systems Laboratory
+- DEV13.37.19 Operations Research Empire
+- DEV13.37.20 Economic Civilization
+- DEV13.37.21 Spatial World Cartography
+- DEV13.37.23 Adversarial Security Fortress
+- DEV13.37.24 Data Foundry
+- DEV13.37.25 Software Genome Observatory
+- DEV13.37.26 Living Document & Intelligence Factory
+- DEV13.37.27 Grand Unified Expedition Command
+- Deep Systems / EXPΩ / METAΩ / SYNTHΩ / VOIDΩ research layers
+- DEV13.37.30 civilization closure / Unknown Unknowns boundary
+
+The entire DEV13.37.3–37.30 version range is reserved in the lineage even where a
+historical module's exact display name still needs artifact archaeology. Nothing in
+that range is considered intentionally deleted.
+
+CORE RETURN — DEV13.38 THROUGH DEV13.52
+---------------------------------------
+- Media Route & Continuity Console
+- Queue Observatory
+- Visualizer Signal Shaper
+- OBS Composition Engine
+- Playback Handoff Engine
+- Predictive Continuity Governor
+- Media Admission & Budget Governor
+- Media Fault Containment
+- Cache Coherence & Artifact Integrity
+- Performance Attribution & Stream-Safe Telemetry
+- Runtime SLO & Regression Sentinel
+- Transactional Configuration & Change-Impact Engine
+- Runtime State Coherence Protocol
+- Crash Recovery Replay Engine
+- Atomic Update & Last-Known-Good Deployment Engine
+
+DEV13.53 — GRAND CONSOLIDATION PASS 1
+-------------------------------------
+- makes the WPF product shell the normal YOMI launcher target
+- retains the old WinForms Controller only as a fail-safe legacy surface
+- restores the dropped DEV13.29 Performance-page layout doctrine
+- introduces Expedition Command as a first-class WPF domain
+- keeps Expedition dormant when closed
+- installs this lineage ledger beside the canonical shell
+
+DEV13.54 — EXPEDITION CIVILIZATION RECOVERY & INTEGRATION
+---------------------------------------------------------
+- recovers the cumulative DEV13.37.30 civilization source tree from its sealed artifact
+- compiles 47 retained Deep Systems / civilization source modules into the current shell
+- EXPΩ becomes executable from the canonical launchpad instead of being a placeholder
+- restores System Atlas, World/Civilization/Logic/Verification/Strategy/Science/Engineering/
+  Cybernetics/Complex Systems/OR/Economics/Spatial/Distributed/Security/Data/Genome/Documents
+- restores METAΩ Knowledge Constellation, SYNTHΩ Synthesis Reactor and VOIDΩ Unknown Unknowns
+- command palette exposes the complete recovered exploration surface
+- direct Ctrl+Alt shortcuts restore the capstone concrete systems
+- keeps the entire civilization domain dormant until explicitly opened
+- preserves the DEV13.38-52 core-return runtime as playback authority
+
+DEV13.55 — UNIFIED EXPEDITION WORKSPACE & CROSS-SYSTEM NAVIGATION FABRIC
+-----------------------------------------------------------------------
+The recovered DEV13.37.x civilization stops behaving like an archipelago of windows.
+
+Adds one persistent navigation spine over the recovered civilization:
+- browser-style back / forward route history
+- recent-worldline retention
+- pinned civilization portals
+- resume-current route
+- persistent local workspace shell state
+- controller / More menu / command-palette entry
+- Ctrl+Alt+W direct workspace shortcut
+- System Atlas transitions participate in the same worldline
+- Data Foundry / Software Genome / Living Documents / EXPΩ typed crossings register as real cross-system navigation
+- deep object/file/evidence drill-downs update current detail without creating fake top-level history entries
+
+Authority split:
+- Expedition Workspace owns navigation continuity only.
+- EXPΩ remains authoritative for mission branches, source snapshots, findings, contradictions,
+  checkpoints, exact resume capsules and mission worldlines.
+
+Resource law:
+- no new background worker
+- no downloader
+- no decoder
+- no poller
+- no network request
+- no playback authority
+- writes only tiny local workspace JSON on semantic navigation/pin transitions
+
+DEV13.56 — WORLD PASSPORT & EVIDENCE SPINE
+------------------------------------------
+Composes existing civilization authorities instead of replacing them:
+  World Kernel remains universal identity/object graph authority.
+  METAΩ remains cross-mission semantic/evidence authority.
+  DEV13.56 persists selected object snapshots and explicit user-declared relations.
+
+First-class capture surfaces:
+  Deep object microscope
+  World Passport
+  DATAΩ dataset
+  GENOMEΩ snapshot
+  DOCΩ version
+  EXPΩ exact-resume step
+  Expedition Workspace
+
+Hotkey:
+  Ctrl+Alt+O
+
+Storage:
+  %LOCALAPPDATA%\YOMI\deep-systems\world-passport-spine.json
+
+Resource law:
+  no background worker / decoder / downloader / poller / network request while closed.
+
+DEV13.57 — NO-GAPS ALL-IN-ONE CONSOLIDATION
+---------------------------------------------
+- uses the r6 consumer installer as the transactional installation chassis
+- preserves DEV13.28 as the cumulative foundation replay over exact public 4.2.0.7
+- preserves the DEV13.40-52 executable core-return patch chain
+- proves DEV13.40 imports the completed transactional-queue / Intent Fabric WPF descendant, carrying DEV13.29-39 product-shell work forward
+- installs the eight authoritative DEV13.52 operational scripts explicitly
+- integrates the full DEV13.56 47-module civilization + workspace + World Passport source tree
+- compiles 49 civilization/support modules with the canonical WPF shell
+- retains 101 Expedition documents plus core-return and consolidation-history evidence
+- records DEV13.30 base/r2/r3/r4/r5 and DEV13.31 base/final revision granularity
+- fixes stale lineage bookkeeping that previously stopped at DEV13.55
+- fails closed if the no-gaps ledger, source counts, operational scripts, launcher, or final self-test are missing
+
+Acceptance law: zero unexplained lineage holes. A pass may be superseded, but it may not vanish.
+
+
+DEV13.58 — RELEASE QUALIFICATION & CAPABILITY RETENTION GATE
+-------------------------------------------------------------
+DEV13.57 closed the historical consolidation problem. DEV13.58 closes the trust problem.
+
+The installer now treats the unified YOMI runtime as a release candidate that must prove:
+- behavior-bearing capability signatures across playback, queue, recovery, diagnostics,
+  configuration, cache/state/performance, updater safety, WPF product shell and Expedition
+- the exact required patch chain actually executed successfully
+- the no-gaps lineage remains certified
+- all 49 support modules and 47 recovered civilization modules remain present
+- all app PowerShell parses under Windows PowerShell
+- the canonical WPF controller passes its executable self-test
+- critical immutable runtime files match a SHA-256 manifest generated only after final compile
+
+The gate runs before Program Files promotion and again against the promoted installation.
+A missing capability is now a release failure, not a future archaeology problem.
+
+
+DEV13.59 — LIBRARY MEMORY & LISTENING LEDGER
+----------------------------------------------
+Product development resumes on the DEV13.58 qualified consolidation base.
+
+Adds persistent source-level listening memory to the canonical WPF controller:
+- schema-2 controller-library state with clean schema-1 favorites migration
+- stable source identity using the existing source key / YouTube ID / URL fallback
+- session + occurrence visit deduplication so controller restarts do not inflate play counts
+- observed plays, completion observations, short-listen observations, listening seconds, and first/last-played timestamps
+- immediate durable commit for a newly observed play plus throttled 15-second listening checkpoints
+- Unheard and Frequent queue scopes
+- Now Playing memory pill, per-row queue memory line, library coverage summary and Inspector history
+- command-palette routes for Unheard and Frequent library views
+
+Authority law:
+- observation only; the music engine remains sole playback authority
+- no downloader, decoder, poller, network request or background media worker is added
+- DEV13.59 becomes the 37th behavior-bearing release capability and the 17th required patch receipt
+- DEV13.59 listening-memory reference model: 377,759 assertions PASS

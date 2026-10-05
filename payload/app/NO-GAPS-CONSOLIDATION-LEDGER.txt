@@ -1,0 +1,171 @@
+YOMI v4.2.0.8 DEV13.59 — RELEASE-QUALIFIED NO-GAPS PRODUCT HEAD
+=====================================================================
+
+ACCEPTANCE RULE
+---------------
+Every known development step must be accounted for. It may be active code, a later
+behavior-preserving descendant, or retained historical evidence. It may not silently vanish.
+
+INSTALLATION CHASSIS
+--------------------
+r6 SHA-256: a94fcb7208c9fa0cc6e0753c131527003d0db9087361d4a48a07bb3d6071b2b9
+public base -> DEV13.28 cumulative foundation -> DEV13.40-52 -> DEV13.57 integration -> DEV13.58 qualification -> DEV13.59 product head -> final validation -> Program Files
+
+FOUNDATION CENSUS
+-----------------
+DEV          covered-by-DEV13.28                            YOMI-v4.2.0.8-dev-implementation-slice.zip
+DEV2         covered-by-DEV13.28                            YOMI-v4.2.0.8-dev2-next-trove.zip
+DEV3         covered-by-DEV13.28                            YOMI-v4.2.0.8-dev3-predictive-trove.zip
+DEV4         covered-by-DEV13.28                            YOMI-v4.2.0.8-dev4-reflex-trove.zip
+DEV5         covered-by-cumulative-successor; no standalone capsule asserted (no standalone capsule asserted)
+DEV6         covered-by-DEV13.28                            YOMI-v4.2.0.8-dev6-durability-trove.zip
+DEV7         covered-by-cumulative-successor; no standalone capsule asserted (no standalone capsule asserted)
+DEV8         covered-by-DEV13.28                            YOMI-v4.2.0.8-dev8-mutable-order-trove.zip
+DEV9         covered-by-cumulative-successor; no standalone capsule asserted (no standalone capsule asserted)
+DEV10        covered-by-cumulative-successor; no standalone capsule asserted (no standalone capsule asserted)
+DEV11        covered-by-cumulative-successor; no standalone capsule asserted (no standalone capsule asserted)
+DEV12        covered-by-DEV13.28                            YOMI-v4.2.0.8-dev12-oracle-engine.zip
+DEV13        covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13-aegis-fabric.zip
+DEV13.1      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.1-aegis-validation-hotfix.zip
+DEV13.2      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.2-literal-anchor-hotfix.zip
+DEV13.3      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.3-rebase-anchor-hotfix.zip
+DEV13.4      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.4-chain-consistency-hotfix.zip
+DEV13.5      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.5-manifest-order-hotfix.zip
+DEV13.6      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.6-stale-anchor-sweep.zip
+DEV13.7      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.7-shutdown-durability-hotfix.zip
+DEV13.8      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.8-ambiguity-and-lineage-hotfix.zip
+DEV13.9      covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.9-resource-projection-hotfix.zip
+DEV13.10     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.10-full-validation-sweep.zip
+DEV13.11     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.11-ps51-object-construction-sweep.zip
+DEV13.12     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.12-generic-list-enumeration-sweep.zip
+DEV13.13     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.13-child-runner-output-sweep.zip
+DEV13.14     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.14-argument-forwarding-sweep.zip
+DEV13.15     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.15-negative-path-runner-sweep.zip
+DEV13.16     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.16-ast-verifier-sweep.zip
+DEV13.17     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.17-verifier-decomplexification-sweep.zip
+DEV13.18     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.18-aegis-boolean-expression-sweep.zip
+DEV13.19     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.19-controller-boolean-and-verifier-scope-sweep.zip
+DEV13.20     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.20-patcher-tail-orchestration-sweep.zip
+DEV13.21     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.21-lua-local-budget-sweep.zip
+DEV13.22     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.22-lua-function-budget-and-proof-sweep.zip
+DEV13.23     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.23-lua-string-integrity-sweep.zip
+DEV13.24     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.24-lua-multireturn-coercion-sweep.zip
+DEV13.25     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.25-lua-lexical-binding-sweep.zip
+DEV13.26     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.26-lua-temporal-bootstrap-sweep.zip
+DEV13.27     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.27-lua-script-entry-bootstrap-sweep.zip
+DEV13.28     covered-by-DEV13.28                            YOMI-v4.2.0.8-dev13.28-pre-log-lexical-safety-sweep.zip
+
+PRODUCT SHELL CENSUS
+--------------------
+DEV13.29     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.29-ui-foundation.zip
+DEV13.30     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.30-player-shell.zip, YOMI-v4.2.0.8-dev13.30-player-shell-r2.zip, YOMI-v4.2.0.8-dev13.30-player-shell-r3.zip, YOMI-v4.2.0.8-dev13.30-player-shell-r4.zip, YOMI-v4.2.0.8-dev13.30-player-shell-r5.zip
+DEV13.31     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.31-product-shell.zip, YOMI-v4.2.0.8-dev13.31-product-shell-final.zip
+DEV13.32     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.32-command-fabric.zip
+DEV13.33     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.33-operator-intelligence.zip
+DEV13.34     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.34-visual-identity.zip
+DEV13.35     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.35-media-stage.zip
+DEV13.36     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.36-playback-console.zip
+DEV13.37     carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.37-transactional-queue.zip
+DEV13.37.1   carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.37.1-operator-deck.zip
+DEV13.37.2   carried-by-DEV13.40-and-later-WPF-descendant   YOMI-v4.2.0.8-dev13.37.2-intent-fabric.zip
+
+CIVILIZATION CENSUS
+-------------------
+DEV13.37.3   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.3-deep-systems.zip
+DEV13.37.4   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.4-temporal-observatory.zip
+DEV13.37.5   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.5-causal-graph.zip
+DEV13.37.6   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.6-research-workbench.zip
+DEV13.37.7   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.7-coding-renaissance.zip
+DEV13.37.8   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.8-cognitive-productivity.zip
+DEV13.37.9   source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.9-hadal-systems.zip
+DEV13.37.10  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.10-universal-world-kernel.zip
+DEV13.37.11  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.11-civilization-layer.zip
+DEV13.37.12  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.12-epistemic-logic-foundry.zip
+DEV13.37.13  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.13-axiomatic-verification-reactor.zip
+DEV13.37.14  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.14-counterfactual-strategy-superstructure.zip
+DEV13.37.15  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.15-scientific-discovery-hyperstructure.zip
+DEV13.37.16  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.16-dyson-systems-engineering-megastructure.zip
+DEV13.37.17  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.17-cybernetic-digital-twin-metastructure.zip
+DEV13.37.18  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.18-complex-systems-laboratory.zip
+DEV13.37.19  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.19-operations-research-empire.zip
+DEV13.37.20  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.20-economic-civilization.zip
+DEV13.37.21  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.21-spatial-world-cartography.zip
+DEV13.37.22  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.22-distributed-systems-planetarium.zip
+DEV13.37.23  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.23-adversarial-security-fortress.zip
+DEV13.37.24  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.24-data-foundry.zip
+DEV13.37.25  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.25-software-genome-observatory.zip
+DEV13.37.26  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.26-living-document-intelligence-factory.zip
+DEV13.37.27  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.27-grand-unified-expedition-command.zip
+DEV13.37.28  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.28-knowledge-constellation-metastructure.zip
+DEV13.37.29  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.29-civilizational-synthesis-reactor.zip
+DEV13.37.30  source-recovered-in-DEV13.56                   YOMI-v4.2.0.8-dev13.37.30-unknown-unknowns-civilization-closure.zip
+
+CORE RETURN CENSUS
+------------------
+DEV13.38     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.38-media-route-continuity-console.zip
+DEV13.39     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.39-queue-observatory.zip
+DEV13.40     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.40-visualizer-signal-shaper.zip
+DEV13.41     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.41-obs-composition-engine.zip
+DEV13.42     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.42-playback-handoff-engine.zip
+DEV13.43     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.43-predictive-continuity-governor.zip
+DEV13.44     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.44-media-admission-budget-governor.zip
+DEV13.45     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.45-media-fault-containment.zip
+DEV13.46     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.46-cache-coherence-artifact-integrity.zip
+DEV13.47     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.47-performance-attribution-stream-telemetry.zip
+DEV13.48     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.48-runtime-slo-regression-sentinel.zip
+DEV13.49     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.49-transactional-configuration-change-impact.zip
+DEV13.50     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.50-runtime-state-coherence-protocol.zip
+DEV13.51     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.51-crash-recovery-replay-engine.zip
+DEV13.52     explicitly-retained-or-applied-by-r6           YOMI-v4.2.0.8-dev13.52-atomic-update-last-known-good.zip
+
+CONSOLIDATION CENSUS
+--------------------
+DEV13.53     merged-into-qualified-base                           YOMI-v4.2.0.8-dev13.53-grand-consolidation-pass1.zip
+DEV13.54     merged-into-qualified-base                           YOMI-v4.2.0.8-dev13.54-expedition-civilization-recovery.zip
+DEV13.55     merged-into-qualified-base                           YOMI-v4.2.0.8-dev13.55-unified-expedition-workspace.zip
+DEV13.56     merged-into-qualified-base                           YOMI-v4.2.0.8-dev13.56-world-passport-evidence-spine.zip
+DEV13.57     merged-into-qualified-base                           YOMI-v4.2.0.8-dev13.57-no-gaps-all-in-one.zip
+DEV13.58     sealed-release-qualified-base                                        YOMI-v4.2.0.8-dev13.58-release-qualification.zip
+
+REVISION GRANULARITY
+--------------------
+DEV13.30: base -> r2 -> r3 -> r4 -> r5
+DEV13.31: base -> final
+
+DEPLOYMENT PROOF
+----------------
+47 recovered civilization modules
+49 compile-support modules
+102 Expedition architecture/provenance documents
+8 DEV13.52 operational scripts installed explicitly
+Workspace randomized model: 701,446 assertions PASS
+World Passport randomized model: 300,000 assertions PASS
+
+KNOWN GAPS
+----------
+NONE. Any future archaeology that discovers an additional genuinely distinct revision must
+be added to this ledger before a later consolidation may still claim NO_UNEXPLAINED_GAPS.
+
+
+DEV13.58 RELEASE QUALIFICATION
+------------------------------
+36 behavior-bearing capability contracts at the sealed DEV13.58 base
+43 required runtime files
+16 required patch execution receipts at the sealed DEV13.58 base
+Post-compile SHA-256 runtime integrity manifest
+Fail-closed qualification before and after Program Files promotion
+
+
+POST-CONSOLIDATION PRODUCT DEVELOPMENT
+--------------------------------------
+DEV13.59     current-release-qualified-product-head         YOMI-v4.2.0.8-dev13.59-library-memory-listening-ledger.zip
+
+DEV13.59 RELEASE QUALIFICATION
+------------------------------
+37 behavior-bearing capability contracts
+43 required runtime files
+17 required patch execution receipts
+Persistent library-memory schema 2 with source/visit deduplication
+Fail-closed qualification before and after Program Files promotion
+Known gaps: NONE
+- DEV13.59 listening-memory reference model: 377,759 assertions PASS

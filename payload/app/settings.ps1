@@ -1,14 +1,27 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 . (Join-Path $PSScriptRoot 'common.ps1')
 Initialize-YomiData
-$config = Get-YomiConfig
+. (Join-Path $PSScriptRoot 'config-transaction.ps1')
+$committedConfig = Get-YomiConfig
+$startupTransactionState=Get-YomiConfigTransactionState
+$config = $(if($startupTransactionState.pending -and $startupTransactionState.pending.new_config){$startupTransactionState.pending.new_config}else{$committedConfig})
+# DEV13.49 TRANSACTIONAL CONFIGURATION & CHANGE-IMPACT ENGINE
+if(-not $config.PSObject.Properties['config_change_policy']){$config|Add-Member -NotePropertyName 'config_change_policy' -NotePropertyValue 'Safe staging'}
+# DEV13.51 RECOVERY REPLAY SETTINGS
+if(-not $config.PSObject.Properties['recovery_policy']){$config|Add-Member -NotePropertyName 'recovery_policy' -NotePropertyValue 'Validated resume'}
+# DEV13.52 UPDATE DEPLOYMENT SETTINGS
+if(-not $config.PSObject.Properties['update_deployment_policy']){$config|Add-Member -NotePropertyName 'update_deployment_policy' -NotePropertyValue 'Verified rollback'}
+foreach($pair in @(@('overlay_text_gap_px',14),@('overlay_safe_margin_px',8),@('overlay_auto_fit_text',$true),@('overlay_min_text_size',18),@('overlay_visual_join_ms',90))){if(-not $config.PSObject.Properties[[string]$pair[0]]){$config|Add-Member -NotePropertyName ([string]$pair[0]) -NotePropertyValue $pair[1]}}
+$configIncompatibleNotice=Join-Path $DataRoot 'state\config-incompatible.txt'
+$script:configReadOnly=Test-Path $configIncompatibleNotice
 $yomiVersion = Get-YomiVersionText
 $settingsCreated = $false
 $settingsMutex = New-Object System.Threading.Mutex($true,'Local\YOMI_SETTINGS_V4',[ref]$settingsCreated)
 $settingsActivate = New-Object System.Threading.EventWaitHandle($false,[System.Threading.EventResetMode]::AutoReset,'Local\YOMI_SETTINGS_ACTIVATE_V4')
 if(-not $settingsCreated){try{$settingsActivate.Set()}catch{};try{$settingsActivate.Dispose()}catch{};try{$settingsMutex.Dispose()}catch{};exit 0}
+$script:reopenSettingsAfterClose=$false
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "YOMI $yomiVersion - YouTube OBS Music Interface"
@@ -249,7 +262,8 @@ Add-Label $visual 'Anchor:' 785 184 65 | Out-Null
 $vizAnchor=Add-Combo $visual 850 180 80 @('Source','Bottom','Center','Top') ([string]$config.visualizer_vertical_anchor)
 
 Add-Label $visual 'Bar spacing:' 18 238 90 | Out-Null
-$vizSpacing=Add-Combo $visual 115 234 145 @('None','Light','Wide') ([string]$config.visualizer_bar_spacing)
+# DEV13.40 VISUALIZER SETTINGS
+$vizSpacingName=$(if([string]$config.visualizer_bar_spacing -eq 'Wide'){'Loose'}elseif([string]::IsNullOrWhiteSpace([string]$config.visualizer_bar_spacing)){'None'}else{[string]$config.visualizer_bar_spacing});$vizSpacing=Add-Combo $visual 115 234 145 @('None','Light','Loose','Extra Loose','Maximum') $vizSpacingName
 Add-Label $visual 'Peak glow:' 285 238 85 | Out-Null
 $vizPeakGlow=Add-Combo $visual 375 234 145 @('Off','Subtle','Strong') ([string]$config.visualizer_peak_glow)
 Add-Label $visual 'Frequency scale:' 545 238 115 | Out-Null
@@ -258,13 +272,184 @@ Add-Label $visual 'Visualizer FPS:' 18 292 105 | Out-Null
 $vizFps=Add-Combo $visual 125 288 145 @('30 FPS','60 FPS') ([string]$config.visualizer_fps)
 Add-Label $visual 'High-frequency trim %:' 305 292 165 | Out-Null
 $vizHighTrim=Add-Number $visual 475 288 80 0 60 ([int]$config.visualizer_high_frequency_trim)
-$visualHint=Add-Label $visual 'Monolith, Mega and Giant Blocks stretch very few generated pixels for low preparation cost. Microscopic and Maximum Detail increase resolution. High-frequency trim remaps useful bins across the full width. Generation changes rebuild cached visualizers.' 18 344 875 70
+Add-Label $visual 'Frequency fill:' 585 292 100 | Out-Null
+$vizFillDefault=$(if([string]::IsNullOrWhiteSpace([string]$config.visualizer_adaptive_fill)){'Adaptive'}else{[string]$config.visualizer_adaptive_fill})
+$vizFill=Add-Combo $visual 685 288 185 @('Off','Adaptive','Aggressive') $vizFillDefault
+Add-Label $visual 'HF visual lift dB:' 18 344 125 | Out-Null
+$vizLiftDefault=$(if($null -eq $config.visualizer_high_frequency_lift_db){4}else{[int]$config.visualizer_high_frequency_lift_db})
+$vizHighLift=Add-Number $visual 150 340 90 0 12 $vizLiftDefault
+$visualHint=Add-Label $visual 'Adaptive fill reclaims silent right-side source bins without fabricating energy; Aggressive stretches farther. HF visual lift boosts only the silent visualizer analysis feed, never playback audio. Signal Analyzer keeps fixed mapping. Browser-only color/shape/glow/spacing/trim/fill changes no longer invalidate the cached signal MP4.' 18 390 875 82
 $visualHint.ForeColor=[System.Drawing.Color]::DimGray
-$visualCost=Add-Label $visual '' 18 430 875 56
+$visualCost=Add-Label $visual '' 18 486 875 56
 $visualCost.BorderStyle='FixedSingle';$visualCost.ForeColor=[System.Drawing.Color]::DimGray
 
+# DEV13.41 OBS COMPOSITION SETTINGS
+$composition=New-Tab 'OBS Composition'
+$compositionTitle=Add-Label $composition 'Composition lanes' 18 20 300 30
+$compositionTitle.Font=New-Object System.Drawing.Font('Segoe UI Semibold',13)
+$compositionText=Add-Label $composition 'Media, visualizer and text are separate geometry lanes. The visualizer source edge is hard-locked to the final media pixel; text spacing cannot move it.' 18 55 875 48
+$compositionText.ForeColor=[System.Drawing.Color]::DimGray
+Add-Label $composition 'Text gap px:' 18 126 100 | Out-Null
+$composeGapDefault=[int]$config.overlay_text_gap_px
+$composeTextGap=Add-Number $composition 125 122 85 0 80 $composeGapDefault
+Add-Label $composition 'Safe edge px:' 245 126 105 | Out-Null
+$composeSafeDefault=[int]$config.overlay_safe_margin_px
+$composeSafeMargin=Add-Number $composition 355 122 85 0 200 $composeSafeDefault
+$composeAutoFit=Add-Check $composition 'Auto-fit long title/channel' 485 122 ([bool]$config.overlay_auto_fit_text) 240
+Add-Label $composition 'Minimum text px:' 18 178 120 | Out-Null
+$composeMinDefault=[int]$config.overlay_min_text_size
+$composeMinText=Add-Number $composition 145 174 85 8 80 $composeMinDefault
+$composeLock=Add-Label $composition 'MEDIA → VISUALIZER EDGE: LOCKED / ZERO GAP' 275 176 430 28
+$composeLock.ForeColor=[System.Drawing.Color]::DarkGreen
+$composeGeometry=Add-Label $composition '' 18 235 875 96
+$composeGeometry.BorderStyle='FixedSingle';$composeGeometry.Padding=New-Object System.Windows.Forms.Padding(8);$composeGeometry.ForeColor=[System.Drawing.Color]::DimGray
+$composeHint=Add-Label $composition 'Auto-fit begins at the configured text size, shrinks only when the real text lane is too narrow, stops at Minimum text px, then ellipsizes only if the string still cannot fit. Safe edge reserves empty canvas at the far edge; it never creates a media/visualizer gap.' 18 355 875 72
+$composeHint.ForeColor=[System.Drawing.Color]::DimGray
+
+# DEV13.42 PLAYBACK HANDOFF SETTINGS
+$handoffBox=New-Object System.Windows.Forms.GroupBox;$handoffBox.Text='Track handoff';$handoffBox.Location=New-Object System.Drawing.Point(18,445);$handoffBox.Size=New-Object System.Drawing.Size(875,110);$composition.Controls.Add($handoffBox)
+$handoffLock=Add-Label $handoffBox 'ATOMIC TRACK IDENTITY: LOCKED ON' 15 28 300 26
+$handoffLock.ForeColor=[System.Drawing.Color]::DarkGreen
+Add-Label $handoffBox 'Visual join fade ms:' 340 29 135 | Out-Null
+$handoffJoinDefault=[int]$config.overlay_visual_join_ms
+$handoffJoinMs=Add-Number $handoffBox 480 25 90 0 300 $handoffJoinDefault
+$handoffHint=Add-Label $handoffBox 'At an audio identity change, stale artwork/video/visualizer identity retires immediately. New assets may join only from the current presentation epoch. 0 ms = snap; 90 ms = low-cost default.' 15 61 835 40
+$handoffHint.ForeColor=[System.Drawing.Color]::DimGray
+$handoffJoinMs.Add_ValueChanged({Update-Preview})
+
+function Update-CompositionInfo {
+    $cw=[int]$canvasW.Value;$mw=[int]$mediaW.Value;$bp=$(if($borderOn.Checked){[int]$borderPx.Value}else{0});$mediaCount=0;if($art.Checked){$mediaCount++};if($video.Checked){$mediaCount++}
+    $mediaExtent=$mediaCount*$mw;if($mediaCount -ge 2 -and $bp -gt 0){$mediaExtent-=$bp}
+    $mult=switch([string]$vizLength.SelectedItem){'Short'{2.0}'Medium'{3.0}'Extra Wide'{6.0}default{4.0}}
+    $safe=[int]$composeSafeMargin.Value;$gap=$(if($mediaCount -gt 0){[int]$composeTextGap.Value}else{0});$vizSpan=[Math]::Max(1,[Math]::Min([int][Math]::Round($mw*$mult),[Math]::Max(1,$cw-$mediaExtent-$safe)));$textLane=[Math]::Max(1,$cw-$mediaExtent-$gap-$safe);$isRight=([string]$corner.SelectedItem).EndsWith('Right');$vizStart=$(if($isRight){[Math]::Max(0,$cw-$mediaExtent-$vizSpan)}else{$mediaExtent});$vizEnd=$vizStart+$vizSpan;$touchX=$(if($isRight){$cw-$mediaExtent}else{$mediaExtent});$textNearX=$(if($isRight){$cw-$mediaExtent-$gap}else{$mediaExtent+$gap})
+    $fit=$(if($composeAutoFit.Checked){"AUTO $([int]$textSize.Value)→$([int]$composeMinText.Value)px"}else{"FIXED $([int]$textSize.Value)px"});$status=$(if($mediaExtent+$safe -ge $cw){'OVERFLOW'}elseif($textLane -ge [Math]::Max(120,[int]$composeMinText.Value*6)){'FIT'}else{'TIGHT'});$anchorName=$(if($isRight){'RIGHT'}else{'LEFT'})
+    $composeGeometry.Text="CANVAS $cw px   ·   ANCHOR $anchorName   ·   MEDIA $mediaExtent px   ·   VIZ TOUCH x=$touchX (LOCKED)`r`nVIZ x=$vizStart..$vizEnd / $vizSpan px   ·   TEXT NEAR EDGE x=$textNearX   ·   TEXT LANE $textLane px   ·   SAFE EDGE $safe px`r`nTEXT $fit   ·   GEOMETRY $status"
+}
+foreach($n in @($composeTextGap,$composeSafeMargin,$composeMinText)){$n.Add_ValueChanged({Update-CompositionInfo;Update-Preview})}
+$composeAutoFit.Add_CheckedChanged({Update-CompositionInfo;Update-Preview})
+foreach($n in @($canvasW,$mediaW,$borderPx,$textSize)){$n.Add_ValueChanged({Update-CompositionInfo})}
+foreach($c in @($art,$video,$borderOn)){$c.Add_CheckedChanged({Update-CompositionInfo})}
+foreach($c in @($vizLength,$corner)){$c.Add_SelectedIndexChanged({Update-CompositionInfo})}
+Update-CompositionInfo
+
 # PERFORMANCE
+# DEV13.43 PREDICTIVE CONTROL SETTINGS
+# DEV13.44 MEDIA ADMISSION SETTINGS
+# DEV13.45 MEDIA FAULT CONTAINMENT SETTINGS
+if(-not $config.PSObject.Properties['predictive_control_mode']){$config|Add-Member -NotePropertyName 'predictive_control_mode' -NotePropertyValue 'Balanced'}
+if(-not $config.PSObject.Properties['media_admission_policy']){$config|Add-Member -NotePropertyName 'media_admission_policy' -NotePropertyValue 'Balanced'}
+if(-not $config.PSObject.Properties['media_fault_containment']){$config|Add-Member -NotePropertyName 'media_fault_containment' -NotePropertyValue 'Balanced'}
+# DEV13.46 CACHE COHERENCE SETTINGS
+if(-not $config.PSObject.Properties['cache_coherence_policy']){$config|Add-Member -NotePropertyName 'cache_coherence_policy' -NotePropertyValue 'Balanced'}
+# DEV13.47 PERFORMANCE ATTRIBUTION SETTINGS
+if(-not $config.PSObject.Properties['performance_attribution_mode']){$config|Add-Member -NotePropertyName 'performance_attribution_mode' -NotePropertyValue 'Balanced'}
+# DEV13.48 RUNTIME SLO SETTINGS
+if(-not $config.PSObject.Properties['slo_policy']){$config|Add-Member -NotePropertyName 'slo_policy' -NotePropertyValue 'Balanced'}
+if(-not $config.PSObject.Properties['slo_handoff_p95_ms']){$config|Add-Member -NotePropertyName 'slo_handoff_p95_ms' -NotePropertyValue 750}
+if(-not $config.PSObject.Properties['slo_regression_percent']){$config|Add-Member -NotePropertyName 'slo_regression_percent' -NotePropertyValue 175}
+if(-not $config.PSObject.Properties['slo_anomaly_budget_percent']){$config|Add-Member -NotePropertyName 'slo_anomaly_budget_percent' -NotePropertyValue 20}
+$cacheIntegrity=New-Tab 'Cache Integrity'
+Add-Label $cacheIntegrity 'Hot-path coherence:' 18 24 145 | Out-Null
+$cacheCoherence=Add-Combo $cacheIntegrity 170 20 210 @('Off','Observe only','Balanced','Strict') ([string]$config.cache_coherence_policy)
+$cacheIntegrityHint=Add-Label $cacheIntegrity 'Balanced verifies content-addressed identity, exact byte length and tiny first/middle/last fingerprints; coherent legacy objects receive receipts without a full rebuild. Strict requires receipts. Deep SHA-256 is operator-requested only.' 18 72 870 72
+$cacheIntegrityHint.ForeColor=[System.Drawing.Color]::DimGray
+$deepCacheAudit=New-Object System.Windows.Forms.Button;$deepCacheAudit.Text='DEEP SHA-256 CACHE AUDIT';$deepCacheAudit.Location=New-Object System.Drawing.Point(18,170);$deepCacheAudit.Size=New-Object System.Drawing.Size(260,38);$cacheIntegrity.Controls.Add($deepCacheAudit)
+$repairCacheReceipts=New-Object System.Windows.Forms.Button;$repairCacheReceipts.Text='REPAIR MISSING RECEIPTS';$repairCacheReceipts.Location=New-Object System.Drawing.Point(300,170);$repairCacheReceipts.Size=New-Object System.Drawing.Size(260,38);$cacheIntegrity.Controls.Add($repairCacheReceipts)
+$openQuarantine=New-Object System.Windows.Forms.Button;$openQuarantine.Text='OPEN QUARANTINE';$openQuarantine.Location=New-Object System.Drawing.Point(582,170);$openQuarantine.Size=New-Object System.Drawing.Size(220,38);$cacheIntegrity.Controls.Add($openQuarantine)
+$cacheAuditHint=Add-Label $cacheIntegrity 'The deep audit rereads complete media objects and calculates SHA-256 only when you explicitly ask. Repair Receipts reconstructs metadata for identity-valid legacy objects; it does not repair media bytes.' 18 228 870 60
+$cacheAuditHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$deepCacheAudit.Add_Click({$tool=Join-Path $PSScriptRoot 'cache-integrity.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-DeepHash','-CopyReport')}})
+$repairCacheReceipts.Add_Click({$tool=Join-Path $PSScriptRoot 'cache-integrity.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-RepairReceipts','-CopyReport')}})
+$openQuarantine.Add_Click({$q=Join-Path $DataRoot 'cache\objects\quarantine';New-Item -ItemType Directory -Path $q -Force|Out-Null;Start-Process explorer.exe ('"'+$q+'"')})
+
+$attribution=New-Tab 'Performance Attribution'
+Add-Label $attribution 'Telemetry mode:' 18 24 120 | Out-Null
+$performanceAttribution=Add-Combo $attribution 145 20 220 @('Off','Balanced','Detailed') ([string]$config.performance_attribution_mode)
+$attributionHint=Add-Label $attribution 'Balanced records bounded queue-wait, worker/service and mpv handoff timing for audio/art/video/visualizer work. Detailed also retains decorative job timing. No CPU claim, no sampler process, no new poller.' 18 72 870 72
+$attributionHint.ForeColor=[System.Drawing.Color]::DimGray
+$analyzePerformance=New-Object System.Windows.Forms.Button;$analyzePerformance.Text='ANALYZE CURRENT SESSION';$analyzePerformance.Location=New-Object System.Drawing.Point(18,170);$analyzePerformance.Size=New-Object System.Drawing.Size(260,38);$attribution.Controls.Add($analyzePerformance)
+$openPerformanceReports=New-Object System.Windows.Forms.Button;$openPerformanceReports.Text='OPEN PERFORMANCE REPORTS';$openPerformanceReports.Location=New-Object System.Drawing.Point(300,170);$openPerformanceReports.Size=New-Object System.Drawing.Size(280,38);$attribution.Controls.Add($openPerformanceReports)
+$attributionNote=Add-Label $attribution 'The report reconstructs observed stage distributions, scheduler queue delay, dominant/terminal track stages and slow outliers from the bounded flight recorder. It never treats wall-clock service time as measured CPU utilization.' 18 228 870 64
+$attributionNote.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$analyzePerformance.Add_Click({$tool=Join-Path $PSScriptRoot 'performance-attribution.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-CopyReport','-OpenReport')}})
+$openPerformanceReports.Add_Click({$r=Join-Path $DataRoot 'reports';New-Item -ItemType Directory -Path $r -Force|Out-Null;Start-Process explorer.exe ('"'+$r+'"')})
+
+$sloTab=New-Tab 'Service Levels'
+Add-Label $sloTab 'Policy:' 18 24 100 | Out-Null
+$sloPolicy=Add-Combo $sloTab 125 20 220 @('Off','Observe only','Balanced','Strict') ([string]$config.slo_policy)
+Add-Label $sloTab 'Handoff p95 ceiling ms:' 380 24 175 | Out-Null
+$sloHandoff=Add-Number $sloTab 560 20 100 100 5000 ([int]$config.slo_handoff_p95_ms)
+Add-Label $sloTab 'Regression %:' 18 80 105 | Out-Null
+$sloRegression=Add-Number $sloTab 125 76 100 110 400 ([int]$config.slo_regression_percent)
+Add-Label $sloTab 'Anomaly budget %:' 260 80 135 | Out-Null
+$sloAnomaly=Add-Number $sloTab 400 76 100 1 100 ([int]$config.slo_anomaly_budget_percent)
+$sloHint=Add-Label $sloTab 'Absolute correctness objectives and workload-relative regression detection are separate. Only mature HEALTHY sessions train the bounded historical baseline; a regressed build cannot teach YOMI that its own regression is normal.' 18 132 870 72
+$sloHint.ForeColor=[System.Drawing.Color]::DimGray
+$analyzeSlo=New-Object System.Windows.Forms.Button;$analyzeSlo.Text='ANALYZE SERVICE LEVELS';$analyzeSlo.Location=New-Object System.Drawing.Point(18,230);$analyzeSlo.Size=New-Object System.Drawing.Size(260,38);$sloTab.Controls.Add($analyzeSlo)
+$openSloReports=New-Object System.Windows.Forms.Button;$openSloReports.Text='OPEN SLO REPORTS';$openSloReports.Location=New-Object System.Drawing.Point(300,230);$openSloReports.Size=New-Object System.Drawing.Size(250,38);$sloTab.Controls.Add($openSloReports)
+$sloNote=Add-Label $sloTab 'Historical comparison is configuration-scoped but intentionally build-agnostic so a new YOMI build can be compared with previously healthy behavior under the same workload. Strict clamps the configured objectives to a more conservative envelope.' 18 290 870 70
+$sloNote.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$analyzeSlo.Add_Click({$tool=Join-Path $PSScriptRoot 'slo-sentinel.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-CopyReport','-OpenReport')}})
+$openSloReports.Add_Click({$r=Join-Path $DataRoot 'reports';New-Item -ItemType Directory -Path $r -Force|Out-Null;Start-Process explorer.exe ('"'+$r+'"')})
+
+$changeControl=New-Tab 'Change Control'
+Add-Label $changeControl 'Live-change policy:' 18 24 125 | Out-Null
+$configChangePolicy=Add-Combo $changeControl 150 20 310 @('Safe staging','Stage every change while running','Restart immediately') ([string]$config.config_change_policy)
+$changePolicyHint=Add-Label $changeControl 'Safe staging hot-commits transactions only when every changed field is live-safe. Any restart/cache-generation change stages the entire configuration as one unit for the next controlled engine start.' 18 70 870 62
+$changePolicyHint.ForeColor=[System.Drawing.Color]::DimGray
+$configTransactionStatus=Add-Label $changeControl '' 18 155 870 82
+$configTransactionStatus.BorderStyle='FixedSingle';$configTransactionStatus.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$reviewPending=New-Object System.Windows.Forms.Button;$reviewPending.Text='REVIEW PENDING CHANGE';$reviewPending.Location=New-Object System.Drawing.Point(18,265);$reviewPending.Size=New-Object System.Drawing.Size(260,38);$changeControl.Controls.Add($reviewPending)
+$discardPendingButton=New-Object System.Windows.Forms.Button;$discardPendingButton.Text='DISCARD PENDING';$discardPendingButton.Location=New-Object System.Drawing.Point(300,265);$discardPendingButton.Size=New-Object System.Drawing.Size(220,38);$changeControl.Controls.Add($discardPendingButton)
+$rollbackConfig=New-Object System.Windows.Forms.Button;$rollbackConfig.Text='ROLL BACK LAST COMMIT';$rollbackConfig.Location=New-Object System.Drawing.Point(542,265);$rollbackConfig.Size=New-Object System.Drawing.Size(240,38);$changeControl.Controls.Add($rollbackConfig)
+$changeControlNote=Add-Label $changeControl 'Transactions carry a semantic diff, activation class, cache-impact estimate, old/new snapshots, and bounded history. Pending config is applied before engine startup only if the committed config still matches the transaction base hash; otherwise YOMI records a conflict instead of overwriting newer state.' 18 330 870 96
+$changeControlNote.ForeColor=[System.Drawing.Color]::DimGray
+function Update-ConfigTransactionStatus {
+    $state=Get-YomiConfigTransactionState;$p=$state.pending
+    if($state.conflict){
+        $configTransactionStatus.Text=("CONFLICT  " + [string]$state.conflict.id + "`r`nCommitted configuration changed after staging. YOMI will not overwrite it. Review, discard, or save a new successor transaction.")
+        $configTransactionStatus.ForeColor=[System.Drawing.Color]::Firebrick;$discardPendingButton.Enabled=$true
+    }elseif($p){
+        $plan=$p.plan;$mb=[Math]::Round(([double]$plan.affected_cache_bytes/1MB),1)
+        $configTransactionStatus.Text=("STAGED  " + [string]$p.id + "`r`n" + [string]$plan.risk + " · " + [int]$plan.changed_count + " field(s) · " + [int]$plan.affected_cache_objects + " cache object(s) / " + $mb + " MB · activation " + [string]$plan.activation)
+        $configTransactionStatus.ForeColor=[System.Drawing.Color]::DarkGoldenrod;$discardPendingButton.Enabled=$true
+    }else{
+        $configTransactionStatus.ForeColor=[System.Drawing.Color]::DimGray
+        $last=$state.last
+        $configTransactionStatus.Text=$(if($last){"NO PENDING CHANGE`r`nLast transaction: $([string]$last.status) · $([string]$last.id)"}else{'NO PENDING CHANGE`r`nNo configuration transaction history yet.'})
+        $discardPendingButton.Enabled=$false
+    }
+}
+$reviewPending.Add_Click({$tool=Join-Path $PSScriptRoot 'config-transaction.ps1';Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-ShowState','-CopyReport','-OpenReport')})
+$discardPendingButton.Add_Click({Remove-YomiPendingConfig|Out-Null;Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'settings';$form.Close()})
+$rollbackConfig.Add_Click({$r=Invoke-YomiRollbackLast;Update-ConfigTransactionStatus;if($r.action -eq 'ROLLBACK_PLANNED' -and $r.result.action -eq 'STAGED'){$applyNote.Text='Rollback staged for the next controlled engine start.'}})
+Update-ConfigTransactionStatus
+
+$recoveryTab=New-Tab 'Recovery'
+Add-Label $recoveryTab 'Crash recovery policy:' 18 24 145 | Out-Null
+$recoveryPolicy=Add-Combo $recoveryTab 170 20 260 @('Observe only','Validated resume','Strict replay') ([string]$config.recovery_policy)
+$recoveryHint=Add-Label $recoveryTab 'Validated resume compiles durable session/order/checkpoint evidence after an unclean exit and restores only a provable occurrence. Strict replay refuses startup when the committed checkpoint or ledger/order agreement is missing. Timestamps never decide authority.' 18 72 870 78
+$recoveryHint.ForeColor=[System.Drawing.Color]::DimGray
+$analyzeRecovery=New-Object System.Windows.Forms.Button;$analyzeRecovery.Text='ANALYZE RECOVERY STATE';$analyzeRecovery.Location=New-Object System.Drawing.Point(18,180);$analyzeRecovery.Size=New-Object System.Drawing.Size(270,38);$recoveryTab.Controls.Add($analyzeRecovery)
+$openRecovery=New-Object System.Windows.Forms.Button;$openRecovery.Text='OPEN RECOVERY HISTORY';$openRecovery.Location=New-Object System.Drawing.Point(310,180);$openRecovery.Size=New-Object System.Drawing.Size(260,38);$recoveryTab.Controls.Add($openRecovery)
+$recoveryNote=Add-Label $recoveryTab 'Recovery episodes preserve only tiny forensic JSON projections (maximum 8). No media is copied. The engine never invents queue order, session identity, configuration authority, or stale runtime state.' 18 248 870 64
+$recoveryNote.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$analyzeRecovery.Add_Click({$tool=Join-Path $PSScriptRoot 'recovery-replay.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-Analyze','-CopyReport','-OpenReport')}})
+$openRecovery.Add_Click({$r=Join-Path $DataRoot 'state\recovery-history';New-Item -ItemType Directory -Path $r -Force|Out-Null;Start-Process explorer.exe ('"'+$r+'"')})
+
+$updateSafetyTab=New-Tab 'Update Safety'
+Add-Label $updateSafetyTab 'Deployment policy:' 18 24 130 | Out-Null
+$updateDeploymentPolicy=Add-Combo $updateSafetyTab 155 20 260 @('Verified rollback','Verify only') ([string]$config.update_deployment_policy)
+$updateSafetyHint=Add-Label $updateSafetyTab 'Verified rollback checks the official outer package SHA-256, verifies every file named by the package build manifest, captures one complete last-known-good Program Files tree, runs the existing installer, and then independently verifies the installed YOMI control plane.' 18 72 870 86
+$updateSafetyHint.ForeColor=[System.Drawing.Color]::DimGray
+$inspectUpdate=New-Object System.Windows.Forms.Button;$inspectUpdate.Text='INSPECT UPDATE DEPLOYMENT';$inspectUpdate.Location=New-Object System.Drawing.Point(18,190);$inspectUpdate.Size=New-Object System.Drawing.Size(280,38);$updateSafetyTab.Controls.Add($inspectUpdate)
+$openUpdates=New-Object System.Windows.Forms.Button;$openUpdates.Text='OPEN UPDATE WORKSPACE';$openUpdates.Location=New-Object System.Drawing.Point(320,190);$openUpdates.Size=New-Object System.Drawing.Size(255,38);$updateSafetyTab.Controls.Add($openUpdates)
+$updateSafetyNote=Add-Label $updateSafetyTab 'Verify only keeps the package rehearsal and post-install health proof but skips the last-known-good snapshot/automatic rollback. Update-time disk work is intentionally outside the live playback hot path.' 18 258 870 68
+$updateSafetyNote.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$inspectUpdate.Add_Click({$tool=Join-Path $PSScriptRoot 'update-deployment.ps1';if(Test-Path $tool){Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$tool+'"'),'-Analyze','-CopyReport','-OpenReport')}})
+$openUpdates.Add_Click({$r=Join-Path $DataRoot 'updates';New-Item -ItemType Directory -Path $r -Force|Out-Null;Start-Process explorer.exe ('"'+$r+'"')})
 $perf=New-Tab 'Performance'
+$perf.AutoScroll=$true
 Add-Label $perf 'Page preset:' 18 24 90 | Out-Null
 $performancePreset=Add-Combo $perf 115 20 220 @('Default','Gaming','Rapid Cache','Deep Cache','Custom') ([string]$config.performance_preset)
 Add-Label $perf 'Background preparation:' 18 76 165 | Out-Null
@@ -287,8 +472,37 @@ Add-Label $perf 'Audio selection:' 18 280 120 | Out-Null
 $audioPreference=Add-Combo $perf 145 276 230 @('Prefer selected maximum','Prefer lowest compatible') ([string]$config.audio_preference)
 $audioHint=Add-Label $perf 'Maximum preference chooses the best compatible stream near the selected target. Lowest preference minimizes transfer/cache size and can sound or look noticeably rougher.' 400 274 480 48
 $audioHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
-$perfNote=Add-Label $perf 'One ready-ahead number means the whole damn track: audio, metadata, gain and every enabled Streamer/Director media requirement. At 720p/Best, the video-cache ceiling can prevent all 20 from fitting. Player mode caches audio bundles only. Any individual change marks this page Custom.' 18 342 880 72
+
+Add-Label $perf 'Scheduler:' 18 332 120 | Out-Null
+$schedulerStrategy=Add-Combo $perf 145 328 230 @('Adaptive deadline','Deterministic order') ([string]$config.scheduler_strategy)
+Add-Label $perf 'Transition:' 400 332 120 | Out-Null
+$transitionPolicy=Add-Combo $perf 525 328 260 @('Synchronized presentation','Continuity first') ([string]$config.transition_policy)
+Add-Label $perf 'Browser demand:' 18 382 120 | Out-Null
+$sourceDemandPolicy=Add-Combo $perf 145 378 300 @('Configured modules','Live Browser Sources (experimental)') ([string]$config.source_demand_policy)
+$policyHint=Add-Label $perf 'Adaptive compresses failing video retries near an imminent transition. Continuity first starts playable audio without waiting for optional visuals. Live Browser Sources can stop generating video/viz nobody currently has open after a startup grace period.' 18 416 870 44
+$policyHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$policyHint.BackColor=[System.Drawing.Color]::Transparent
+Add-Label $perf 'Target buffer minutes:' 18 474 145 | Out-Null
+$bufferMinutes=Add-Number $perf 165 470 85 1 120 ([int]$config.buffer_target_minutes)
+$bufferHint=Add-Label $perf 'Adaptive mode stops ordinary speculative preparation after at least two future tracks and roughly this much playback time are covered. Prefetch Ahead remains the hard maximum.' 275 466 610 44
+$bufferHint.ForeColor=[System.Drawing.Color]::DimGray
+$bufferHint.BackColor=[System.Drawing.Color]::Transparent
+Add-Label $perf 'Presentation SLA sec:' 18 528 145 | Out-Null
+$presentationSla=Add-Number $perf 165 524 85 1 15 ([int]$config.presentation_sla_seconds)
+$slaHint=Add-Label $perf 'When Synchronized presentation is selected, ready audio can wait this long for optional visuals before continuity automatically wins. Continuity First starts immediately.' 275 520 610 44
+$slaHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$slaHint.BackColor=[System.Drawing.Color]::Transparent
+Add-Label $perf 'Predictive control:' 18 530 125 | Out-Null
+$predictiveControl=Add-Combo $perf 145 526 190 @('Off','Observe only','Balanced','Continuity Guard') ([string]$config.predictive_control_mode)
+Add-Label $perf 'Media admission:' 355 530 112 | Out-Null
+$mediaAdmission=Add-Combo $perf 470 526 180 @('Off','Observe only','Balanced','Gaming Guard','Presentation First') ([string]$config.media_admission_policy)
+Add-Label $perf 'Fault isolation:' 665 530 95 | Out-Null
+$faultContainment=Add-Combo $perf 760 526 165 @('Off','Observe only','Balanced','Strict isolation') ([string]$config.media_fault_containment)
+$predictiveHint=Add-Label $perf 'Predictive control protects audio deadlines. Admission budgets optional work. Fault isolation opens a bounded circuit only after repeated operational failures across optional presentation stages; track-specific capability failures do not poison subsystem health.' 18 566 870 54
+$predictiveHint.ForeColor=[System.Drawing.Color]::DarkGoldenrod
+$perfNote=Add-Label $perf 'Gaming Guard is conservative under deadline pressure; Presentation First preserves visuals longer. Audio is never subject to the admission gate.' 18 620 870 28
 $perfNote.ForeColor=[System.Drawing.Color]::DimGray
+$perfNote.BackColor=[System.Drawing.Color]::Transparent
 $defenderManaged=Test-Path (Join-Path $DataRoot 'defender-yt-dlp-process-exclusion.txt')
 $defenderText=$(if($defenderManaged){'Windows Defender performance option: ENABLED for YOMI yt-dlp.exe only. Uninstall removes the YOMI-managed exclusion.'}else{'Windows Defender performance option: OFF. The first installer screen has the explicit unchecked opt-in below the profile choices.'})
 $defenderStatus=Add-Label $perf $defenderText 18 430 880 48
@@ -602,13 +816,13 @@ function Apply-VisualizerPreset {
     $script:ApplyingVisualizerPreset=$true
     try{
         switch([string]$vizPreset.SelectedItem){
-            'Default'{$activity.SelectedItem='Active';$opacityPct.Value=30;$chunk.SelectedItem='Extra Chunky (40x10)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
-            'Monolith Efficiency'{$activity.SelectedItem='Normal';$opacityPct.Value=30;$chunk.SelectedItem='Monolith (12x4)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=28}
-            'Low Overhead Blocks'{$activity.SelectedItem='Normal';$opacityPct.Value=28;$chunk.SelectedItem='Giant Blocks (20x6)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=25}
-            'Broadcast'{$activity.SelectedItem='Active';$opacityPct.Value=38;$chunk.SelectedItem='Chunky (48x12)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Sunset';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20}
-            'Smooth 60 FPS'{$activity.SelectedItem='Active';$opacityPct.Value=34;$chunk.SelectedItem='Fine (64x18)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Cyan';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=20}
-            'Signal Analyzer'{$activity.SelectedItem='Active';$opacityPct.Value=42;$chunk.SelectedItem='Maximum Detail (192x48)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Vertical';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Oscilloscope';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Linear';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=0}
-            'Neon Motion'{$activity.SelectedItem='Punchy';$opacityPct.Value=48;$chunk.SelectedItem='Extra Fine (96x24)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Mirrored';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Particle Field';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Strong';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=16}
+            'Default'{$activity.SelectedItem='Active';$opacityPct.Value=30;$chunk.SelectedItem='Extra Chunky (40x10)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20;$vizFill.SelectedItem='Adaptive';$vizHighLift.Value=4}
+            'Monolith Efficiency'{$activity.SelectedItem='Normal';$opacityPct.Value=30;$chunk.SelectedItem='Monolith (12x4)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=28;$vizFill.SelectedItem='Adaptive';$vizHighLift.Value=3}
+            'Low Overhead Blocks'{$activity.SelectedItem='Normal';$opacityPct.Value=28;$chunk.SelectedItem='Giant Blocks (20x6)';$vizLength.SelectedItem='Medium';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Gray';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Source';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Off';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=25;$vizFill.SelectedItem='Adaptive';$vizHighLift.Value=3}
+            'Broadcast'{$activity.SelectedItem='Active';$opacityPct.Value=38;$chunk.SelectedItem='Chunky (48x12)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Sunset';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Behind text';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='30 FPS';$vizHighTrim.Value=20;$vizFill.SelectedItem='Adaptive';$vizHighLift.Value=5}
+            'Smooth 60 FPS'{$activity.SelectedItem='Active';$opacityPct.Value=34;$chunk.SelectedItem='Fine (64x18)';$vizLength.SelectedItem='Wide';$vizColorMode.SelectedItem='Solid';$vizSolid.SelectedItem='Cyan';$vizShape.SelectedItem='Spectrum';$vizAnchor.SelectedItem='Bottom';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=20;$vizFill.SelectedItem='Adaptive';$vizHighLift.Value=4}
+            'Signal Analyzer'{$activity.SelectedItem='Active';$opacityPct.Value=42;$chunk.SelectedItem='Maximum Detail (192x48)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Vertical';$vizDirection.SelectedItem='Normal';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Oscilloscope';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='None';$vizPeakGlow.SelectedItem='Subtle';$vizFrequency.SelectedItem='Linear';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=0;$vizFill.SelectedItem='Off';$vizHighLift.Value=0}
+            'Neon Motion'{$activity.SelectedItem='Punchy';$opacityPct.Value=48;$chunk.SelectedItem='Extra Fine (96x24)';$vizLength.SelectedItem='Extra Wide';$vizColorMode.SelectedItem='Gradient';$vizGradient.SelectedItem='Ocean';$gradientOrientation.SelectedItem='Horizontal';$vizDirection.SelectedItem='Mirrored';$vizLayer.SelectedItem='Above text';$vizShape.SelectedItem='Particle Field';$vizAnchor.SelectedItem='Center';$vizSpacing.SelectedItem='Light';$vizPeakGlow.SelectedItem='Strong';$vizFrequency.SelectedItem='Logarithmic';$vizFps.SelectedItem='60 FPS';$vizHighTrim.Value=16;$vizFill.SelectedItem='Aggressive';$vizHighLift.Value=6}
         }
     }finally{$script:ApplyingVisualizerPreset=$false}
     Update-Dependencies;Update-VisualizerResolutionInfo;Update-Preview
@@ -619,10 +833,10 @@ function Apply-PerformancePreset {
     $script:ApplyingPerformancePreset=$true
     try{
         switch([string]$performancePreset.SelectedItem){
-            'Default'{$performance.SelectedItem='Balanced (2 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=4;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum'}
-            'Gaming'{$performance.SelectedItem='Gaming / Lowest overhead (1 worker)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=2;$videoPreference.SelectedItem='Prefer lowest compatible';$audioQuality.SelectedItem='High (~160 kbps)';$audioPreference.SelectedItem='Prefer selected maximum'}
-            'Rapid Cache'{$performance.SelectedItem='Fast caching (4 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=8;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum'}
-            'Deep Cache'{$performance.SelectedItem='Maximum caching (8 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=20;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum'}
+            'Default'{$performance.SelectedItem='Balanced (2 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=4;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum';$bufferMinutes.Value=15;$presentationSla.Value=3;$predictiveControl.SelectedItem='Balanced';$mediaAdmission.SelectedItem='Balanced';$faultContainment.SelectedItem='Balanced';$schedulerStrategy.SelectedItem='Adaptive deadline';$transitionPolicy.SelectedItem='Synchronized presentation';$sourceDemandPolicy.SelectedItem='Configured modules'}
+            'Gaming'{$performance.SelectedItem='Gaming / Lowest overhead (1 worker)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=2;$videoPreference.SelectedItem='Prefer lowest compatible';$audioQuality.SelectedItem='High (~160 kbps)';$audioPreference.SelectedItem='Prefer selected maximum';$bufferMinutes.Value=8;$presentationSla.Value=1;$predictiveControl.SelectedItem='Continuity Guard';$mediaAdmission.SelectedItem='Gaming Guard';$faultContainment.SelectedItem='Strict isolation';$schedulerStrategy.SelectedItem='Adaptive deadline';$transitionPolicy.SelectedItem='Continuity first';$sourceDemandPolicy.SelectedItem='Configured modules'}
+            'Rapid Cache'{$performance.SelectedItem='Fast caching (4 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=8;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum';$bufferMinutes.Value=20;$presentationSla.Value=3;$predictiveControl.SelectedItem='Balanced';$mediaAdmission.SelectedItem='Balanced';$faultContainment.SelectedItem='Balanced';$schedulerStrategy.SelectedItem='Adaptive deadline';$transitionPolicy.SelectedItem='Synchronized presentation';$sourceDemandPolicy.SelectedItem='Configured modules'}
+            'Deep Cache'{$performance.SelectedItem='Maximum caching (8 workers)';$browserFps.SelectedItem='Auto';$loudness.Checked=$true;$prefetch.Value=20;$videoPreference.SelectedItem='Prefer selected maximum';$audioQuality.SelectedItem='Best available';$audioPreference.SelectedItem='Prefer selected maximum';$bufferMinutes.Value=45;$presentationSla.Value=3;$predictiveControl.SelectedItem='Balanced';$mediaAdmission.SelectedItem='Balanced';$faultContainment.SelectedItem='Balanced';$schedulerStrategy.SelectedItem='Adaptive deadline';$transitionPolicy.SelectedItem='Synchronized presentation';$sourceDemandPolicy.SelectedItem='Configured modules'}
         }
     }finally{$script:ApplyingPerformancePreset=$false}
     Update-Preview
@@ -706,7 +920,7 @@ function Get-UiConfig {
     $o.video_preference=[string]$videoPreference.SelectedItem; $o.audio_quality=[string]$audioQuality.SelectedItem; $o.audio_preference=[string]$audioPreference.SelectedItem
     $o.overlay_preset=[string]$overlayPreset.SelectedItem; $o.canvas_preset=[string]$canvasPreset.SelectedItem; $o.canvas_width=[int]$canvasW.Value; $o.canvas_height=[int]$canvasH.Value; $o.corner=[string]$corner.SelectedItem
     $o.media_size_preset=[string]$mediaPreset.SelectedItem; $o.media_width=[int]$mediaW.Value; $o.media_height=[int]$mediaH.Value; $o.video_zoom=[Math]::Round(([double]$videoZoom.Value/100.0),2)
-    $o.overlay_video_quality=[string]$overlayVideoQuality.SelectedItem; $o.video_fps=[string]$videoFps.SelectedItem; $o.video_cache_limit_mb=[int]$videoCacheLimit.Value
+    $o.overlay_video_quality=[string]$overlayVideoQuality.SelectedItem; $o.video_fps=[string]$videoFps.SelectedItem; $o.video_cache_limit_mb=[int]$videoCacheLimit.Value; $o.overlay_text_gap_px=[int]$composeTextGap.Value; $o.overlay_safe_margin_px=[int]$composeSafeMargin.Value; $o.overlay_auto_fit_text=[bool]$composeAutoFit.Checked; $o.overlay_min_text_size=[int]$composeMinText.Value; $o.overlay_visual_join_ms=[int]$handoffJoinMs.Value
     $o.artwork_enabled=[bool]$art.Checked; $o.smart_artwork_crop=[bool]$smartCrop.Checked; $o.video_enabled=[bool]$video.Checked; $o.title_enabled=[bool]$titleCheck.Checked; $o.channel_enabled=[bool]$channel.Checked; $o.visualizer_enabled=[bool]$viz.Checked
     $o.style_preset=[string]$stylePreset.SelectedItem; $o.text_font=[string]$font.SelectedItem; $o.text_color=Map-Color ([string]$textColor.SelectedItem); $o.outline_color=Map-Color ([string]$outlineColor.SelectedItem); $o.text_outline=[int]$outlinePx.Value; $o.text_opacity=[Math]::Round(([double]$textOpacity.Value/100.0),2); $o.text_size=[int]$textSize.Value; $o.text_alignment=[string]$textAlign.SelectedItem; $o.title_channel_spacing=[string]$textSpacing.SelectedItem; $o.text_glow=[bool]$glow.Checked
     $o.media_border_enabled=[bool]$borderOn.Checked; $o.media_border_px=[int]$borderPx.Value; $o.media_border_color=Map-Color ([string]$borderColor.SelectedItem); $o.media_corner_style=[string]$cornerStyle.SelectedItem
@@ -714,8 +928,9 @@ function Get-UiConfig {
     $vizPixels=Get-VisualizerPixelSize ([string]$chunk.SelectedItem);$o.visualizer_internal_width=[int]$vizPixels.Width;$o.visualizer_internal_height=[int]$vizPixels.Height
     switch([string]$vizLength.SelectedItem){'Short'{$o.visualizer_length_multiplier=2.0}'Medium'{$o.visualizer_length_multiplier=3.0}'Extra Wide'{$o.visualizer_length_multiplier=6.0}default{$o.visualizer_length_multiplier=4.0}}
     $o.visualizer_color_mode=[string]$vizColorMode.SelectedItem; $o.visualizer_solid_color=Map-Color ([string]$vizSolid.SelectedItem); $o.visualizer_gradient_preset=[string]$vizGradient.SelectedItem; $o.visualizer_gradient_orientation=[string]$gradientOrientation.SelectedItem; $o.visualizer_direction=[string]$vizDirection.SelectedItem; $o.visualizer_layer=[string]$vizLayer.SelectedItem
-    $o.visualizer_shape=[string]$vizShape.SelectedItem; $o.visualizer_vertical_anchor=[string]$vizAnchor.SelectedItem; $o.visualizer_bar_spacing=[string]$vizSpacing.SelectedItem; $o.visualizer_peak_glow=[string]$vizPeakGlow.SelectedItem; $o.visualizer_frequency_scale=[string]$vizFrequency.SelectedItem; $o.visualizer_high_frequency_trim=[int]$vizHighTrim.Value; $o.visualizer_fps=[string]$vizFps.SelectedItem
+    $o.visualizer_shape=[string]$vizShape.SelectedItem; $o.visualizer_vertical_anchor=[string]$vizAnchor.SelectedItem; $o.visualizer_bar_spacing=[string]$vizSpacing.SelectedItem; $o.visualizer_peak_glow=[string]$vizPeakGlow.SelectedItem; $o.visualizer_frequency_scale=[string]$vizFrequency.SelectedItem; $o.visualizer_high_frequency_trim=[int]$vizHighTrim.Value; $o.visualizer_adaptive_fill=[string]$vizFill.SelectedItem; $o.visualizer_high_frequency_lift_db=[int]$vizHighLift.Value; $o.visualizer_fps=[string]$vizFps.SelectedItem
     $o.performance_preset=[string]$performancePreset.SelectedItem; $o.browser_fps_mode=[string]$browserFps.SelectedItem; $o.loudness_normalization=[bool]$loudness.Checked; $o.prefetch_ahead=[int]$prefetch.Value; $o.video_prefetch_ahead=[int]$prefetch.Value
+    $o.scheduler_strategy=[string]$schedulerStrategy.SelectedItem; $o.transition_policy=[string]$transitionPolicy.SelectedItem; $o.presentation_sla_seconds=[int]$presentationSla.Value; $o.predictive_control_mode=[string]$predictiveControl.SelectedItem; $o.media_admission_policy=[string]$mediaAdmission.SelectedItem; $o.media_fault_containment=[string]$faultContainment.SelectedItem; $o.cache_coherence_policy=[string]$cacheCoherence.SelectedItem; $o.performance_attribution_mode=[string]$performanceAttribution.SelectedItem; $o.slo_policy=[string]$sloPolicy.SelectedItem; $o.slo_handoff_p95_ms=[int]$sloHandoff.Value; $o.slo_regression_percent=[int]$sloRegression.Value; $o.slo_anomaly_budget_percent=[int]$sloAnomaly.Value; $o.config_change_policy=[string]$configChangePolicy.SelectedItem; $o.recovery_policy=[string]$recoveryPolicy.SelectedItem; $o.update_deployment_policy=[string]$updateDeploymentPolicy.SelectedItem; $o.source_demand_policy=[string]$sourceDemandPolicy.SelectedItem; $o.buffer_target_minutes=[int]$bufferMinutes.Value
     $o.director_preset=[string]$directorPreset.SelectedItem; $o.director_mode=[bool]$directorOn.Checked; $o.director_theme=[string]$directorTheme.SelectedItem; $o.director_timeline=[string]$directorTimeline.SelectedItem; $o.director_motion=[string]$directorMotion.SelectedItem; $o.director_palette=[string]$directorPalette.SelectedItem; $o.director_visualizer_shape=[string]$directorVizShape.SelectedItem; $o.stats_detail=[string]$statsDetail.SelectedItem
     $o.featured_comment_enabled=[bool]$commentOn.Checked; $o.comment_max_chars=[int]$commentChars.Value; $o.comment_filter_mode=[string]$commentFilter.SelectedItem
     $o.telemetry_enabled=[bool]$telemetryOn.Checked; $o.telemetry_probe_enabled=[bool]$probeOn.Checked
@@ -755,7 +970,7 @@ function Get-YomiEngineConfigSignature($c) {
         smart_artwork_crop=[bool]$c.smart_artwork_crop;media_width=[int]$c.media_width;media_height=[int]$c.media_height
         visualizer_internal_width=[int]$c.visualizer_internal_width;visualizer_internal_height=[int]$c.visualizer_internal_height
         visualizer_activity=[string]$c.visualizer_activity;visualizer_frequency_scale=[string]$c.visualizer_frequency_scale;visualizer_fps=[string]$c.visualizer_fps
-        cache_workers=[int]$c.cache_workers;prefetch_ahead=[int]$c.prefetch_ahead;cache_priority=[string]$c.cache_priority
+        cache_workers=[int]$c.cache_workers;prefetch_ahead=[int]$c.prefetch_ahead;buffer_target_minutes=[int]$c.buffer_target_minutes;video_cache_limit_mb=[int]$c.video_cache_limit_mb;cache_priority=[string]$c.cache_priority;scheduler_strategy=[string]$c.scheduler_strategy;transition_policy=[string]$c.transition_policy;presentation_sla_seconds=[int]$c.presentation_sla_seconds;predictive_control_mode=[string]$c.predictive_control_mode;media_admission_policy=[string]$c.media_admission_policy;media_fault_containment=[string]$c.media_fault_containment;cache_coherence_policy=[string]$c.cache_coherence_policy;performance_attribution_mode=[string]$c.performance_attribution_mode;slo_policy=[string]$c.slo_policy;slo_handoff_p95_ms=[int]$c.slo_handoff_p95_ms;slo_regression_percent=[int]$c.slo_regression_percent;slo_anomaly_budget_percent=[int]$c.slo_anomaly_budget_percent;source_demand_policy=[string]$c.source_demand_policy
         director_mode=[bool]$c.director_mode;fixed_sources=$fixed;grouped_outputs=$outputs
         featured_comment_enabled=[bool]$c.featured_comment_enabled;comment_max_chars=[int]$c.comment_max_chars;comment_filter_mode=[string]$c.comment_filter_mode
         telemetry_enabled=[bool]$c.telemetry_enabled;telemetry_probe_enabled=[bool]$c.telemetry_probe_enabled
@@ -1228,7 +1443,7 @@ $outputsPreset.Add_SelectedIndexChanged({Apply-OutputsPreset})
 $mode.Add_SelectedIndexChanged({Update-Dependencies;Update-Preview})
 foreach($c in @($corner,$font,$textColor,$outlineColor,$textAlign,$textSpacing,$cornerStyle,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$browserFps,$performance,$playerQuality,$videoPreference,$videoFps,$audioQuality,$audioPreference,$activity,$chunk,$vizLength,$directorTheme,$directorTimeline,$directorMotion,$directorPalette,$directorVizShape,$statsDetail,$commentFilter)){ $c.Add_SelectedIndexChanged({Update-Preview}) }
 $overlayVideoQuality.Add_SelectedIndexChanged({Update-QualityWarning;Update-Preview})
-foreach($n in @($canvasW,$canvasH,$mediaW,$mediaH,$videoZoom,$outlinePx,$textOpacity,$textSize,$borderPx,$opacityPct,$prefetch,$videoCacheLimit,$vizHighTrim,$commentChars,$historyMax)){ $n.Add_ValueChanged({Update-Preview}) }
+foreach($n in @($canvasW,$canvasH,$mediaW,$mediaH,$videoZoom,$outlinePx,$textOpacity,$textSize,$borderPx,$opacityPct,$prefetch,$bufferMinutes,$presentationSla,$videoCacheLimit,$vizHighTrim,$commentChars,$historyMax)){ $n.Add_ValueChanged({Update-Preview}) }
 foreach($c in @($art,$titleCheck,$channel,$viz,$smartCrop,$glow,$borderOn,$loudness)){ $c.Add_CheckedChanged({Update-Preview}) }
 $video.Add_CheckedChanged({Update-QualityWarning;Update-Preview})
 $directorOn.Add_CheckedChanged({Update-Dependencies;Update-Preview})
@@ -1280,16 +1495,16 @@ foreach($n in @($outlinePx,$textOpacity,$textSize,$borderPx)) {
 foreach($c in @($glow,$borderOn)) {
     $c.Add_CheckedChanged({if(-not $script:ApplyingStylePreset -and [string]$stylePreset.SelectedItem -ne 'Custom'){$stylePreset.SelectedItem='Custom'}})
 }
-foreach($c in @($activity,$chunk,$vizLength,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps)) {
+foreach($c in @($activity,$chunk,$vizLength,$vizColorMode,$vizSolid,$vizGradient,$gradientOrientation,$vizDirection,$vizLayer,$vizShape,$vizAnchor,$vizSpacing,$vizPeakGlow,$vizFrequency,$vizFps,$vizFill)) {
     $c.Add_SelectedIndexChanged({if(-not $script:ApplyingVisualizerPreset -and [string]$vizPreset.SelectedItem -ne 'Custom'){$vizPreset.SelectedItem='Custom'}})
 }
-foreach($n in @($opacityPct,$vizHighTrim)) {
+foreach($n in @($opacityPct,$vizHighTrim,$vizHighLift)) {
     $n.Add_ValueChanged({if(-not $script:ApplyingVisualizerPreset -and [string]$vizPreset.SelectedItem -ne 'Custom'){$vizPreset.SelectedItem='Custom'}})
 }
-foreach($c in @($performance,$browserFps,$videoPreference,$audioQuality,$audioPreference)) {
+foreach($c in @($performance,$browserFps,$videoPreference,$audioQuality,$audioPreference,$schedulerStrategy,$transitionPolicy,$sourceDemandPolicy,$predictiveControl,$mediaAdmission,$faultContainment)) {
     $c.Add_SelectedIndexChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
 }
-$prefetch.Add_ValueChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
+$prefetch.Add_ValueChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}});$bufferMinutes.Add_ValueChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}});$presentationSla.Add_ValueChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
 $loudness.Add_CheckedChanged({if(-not $script:ApplyingPerformancePreset -and [string]$performancePreset.SelectedItem -ne 'Custom'){$performancePreset.SelectedItem='Custom'}})
 foreach($c in @($directorTheme,$directorTimeline,$directorMotion,$directorPalette,$statsDetail,$directorVizShape,$commentFilter)) {
     $c.Add_SelectedIndexChanged({if(-not $script:ApplyingDirectorPreset -and [string]$directorPreset.SelectedItem -ne 'Custom'){$directorPreset.SelectedItem='Custom'}})
@@ -1387,6 +1602,15 @@ $copyEnabledFixed.Add_Click({
     [System.Windows.Forms.Clipboard]::SetText(($lines -join "`r`n"));$copyEnabledFixed.Text='COPIED'
 })
 $restoreDefaults.Add_Click({
+    if($script:configReadOnly){
+        [System.Windows.Forms.MessageBox]::Show(
+            "This configuration was written by a newer YOMI schema and is intentionally read-only in this build.`r`n`r`nUpdate YOMI before restoring defaults.",
+            'YOMI Configuration Compatibility',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )|Out-Null
+        return
+    }
     $answer=[System.Windows.Forms.MessageBox]::Show(
         "Restore factory settings?`r`n`r`nThis resets YOMI options and output layouts. Your playlist, playback history, installed components and Defender choice stay intact. Media affected by quality, crop or visualizer defaults will rebuild on the next start.",
         'Restore Default Settings',
@@ -1398,12 +1622,11 @@ $restoreDefaults.Add_Click({
     $defaults=Get-Content (Join-Path $PSScriptRoot 'default-config.json') -Raw | ConvertFrom-Json
     $defaults.playlist=$playlist.Text.Trim()
     $defaults.version=$yomiVersion
-    Save-YomiConfig $defaults
-    $stateRoot=Join-Path $DataRoot 'state';New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
-    foreach($flag in @('audio-reset.pending','artwork-reset.pending','video-reset.pending','visualizer-reset.pending')){Set-Content (Join-Path $stateRoot $flag) '1' -Encoding ASCII}
-    Write-ObsInstructions $defaults | Out-Null
-    if(Test-YomiRuntimeRunning){Request-YomiControlledRestart}
-    Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'settings'
+    $oldDefaults=Get-YomiConfig;$runningDefaults=Test-YomiRuntimeRunning
+    $txDefaults=Invoke-YomiConfigTransaction $oldDefaults $defaults $runningDefaults ([string]$configChangePolicy.SelectedItem)
+    if($txDefaults.action -eq 'STAGED'){$applyNote.Text='Factory defaults staged atomically for the next controlled engine start.';Update-ConfigTransactionStatus}
+    else{Write-ObsInstructions $defaults | Out-Null;if($txDefaults.restart_requested){Request-YomiControlledRestart}}
+    $script:reopenSettingsAfterClose=$true
     $form.Close()
 })
 $shuffleBtn.Add_Click({
@@ -1425,7 +1648,7 @@ $shuffleBtn.Add_Click({
     $new.overlay_width=[int]$metrics.OverlayWidth
     $new.overlay_height=[int]$metrics.OverlayHeight
     $new.overlay_fps=[int]$metrics.BrowserFps
-    Save-YomiConfig $new
+    $shuffleTx=Invoke-YomiConfigTransaction (Get-YomiConfig) $new (Test-YomiRuntimeRunning) 'Restart immediately'
 
     $stateRoot=Join-Path $DataRoot 'state'
     New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
@@ -1437,33 +1660,54 @@ $shuffleBtn.Add_Click({
 })
 
 $save.Add_Click({
+    if($script:configReadOnly){
+        [System.Windows.Forms.MessageBox]::Show(
+            "This configuration uses a newer schema and cannot be safely saved by this YOMI build.`r`n`r`nYour file has been preserved unchanged. Update YOMI first.",
+            'YOMI Configuration Compatibility',
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        )|Out-Null
+        return
+    }
     $old=Get-YomiConfig; $new=Get-UiConfig; $new.version=$yomiVersion; $new.playlist=$playlist.Text.Trim()
-    $engineChanged=((Get-YomiEngineConfigSignature $old) -ne (Get-YomiEngineConfigSignature $new));$runtimeWasRunning=Test-YomiRuntimeRunning
+    $engineChanged=((Get-YomiEngineConfigSignature $old) -ne (Get-YomiEngineConfigSignature $new))
+    $engineChanged=$engineChanged -or ([string]$old.scheduler_strategy -ne [string]$new.scheduler_strategy) -or ([string]$old.transition_policy -ne [string]$new.transition_policy) -or ([string]$old.source_demand_policy -ne [string]$new.source_demand_policy)
+    $runtimeWasRunning=Test-YomiRuntimeRunning
     $metrics=Get-YomiLayoutMetrics $new; $new.overlay_width=[int]$metrics.OverlayWidth; $new.overlay_height=[int]$metrics.OverlayHeight; $new.overlay_fps=[int]$metrics.BrowserFps
     $playlistChanged=([string]$old.playlist -ne [string]$new.playlist)
-    $vizSigBefore="$($old.visualizer_internal_width)x$($old.visualizer_internal_height)|$($old.visualizer_activity)|$($old.visualizer_frequency_scale)|$($old.visualizer_fps)"; $vizSigAfter="$($new.visualizer_internal_width)x$($new.visualizer_internal_height)|$($new.visualizer_activity)|$($new.visualizer_frequency_scale)|$($new.visualizer_fps)"
+    $loudnessChanged=([bool]$old.loudness_normalization -ne [bool]$new.loudness_normalization)
+    $vizSigBefore="$($old.visualizer_internal_width)x$($old.visualizer_internal_height)|$($old.visualizer_activity)|$($old.visualizer_frequency_scale)|$($old.visualizer_fps)|$($old.visualizer_high_frequency_lift_db)"; $vizSigAfter="$($new.visualizer_internal_width)x$($new.visualizer_internal_height)|$($new.visualizer_activity)|$($new.visualizer_frequency_scale)|$($new.visualizer_fps)|$($new.visualizer_high_frequency_lift_db)"
     $artSigBefore="$($old.media_width)x$($old.media_height)|$($old.smart_artwork_crop)"; $artSigAfter="$($new.media_width)x$($new.media_height)|$($new.smart_artwork_crop)"
     $videoSigBefore="$($old.overlay_video_quality)|$($old.video_preference)|$($old.video_fps)"; $videoSigAfter="$($new.overlay_video_quality)|$($new.video_preference)|$($new.video_fps)"
     $audioSigBefore="$($old.audio_quality)|$($old.audio_preference)"; $audioSigAfter="$($new.audio_quality)|$($new.audio_preference)"
     $commentSigBefore="$($old.featured_comment_enabled)|$($old.comment_max_chars)|$($old.comment_filter_mode)"; $commentSigAfter="$($new.featured_comment_enabled)|$($new.comment_max_chars)|$($new.comment_filter_mode)"
-    Save-YomiConfig $new
-    if($playlistChanged){Remove-Item (Join-Path $DataRoot 'playlist.txt') -Force -ErrorAction SilentlyContinue;Set-Content (Join-Path $DataRoot 'state\resume-track.txt') '1' -Encoding ASCII}
-    if($vizSigBefore -ne $vizSigAfter){Set-Content (Join-Path $DataRoot 'state\visualizer-reset.pending') '1' -Encoding ASCII}
-    if($artSigBefore -ne $artSigAfter){Set-Content (Join-Path $DataRoot 'state\artwork-reset.pending') '1' -Encoding ASCII}
-    if($videoSigBefore -ne $videoSigAfter){Set-Content (Join-Path $DataRoot 'state\video-reset.pending') '1' -Encoding ASCII}
-    if($audioSigBefore -ne $audioSigAfter){Set-Content (Join-Path $DataRoot 'state\audio-reset.pending') '1' -Encoding ASCII}
-    if($commentSigBefore -ne $commentSigAfter){Get-ChildItem (Join-Path $DataRoot 'cache\comments') -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue;Get-ChildItem (Join-Path $DataRoot 'cache\status') -Filter 'track-*.comment.*' -Force -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue}
-    Write-ObsInstructions $new | Out-Null
+    $tx=Invoke-YomiConfigTransaction $old $new $runtimeWasRunning ([string]$configChangePolicy.SelectedItem)
     $saveResetTimer.Stop()
-    if($engineChanged -and $runtimeWasRunning){$save.Text='SAVED - RESTARTING';Request-YomiControlledRestart}else{$save.Text='SAVED'}
+    if($tx.action -eq 'STAGED'){
+        $save.Text='STAGED - NEXT RESTART'
+        $config=$old
+        Write-ObsInstructions $old | Out-Null
+        $applyNote.Text='Configuration staged atomically. The running engine and OBS config remain on the committed snapshot until the next controlled restart.'
+    }elseif($tx.action -eq 'NOOP'){
+        $save.Text='NO CHANGES';$config=$old
+    }else{
+        $config=$new;Write-ObsInstructions $new | Out-Null
+        if($tx.restart_requested){$save.Text='SAVED - RESTARTING';Request-YomiControlledRestart}else{$save.Text='SAVED'}
+    }
     $saveResetTimer.Start()
-    $config=$new;Update-Dependencies;Update-Preview
-})
+    Update-ConfigTransactionStatus;Update-Dependencies;Update-Preview})
 
 Update-Components
 Update-Dependencies
 Update-VisualizerResolutionInfo
 Update-Preview
+if($script:configReadOnly){
+    $save.Enabled=$false
+    $restoreDefaults.Enabled=$false
+    $form.Text += '  [READ ONLY - NEWER CONFIG SCHEMA]'
+    $applyNote.Text='READ ONLY: this config schema is newer than this YOMI build. Existing settings are preserved; update YOMI before saving or restoring defaults.'
+    $applyNote.ForeColor=[System.Drawing.Color]::Firebrick
+}
 Write-ObsInstructions $config | Out-Null
 $form.Add_Shown({Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'update-auto'})
 try{[void]$form.ShowDialog()}finally{
@@ -1472,4 +1716,7 @@ try{[void]$form.ShowDialog()}finally{
     try{$settingsActivate.Dispose()}catch{}
     try{$settingsMutex.ReleaseMutex()}catch{}
     try{$settingsMutex.Dispose()}catch{}
+}
+if($script:reopenSettingsAfterClose){
+    Start-Process (Join-Path $PSScriptRoot 'YomiLauncher.exe') -ArgumentList 'settings'
 }
