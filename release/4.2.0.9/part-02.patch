@@ -1,0 +1,115 @@
+         private void FillCuratedTextFontCombo(ComboBox box)
+@@ -6491,40 +6542,54 @@
+             var installed = Fonts.SystemFontFamilies.Select(f => f.Source).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+             var installedSet = new HashSet<string>(installed, StringComparer.OrdinalIgnoreCase);
+             var added = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+-            Action<string> add = family =>
++
++            // Bahnschrift Condensed is a face inside the Bahnschrift family. The old exact-family
++            // filter deleted YOMI's own default from the picker on normal Windows installs.
++            Func<string, bool> available = choice =>
++                installedSet.Contains(choice) ||
++                ((String.Equals(choice, "Bahnschrift Condensed", StringComparison.OrdinalIgnoreCase) ||
++                  String.Equals(choice, "Bahnschrift SemiCondensed", StringComparison.OrdinalIgnoreCase)) && installedSet.Contains("Bahnschrift"));
++
++            Action<string> add = choice =>
+             {
+-                if (String.IsNullOrWhiteSpace(family) || !installedSet.Contains(family) || !added.Add(family)) return;
++                if (String.IsNullOrWhiteSpace(choice) || !available(choice) || !added.Add(choice)) return;
+                 var item = new ComboBoxItem
+                 {
+-                    Content = family,
+-                    Tag = family,
+-                    FontFamily = new FontFamily(family),
++                    Content = choice,
++                    Tag = choice,
++                    FontFamily = new FontFamily(PreviewFontFamilySource(choice)),
++                    FontStretch = PreviewFontStretch(choice),
+                     FontWeight = FontWeights.Normal
+                 };
+                 PrepareSettingsComboItem(box, item);
+                 box.Items.Add(item);
+             };
+ 
+-            // Understated / narrow first. Bahnschrift Condensed is the YOMI default.
+-            // The less-common families below are shown only when they are actually installed,
+-            // so the preview never lies by silently falling back to another face.
+-            foreach (string family in new[]
+-            {
+-                "Bahnschrift Condensed", "Bahnschrift SemiCondensed", "Arial Narrow",
+-                "Aptos Narrow", "Agency FB", "Franklin Gothic Medium Cond", "Franklin Gothic Demi Cond",
+-                "News Gothic MT", "News Gothic", "Trade Gothic", "DIN Next", "FF DIN",
+-                "Frutiger", "Frutiger Book", "Syntax", "Whitney Book", "Univers", "Univers Next",
+-                "Akzidenz-Grotesk", "Neue Haas Grotesk", "Söhne", "Myriad Pro", "FF Meta",
+-                "Tw Cen MT Condensed", "Gill Sans MT Condensed", "Rockwell Condensed", "Haettenschweiler",
+-                "IBM Plex Sans Condensed", "Roboto Condensed",
+-                "Gabriola", "Segoe Script", "Monotype Corsiva"
++            // Compact / understated. These are useful for long track titles, not generic office filler.
++            foreach (string choice in new[]
++            {
++                "Bahnschrift Condensed", "Bahnschrift SemiCondensed", "Franklin Gothic Medium", "Agency FB",
++                "Aptos Narrow", "Franklin Gothic Medium Cond", "News Gothic MT", "Tw Cen MT Condensed", "Gill Sans MT Condensed", "Rockwell Condensed",
++                "Haettenschweiler", "Roboto Condensed", "IBM Plex Sans Condensed", "Barlow Condensed", "Oswald"
+             })
+             {
+-                if (box.Items.Count >= 18) break;
+-                add(family);
++                if (box.Items.Count >= 10) break;
++                add(choice);
+             }
+ 
+-            // Then use any other genuinely narrow faces already installed on this machine.
++            // Soft / cute / expressive. Reserve slots so compact fonts cannot crowd this category out.
++            int playfulBefore = box.Items.Count;
++            foreach (string choice in new[]
++            {
++                "Ink Free", "Gabriola", "MV Boli", "Forte", "Gigi", "Bradley Hand ITC",
++                "Juice ITC", "Curlz MT", "Kristen ITC", "Segoe Script"
++            })
++            {
++                if (box.Items.Count - playfulBefore >= 7) break;
++                add(choice);
++            }
++
++            // Pick up only a couple of useful compact fonts the user installed independently.
+             foreach (string family in installed)
+             {
+                 if (box.Items.Count >= 18) break;
+@@ -6535,7 +6600,11 @@
+ 
+             if (box.Items.Count == 0)
+             {
+-                var fallback = new ComboBoxItem { Content = DefaultOverlayTextFont, Tag = DefaultOverlayTextFont, FontFamily = new FontFamily(DefaultOverlayTextFont) };
++                var fallback = new ComboBoxItem
++                {
++                    Content = DefaultOverlayTextFont, Tag = DefaultOverlayTextFont,
++                    FontFamily = new FontFamily("Bahnschrift"), FontStretch = FontStretches.Condensed
++                };
+                 PrepareSettingsComboItem(box, fallback);
+                 box.Items.Add(fallback);
+             }
+@@ -10048,16 +10117,8 @@
+                     if (QueueFilter(row)) visible++;
+                 }
+             }
+-            if (simpleAllView)
+-            {
+-                _queueFilterSummaryText.Text = activeTotal.ToString(CultureInfo.InvariantCulture) + (activeTotal == 1 ? " track" : " tracks");
+-                _queueFilterSummaryText.ToolTip = "Playable tracks in the Queue";
+-            }
+-            else
+-            {
+-                _queueFilterSummaryText.Text = visible.ToString(CultureInfo.InvariantCulture) + " of " + activeTotal.ToString(CultureInfo.InvariantCulture) + " tracks";
+-                _queueFilterSummaryText.ToolTip = "Tracks shown by the current Queue filter out of all playable tracks";
+-            }
++            _queueFilterSummaryText.Text = activeTotal.ToString(CultureInfo.InvariantCulture) + (activeTotal == 1 ? " track" : " tracks");
++            _queueFilterSummaryText.ToolTip = "Playable tracks currently shown by the Queue model";
+             if (_queueEmptyState != null)
+             {
+                 bool empty = visible == 0;
+--- a/payload/app/YomiObsServer.ps1
++++ b/payload/app/YomiObsServer.ps1
+@@ -418,7 +418,7 @@
+ 
+     private static string OverlayHtml(SimpleRequest req)
+     {
