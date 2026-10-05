@@ -24,7 +24,7 @@ jobs:
           rm -rf .release-work
           mkdir .release-work
           unzip -q YOMI-v4.2.0.8.zip -d .release-work
-          cat release/4.2.0.9/part-01.patch               release/4.2.0.9/part-02.patch               release/4.2.0.9/part-03.patch               release/4.2.0.9/part-04.patch               release/4.2.0.9/part-05.patch               release/4.2.0.9/part-06.patch > /tmp/yomi-409.patch
+          cat release/4.2.0.9/controller.patch release/4.2.0.9/updater.patch > /tmp/yomi-409.patch
           (
             cd .release-work
             git apply --check /tmp/yomi-409.patch
