@@ -1,13 +1,10 @@
 # YOMI Changelog
 
-## 4.2.0.8
+## 4.2.0.9
 
-- Rebuilt and polished the Controller and Queue for large playlists.
-- Filtered Queue counts now show `A of B tracks`.
-- Fixed Listen starting from the wrong filtered position.
-- Fixed false-playing progress while a selected track is still loading; PLAYING now waits for actual playback start.
-- Improved track preparation, cache continuity, manual jumps, media layout, visualizer behavior, Settings, fonts, scrollbars, and OBS presentation.
-- Simplified the public package and documentation.
+- Restored and expanded the curated font picker, including proper Bahnschrift Condensed support and distinct compact/cute choices when installed.
+- Fixed updater version handling so future numeric revisions count as newer, added startup update checks, and removed the 30-day same-version suppression.
+- Filtered Queue counts remain `A of B tracks`.
 
 ## Previous versions
 
