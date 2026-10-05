@@ -1,30 +1,23 @@
-# YOMI — YouTube OBS Music Interface
+# YOMI
 
-A lightweight Windows YouTube playlist randomizer and music player with optional OBS artwork, video, title/channel, and visualizer.
+**YouTube OBS Music Interface**
 
-## Install
+A free, low-overhead, configurable Windows YouTube playlist randomizer and music player with OBS integration for streamers.
+
+## Download
+
+[**DOWNLOAD YOMI FOR WINDOWS**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.3.zip)
 
 **Current version: 4.2.0.9.3**
 
-1. Download `YOMI-v4.2.0.9.3.zip`.
-2. Fully extract the ZIP.
-3. Double-click `INSTALL YOMI.cmd`.
-4. Open YOMI, add your YouTube playlist, and press **Listen**.
+## Install
 
-## OBS
+1. Download the ZIP.
+2. Right-click it and choose **Extract All**.
+3. Open the extracted folder.
+4. Double-click **INSTALL YOMI.cmd**.
+5. Approve the Windows administrator prompt.
 
-Optional. Open **Settings → OBS → Quick Setup**, then copy the Browser Source URL and size YOMI gives you into OBS.
+YOMI has to be extracted first because the installer uses multiple files inside the package.
 
-## Updates
-
-YOMI checks automatically. You can also use **Help → Check for updates**.
-
-## Previous versions
-
-See [Previous Versions](./previous/README.md).
-
-## Problems
-
-Open a GitHub Issue and attach a YOMI diagnostics bundle.
-
-Created and designed by **TheSensibleStreamer**. Powered by mpv, yt-dlp, FFmpeg and Deno when enabled. Development assistance by ChatGPT.
+That is it.
