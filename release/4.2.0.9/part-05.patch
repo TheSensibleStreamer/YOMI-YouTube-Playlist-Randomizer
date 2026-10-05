@@ -1,0 +1,60 @@
+     }
+ 
+     private static string PreviewHtml(SimpleRequest req)
+--- a/payload/app/YomiUpdateHost.ps1
++++ b/payload/app/YomiUpdateHost.ps1
+@@ -49,7 +49,7 @@
+ }
+ function Get-RevisionToken([string]$Text){
+     if([string]::IsNullOrWhiteSpace($Text)){return ''}
+-    $match=[regex]::Match($Text,'R\d+\.\d+(?:\.\d+)?',[Text.RegularExpressions.RegexOptions]::IgnoreCase)
++    $match=[regex]::Match($Text,'R\d+(?:\.\d+)+',[Text.RegularExpressions.RegexOptions]::IgnoreCase)
+     if($match.Success){return $match.Value.ToUpperInvariant()}
+     return ''
+ }
+--- a/payload/app/update-deployment.ps1
++++ b/payload/app/update-deployment.ps1
+@@ -27,7 +27,7 @@
+ function Hash([string]$Path){return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()}
+ function Write-Tx($Obj){$Obj.updated_utc=[DateTime]::UtcNow.ToString('o');Write-Utf8 $txFile ($Obj|ConvertTo-Json -Depth 12)}
+ function Set-State([string]$State,[string]$Reason){$tx=Read-Json $txFile;if($null -eq $tx){$tx=[pscustomobject]@{schema=1;transaction_id=[Guid]::NewGuid().ToString('N')}};$tx.state=$State;$tx.reason=$Reason;Write-Tx $tx;return $tx}
+-function VersionText([string]$Root){$p=Join-Path $Root 'VERSION.txt';if(-not(Test-Path $p)){return '0.0'};$m=[regex]::Match((Get-Content $p -Raw),'\d+(?:\.\d+){1,3}');if($m.Success){return $m.Value};return '0.0'}
++function VersionText([string]$Root){$p=Join-Path $Root 'VERSION.txt';if(-not(Test-Path $p)){return '0.0'};$m=[regex]::Match((Get-Content $p -Raw),'\d+(?:\.\d+)+');if($m.Success){return $m.Value};return '0.0'}
+ function Test-ZipPath([string]$Name){if([string]::IsNullOrWhiteSpace($Name)){return $false};if($Name.StartsWith('/') -or $Name.StartsWith('\')){return $false};if($Name -match '^[A-Za-z]:'){return $false};$parts=$Name.Replace('\','/').Split('/');return -not($parts -contains '..')}
+ function Test-Package([string]$Zip,[string]$Out,[string]$Version,[string]$OuterHash){
+     if(-not(Test-Path -LiteralPath $Zip -PathType Leaf)){throw 'Update package is missing.'}
+--- a/payload/app/update.ps1
++++ b/payload/app/update.ps1
+@@ -1,4 +1,4 @@
+-param([switch]$Manual)
++param([switch]$Manual,[switch]$Approved)
+ 
+ $ErrorActionPreference='Stop'
+ Add-Type -AssemblyName System.Windows.Forms
+@@ -11,24 +11,24 @@
+ $deploymentPolicy='Verified rollback';$configPath=Join-Path $dataRoot 'config.json';if(Test-Path $configPath){try{$uc=Get-Content $configPath -Raw -Encoding UTF8|ConvertFrom-Json;if($uc.PSObject.Properties['update_deployment_policy']){$deploymentPolicy=[string]$uc.update_deployment_policy}}catch{}}
+ $created=$false;$updateMutex=New-Object Threading.Mutex($true,'Local\YOMI_Update_Check',[ref]$created);$ownsMutex=$created
+ if(-not $created){if(-not $Manual -or -not $updateMutex.WaitOne(5000)){$updateMutex.Dispose();exit 0};$ownsMutex=$true}
+-function Version([string]$Text){$m=[regex]::Match($Text,'\d+(?:\.\d+){1,3}');if(-not $m.Success){return [version]'0.0'};try{return [version]$m.Value}catch{return [version]'0.0'}}
++function VersionText([string]$Text){$m=[regex]::Match($Text,'\d+(?:\.\d+)+');if(-not $m.Success){return '0.0'};return $m.Value}
++function Compare-VersionText([string]$Left,[string]$Right){$a=@((VersionText $Left).Split('.')|ForEach-Object{[int64]$_});$b=@((VersionText $Right).Split('.')|ForEach-Object{[int64]$_});$n=[Math]::Max($a.Count,$b.Count);for($i=0;$i -lt $n;$i++){$av=if($i -lt $a.Count){[int64]$a[$i]}else{0};$bv=if($i -lt $b.Count){[int64]$b[$i]}else{0};if($av -lt $bv){return -1};if($av -gt $bv){return 1}};return 0}
+ function Msg([string]$Text,[Windows.Forms.MessageBoxIcon]$Icon){if($Manual){[Windows.Forms.MessageBox]::Show($Text,'YOMI Update',[Windows.Forms.MessageBoxButtons]::OK,$Icon)|Out-Null}}
+ function Update-Tx([string]$State,[string]$Reason){if(-not(Test-Path $txFile)){return};try{$tx=Get-Content $txFile -Raw -Encoding UTF8|ConvertFrom-Json;$tx.state=$State;$tx.reason=$Reason;$tx.updated_utc=[DateTime]::UtcNow.ToString('o');[IO.File]::WriteAllText($txFile,($tx|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))}catch{}}
+ try{
+  [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
+  if(-not(Test-Path -LiteralPath $deploy)){throw 'The transactional update deployment engine is missing.'}
+- $versionFile=Join-Path $installRoot 'VERSION.txt';$current=Version ($(if(Test-Path $versionFile){Get-Content $versionFile -Raw}else{'0.0'}));$headers=@{'User-Agent'=('YOMI-'+$current.ToString()+'-Updater')}
+- $manifest=Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20;Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII;$latest=Version ([string]$manifest.version)
+- if($latest -le $current){Msg "YOMI $current is current.`r`n`r`nNo newer public build is available." ([Windows.Forms.MessageBoxIcon]::Information);exit 0}
+- if(-not $Manual -and (Test-Path $lastPromptFile)){try{$pp=Get-Content $lastPromptFile -Raw|ConvertFrom-Json;$pt=[DateTime]::Parse([string]$pp.time);if([string]$pp.version -eq $latest.ToString() -and ((Get-Date)-$pt).TotalDays -lt 30){exit 0}}catch{}}
++ $versionFile=Join-Path $installRoot 'VERSION.txt';$current=VersionText ($(if(Test-Path $versionFile){Get-Content $versionFile -Raw}else{'0.0'}));$headers=@{'User-Agent'=('YOMI-'+$current+'-Updater')}
++ $manifest=Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20;Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII;$latest=VersionText ([string]$manifest.version)
++ if((Compare-VersionText $latest $current) -le 0){Msg "YOMI $current is current.`r`n`r`nNo newer public build is available." ([Windows.Forms.MessageBoxIcon]::Information);exit 0}
+  $notes=[string]$manifest.summary;if([string]::IsNullOrWhiteSpace($notes)){$notes='A newer public YOMI build is available.'}
+- $answer=[Windows.Forms.MessageBox]::Show("YOMI $latest is available. You have $current.`r`n`r`n$notes`r`n`r`nDownload, cryptographically verify, rehearse the package, capture last-known-good, install, and verify the new control plane? If installed health fails, YOMI will offer automatic rollback.",'YOMI Update Available',[Windows.Forms.MessageBoxButtons]::YesNo,[Windows.Forms.MessageBoxIcon]::Information)
+- if($answer -ne [Windows.Forms.DialogResult]::Yes){[pscustomobject]@{version=$latest.ToString();time=(Get-Date).ToString('o')}|ConvertTo-Json -Compress|Set-Content $lastPromptFile -Encoding ASCII;exit 0}
++ $answer=if($Approved){[Windows.Forms.DialogResult]::Yes}else{[Windows.Forms.MessageBox]::Show("YOMI $latest is available. You have $current.`r`n`r`n$notes`r`n`r`nDownload, cryptographically verify, rehearse the package, capture last-known-good, install, and verify the new control plane? If installed health fails, YOMI will offer automatic rollback.",'YOMI Update Available',[Windows.Forms.MessageBoxButtons]::YesNo,[Windows.Forms.MessageBoxIcon]::Information)}
++ if($answer -ne [Windows.Forms.DialogResult]::Yes){exit 0}
+  $packageName=[string]$manifest.package_name;if([string]::IsNullOrWhiteSpace($packageName) -or $packageName -notmatch '^YOMI-v[0-9.]+\.zip$'){throw 'The public update manifest contains an invalid package name.'}
+  $packageUri=[string]$manifest.package_url;$expectedHash=([string]$manifest.sha256).Trim().ToLowerInvariant();if($packageUri -notlike 'https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/*'){throw 'The public update manifest points outside the official YOMI repository.'};if($expectedHash -notmatch '^[a-f0-9]{64}$'){throw 'The public update manifest contains an invalid SHA-256 value.'}
+  $packagePath=Join-Path $updateRoot $packageName;$downloading=$packagePath+'.downloading';Remove-Item $downloading -Force -ErrorAction SilentlyContinue
