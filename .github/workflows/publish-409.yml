@@ -1,0 +1,79 @@
+name: Publish YOMI 4.2.0.9
+
+on:
+  push:
+    paths:
+      - "release/4.2.0.9.trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and verify full public package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .release-work
+          mkdir .release-work
+          unzip -q YOMI-v4.2.0.8.zip -d .release-work
+          cat release/4.2.0.9/part-01.patch               release/4.2.0.9/part-02.patch               release/4.2.0.9/part-03.patch               release/4.2.0.9/part-04.patch               release/4.2.0.9/part-05.patch               release/4.2.0.9/part-06.patch > /tmp/yomi-409.patch
+          (
+            cd .release-work
+            git apply --check /tmp/yomi-409.patch
+            git apply /tmp/yomi-409.patch
+          )
+          python release/4.2.0.9/build.py .release-work YOMI-v4.2.0.9.zip | tee /tmp/yomi-409-build.json
+
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          package = Path("YOMI-v4.2.0.9.zip")
+          h = hashlib.sha256(package.read_bytes()).hexdigest()
+          result = json.loads(Path("/tmp/yomi-409-build.json").read_text())
+          if result["sha256"] != h or result["version"] != "4.2.0.9":
+              raise SystemExit("outer package verification failed")
+
+          manifest = {
+              "product": "YOMI - YouTube OBS Music Interface",
+              "version": "4.2.0.9",
+              "package_name": "YOMI-v4.2.0.9.zip",
+              "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.zip",
+              "sha256": h,
+              "summary": "YOMI 4.2.0.9: updater bridge, revision-aware updates, startup update checks, and restored curated font choices including Bahnschrift Condensed.",
+              "changelog_url": "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/blob/main/CHANGELOG.md"
+          }
+          Path("update.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          Path("YOMI-v4.2.0.9.sha256.txt").write_text(h + "  YOMI-v4.2.0.9.zip\n", encoding="utf-8")
+          PY
+
+          # Keep the checked-in source exactly aligned with the public ZIP.
+          rm -rf payload installer
+          cp -a .release-work/payload payload
+          cp -a .release-work/installer installer
+          cp ".release-work/INSTALL YOMI.cmd" "INSTALL YOMI.cmd"
+          rm -rf .release-work
+
+      - name: Publish verified package
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # One-off build scaffolding should not clutter the public repository.
+          rm -rf release/4.2.0.9
+          rm -f release/4.2.0.9.trigger
+          rm -f .github/workflows/publish-409.yml
+
+          git add -A
+          git commit -m "Publish YOMI 4.2.0.9"
+          git push origin HEAD:main
