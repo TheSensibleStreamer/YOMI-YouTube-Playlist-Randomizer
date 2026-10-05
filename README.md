@@ -6,7 +6,7 @@ A free, low-overhead, configurable Windows YouTube playlist randomizer and music
 
 ## Download
 
-[**DOWNLOAD YOMI FOR WINDOWS**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.3.zip)
+[**DOWNLOAD YOMI FOR WINDOWS**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-Windows.zip)
 
 **Current version: 4.2.0.9.3**
 
