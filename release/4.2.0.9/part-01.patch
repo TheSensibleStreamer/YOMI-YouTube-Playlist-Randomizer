@@ -1,0 +1,125 @@
+--- a/payload/app/YomiControllerWpf.cs
++++ b/payload/app/YomiControllerWpf.cs
+@@ -1900,6 +1900,8 @@
+                 }
+             };
+             _uiHeartbeatTimer.Start();
++            if (!isolatedStartupSelfTest)
++                _window.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(delegate { if (!_disposed) CheckForUpdates(true); }));
+             // Independent watchdog: unlike DispatcherTimer diagnostics, this still runs while the
+             // dispatcher is genuinely wedged. It does not touch WPF; it only records the duration
+             // so a future support log identifies a UI-thread stall instead of looking mysteriously idle.
+@@ -6070,16 +6072,41 @@
+                 string publicUpdater = Path.Combine(_appDir, "update.ps1");
+                 if (!File.Exists(publicUpdater)) { BuildYomiStatusDialog("Updates", "The public updater is not present in this installation.", null, null).ShowDialog(); return; }
+                 string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+-                var psi = new ProcessStartInfo(powershell, "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(publicUpdater) + " -Manual")
++                var psi = new ProcessStartInfo(powershell, "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(publicUpdater) + " -Manual -Approved")
+                 { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+                 Process.Start(psi);
+             }
+             catch (Exception ex) { BuildYomiStatusDialog("Updates", "Could not start the updater.\r\n\r\n" + ex.Message, null, null).ShowDialog(); }
+         }
+ 
+-        private void CheckForUpdates()
++        private static string NormalizeDottedVersionText(string text)
+         {
+-            ShowToast("Updates", "Checking for YOMI updates...");
++            if (String.IsNullOrWhiteSpace(text)) return "0.0";
++            var match = System.Text.RegularExpressions.Regex.Match(text, @"\d+(?:\.\d+)+");
++            return match.Success ? match.Value : "0.0";
++        }
++
++        private static int CompareDottedVersions(string left, string right)
++        {
++            string[] a = NormalizeDottedVersionText(left).Split('.');
++            string[] b = NormalizeDottedVersionText(right).Split('.');
++            int n = Math.Max(a.Length, b.Length);
++            for (int i = 0; i < n; i++)
++            {
++                long av = 0, bv = 0;
++                if (i < a.Length) Int64.TryParse(a[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out av);
++                if (i < b.Length) Int64.TryParse(b[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out bv);
++                if (av < bv) return -1;
++                if (av > bv) return 1;
++            }
++            return 0;
++        }
++
++        private void CheckForUpdates() { CheckForUpdates(false); }
++
++        private void CheckForUpdates(bool automatic)
++        {
++            if (!automatic) ShowToast("Updates", "Checking for YOMI updates...");
+             Task.Run(delegate
+             {
+                 try
+@@ -6092,22 +6119,24 @@
+                         json = client.DownloadString("https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json");
+                     }
+                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
+-                    string latestText = GetString(manifest, "version", "0.0");
++                    string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
+                     string summary = GetString(manifest, "summary", "A newer public YOMI build is available.");
+                     string currentText = "4.2.0.8";
+-                    try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = File.ReadAllText(versionPath).Trim(); } catch { }
+-                    Version latest, current; if (!Version.TryParse(latestText, out latest)) latest = new Version(0,0); if (!Version.TryParse(currentText, out current)) current = new Version(0,0);
++                    try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
++                    int comparison = CompareDottedVersions(latestText, currentText);
+                     _window.Dispatcher.BeginInvoke(new Action(delegate
+                     {
+-                        if (latest <= current)
+-                            BuildYomiStatusDialog("Updates", "YOMI " + current + " is current.\r\n\r\nNo newer public build is available.", null, null).ShowDialog();
++                        if (comparison <= 0)
++                        {
++                            if (!automatic) BuildYomiStatusDialog("Updates", "YOMI " + currentText + " is current.\r\n\r\nNo newer public build is available.", null, null).ShowDialog();
++                        }
+                         else
+-                            BuildYomiStatusDialog("Update available", "YOMI " + latest + " is available. You have " + current + ".\r\n\r\n" + summary, "Run updater", StartPublicUpdaterHidden).ShowDialog();
++                            BuildYomiStatusDialog("Update available", "YOMI " + latestText + " is available. You have " + currentText + ".\r\n\r\n" + summary, "Run updater", StartPublicUpdaterHidden).ShowDialog();
+                     }));
+                 }
+                 catch (Exception ex)
+                 {
+-                    _window.Dispatcher.BeginInvoke(new Action(delegate { BuildYomiStatusDialog("Updates", "YOMI could not check for updates.\r\n\r\n" + ex.Message, null, null).ShowDialog(); }));
++                    if (!automatic) _window.Dispatcher.BeginInvoke(new Action(delegate { BuildYomiStatusDialog("Updates", "YOMI could not check for updates.\r\n\r\n" + ex.Message, null, null).ShowDialog(); }));
+                 }
+             });
+         }
+@@ -6476,12 +6505,34 @@
+             if(item!=null){ if(item.Foreground!=null) box.Foreground=item.Foreground; box.Effect=item.Effect; }
+         }
+ 
++        private static string PreviewFontFamilySource(string choice)
++        {
++            if (String.Equals(choice, "Bahnschrift Condensed", StringComparison.OrdinalIgnoreCase) ||
++                String.Equals(choice, "Bahnschrift SemiCondensed", StringComparison.OrdinalIgnoreCase)) return "Bahnschrift";
++            return choice;
++        }
++
++        private static FontStretch PreviewFontStretch(string choice)
++        {
++            if (String.Equals(choice, "Bahnschrift Condensed", StringComparison.OrdinalIgnoreCase)) return FontStretches.Condensed;
++            if (String.Equals(choice, "Bahnschrift SemiCondensed", StringComparison.OrdinalIgnoreCase)) return FontStretches.SemiCondensed;
++            return FontStretches.Normal;
++        }
++
+         private void RefreshTextFontComboPreview()
+         {
+             if (_settingsTextFont == null) return;
+-            string family = ComboText(_settingsTextFont, DefaultOverlayTextFont);
+-            try { _settingsTextFont.FontFamily = new FontFamily(family); }
+-            catch { _settingsTextFont.FontFamily = new FontFamily(DefaultOverlayTextFont); }
++            string choice = ComboText(_settingsTextFont, DefaultOverlayTextFont);
++            try
++            {
++                _settingsTextFont.FontFamily = new FontFamily(PreviewFontFamilySource(choice));
++                _settingsTextFont.FontStretch = PreviewFontStretch(choice);
++            }
++            catch
++            {
++                _settingsTextFont.FontFamily = new FontFamily("Bahnschrift");
++                _settingsTextFont.FontStretch = FontStretches.Condensed;
++            }
+         }
+ 
