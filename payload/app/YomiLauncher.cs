@@ -13,14 +13,14 @@ public static class YomiLauncher
             string mode = (args.Length > 0 ? args[0] : "controller").ToLowerInvariant();
             string appDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
 
-            if (mode == "controller" || mode == "player" || mode == "expedition")
+            if (mode == "controller" || mode == "player" || mode == "expedition" || mode == "settings")
             {
                 string shell = Path.Combine(appDir, "YomiControllerWpf.exe");
                 if (File.Exists(shell))
                 {
                     var shellPsi = new ProcessStartInfo();
                     shellPsi.FileName = shell;
-                    shellPsi.Arguments = mode == "expedition" ? "--expedition" : "";
+                    shellPsi.Arguments = mode == "settings" ? "--settings" : (mode == "expedition" ? "--expedition" : "");
                     shellPsi.WorkingDirectory = appDir;
                     shellPsi.UseShellExecute = false;
                     shellPsi.CreateNoWindow = false;
@@ -30,12 +30,12 @@ public static class YomiLauncher
 
                 // Fail-safe only: old Controller remains a recoverability surface if the
                 // canonical WPF shell is missing or damaged.
-                mode = "legacy-controller";
+                mode = mode == "settings" ? "legacy-settings" : "legacy-controller";
             }
 
             bool updateMode = mode == "update" || mode == "update-auto";
             string scriptName = updateMode ? "update.ps1" :
-                (mode == "settings" ? "settings.ps1" : "controller.ps1");
+                (mode == "legacy-settings" ? "settings.ps1" : "controller.ps1");
             string script = Path.Combine(appDir, scriptName);
 
             if (!File.Exists(script))

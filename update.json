@@ -1,9 +1,9 @@
 {
   "product": "YOMI - YouTube OBS Music Interface",
-  "version": "4.2.0.9",
-  "package_name": "YOMI-v4.2.0.9.zip",
-  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.zip",
-  "sha256": "34100a2a99f433db58924ca55765163feea0d57728f69bc62988e5aef52de73d",
-  "summary": "YOMI 4.2.0.9: updater bridge, revision-aware updates, startup update checks, and restored curated font choices including Bahnschrift Condensed.",
+  "version": "4.2.0.9.1",
+  "package_name": "YOMI-v4.2.0.9.1.zip",
+  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.1.zip",
+  "sha256": "3da49c69feed03335d0cf869c75071460eeebbb0d520ecc0231e5247bb9723b1",
+  "summary": "YOMI 4.2.0.9.1: fixes Settings launch routing so current shortcuts and post-install launch open the WPF Settings UI instead of the legacy PowerShell Settings window.",
   "changelog_url": "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/blob/main/CHANGELOG.md"
 }

@@ -1,11 +1,1 @@
-# YOMI Changelog
-
-## 4.2.0.9
-
-- Restored and expanded the curated font picker, including proper Bahnschrift Condensed support and distinct compact/cute choices when installed.
-- Fixed updater version handling so future numeric revisions count as newer, added startup update checks, and removed the 30-day same-version suppression.
-- Filtered Queue counts remain `A of B tracks`.
-
-## Previous versions
-
-See [Previous Versions](./previous/README.md).
+# YOMI Changelog\n\n## 4.2.0.9.1\n\n- Fixed Settings launch routing so YOMI opens the current WPF Settings UI instead of the legacy PowerShell Settings window.\n- Preserves the 4.2.0.9 updater, font, Queue, and playback fixes.\n\n## Previous versions\n\nSee [Previous Versions](./previous/README.md).\n
