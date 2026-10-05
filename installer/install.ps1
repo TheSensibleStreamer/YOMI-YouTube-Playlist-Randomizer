@@ -60,7 +60,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.9.4 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.9.5 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -113,7 +113,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.9.4-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.9.5-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -283,13 +283,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.4-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.5-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.9.4 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.9.5 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
@@ -593,7 +593,7 @@ try {
     }
     catch {}
 
-    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.4.
+    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.5.
     # Those builds can leave update.ps1 alive with Program Files\YOMI\app as its process CWD,
     # which prevents the installation directory from being atomically renamed.
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -817,10 +817,10 @@ try {
 
     $guiLauncher = Join-Path $installRoot 'app\YomiLauncher.exe'
 
-    New-AppShortcut (Join-Path $startFolder 'YOMI.lnk') $guiLauncher 'controller' (Join-Path $installRoot 'assets\yomi-v408.ico')
+    New-AppShortcut (Join-Path $startFolder 'YOMI.lnk') $guiLauncher 'controller' (Join-Path $installRoot 'app\yomi.ico')
     New-AppShortcut (Join-Path $startFolder 'YOMI Settings.lnk') $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
-    New-AppShortcut (Join-Path $startFolder 'Open YOMI Data Folder.lnk') 'explorer.exe' ('"' + $dataRoot + '"') (Join-Path $installRoot 'assets\yomi-v408.ico')
-    New-AppShortcut (Join-Path $startFolder 'Shuffle Playlist.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot 'app\shuffle.ps1') + '" -Interactive') (Join-Path $installRoot 'assets\yomi-v408.ico')
+    New-AppShortcut (Join-Path $startFolder 'Open YOMI Data Folder.lnk') 'explorer.exe' ('"' + $dataRoot + '"') (Join-Path $installRoot 'app\yomi.ico')
+    New-AppShortcut (Join-Path $startFolder 'Shuffle Playlist.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot 'app\shuffle.ps1') + '" -Interactive') (Join-Path $installRoot 'app\yomi.ico')
     New-AppShortcut (Join-Path $startFolder 'Easy README.lnk') "$env:WINDIR\System32\notepad.exe" ('"' + (Join-Path $installRoot 'README-EASY.txt') + '"')
     New-AppShortcut (Join-Path $startFolder 'Copy Diagnostics.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -NoExit -File "' + (Join-Path $installRoot 'app\diagnostics.ps1') + '"')
     New-AppShortcut (Join-Path $startFolder 'Uninstall YOMI.lnk') (Join-Path $installRoot 'Uninstall YOMI.cmd') '' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
@@ -835,7 +835,7 @@ try {
 
     if ($desktopAnswer -eq [System.Windows.Forms.DialogResult]::Yes) {
         $desktopFolder = [Environment]::GetFolderPath('Desktop')
-        New-AppShortcut (Join-Path $desktopFolder 'YOMI.lnk') $guiLauncher 'controller' (Join-Path $installRoot 'assets\yomi-v408.ico')
+        New-AppShortcut (Join-Path $desktopFolder 'YOMI.lnk') $guiLauncher 'controller' (Join-Path $installRoot 'app\yomi.ico')
         New-AppShortcut (Join-Path $desktopFolder 'YOMI Settings.lnk') $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
     }
 
@@ -876,7 +876,7 @@ try {
         (Join-Path $installRoot 'app\uninstall.ps1'),
         (Join-Path $installRoot 'app\update.ps1'),
         (Join-Path $installRoot 'Uninstall YOMI.cmd'),
-        (Join-Path $installRoot 'assets\yomi-v408.ico'),
+        (Join-Path $installRoot 'app\yomi.ico'),
         (Join-Path $installRoot 'assets\yomi-settings-v408.ico'),
         (Join-Path $installRoot 'app\components.ps1')
     )
@@ -898,7 +898,7 @@ try {
     if (Test-Path $updateTxFile) {
         try {
             $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.4') {
+            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.5') {
                 $updateTx.state = 'COMPLETE'
                 $updateTx.reason = 'installer-verified-control-plane-after-bootstrap-lock-release'
                 $updateTx.updated_utc = [DateTime]::UtcNow.ToString('o')

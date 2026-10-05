@@ -1,9 +1,9 @@
 {
   "product": "YOMI - YouTube OBS Music Interface",
-  "version": "4.2.0.9.4",
+  "version": "4.2.0.9.5",
   "package_name": "YOMI-Windows.zip",
   "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-Windows.zip",
-  "sha256": "8f2d5f51d0cfb83b6673977f27f7468579584080dadf968de53a4459394e7b62",
-  "summary": "YOMI 4.2.0.9.4: fixes per-font previews in Settings and removes residual native/gray ComboBox chrome while leaving scrollbar behavior unchanged.",
+  "sha256": "f20f5828f494ae1afd2a847eaa6ce3f0c4b2df0f744d73f9d5df062394b4b3bb",
+  "summary": "YOMI 4.2.0.9.5: restores the real main YOMI icon across the title bar, tray and shortcuts, while retaining the 4.2.0.9.4 font-preview and themed Settings dropdown fixes.",
   "changelog_url": "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer"
 }
