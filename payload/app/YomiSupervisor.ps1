@@ -379,6 +379,11 @@ try{$mpvProcess.PriorityClass=[System.Diagnostics.ProcessPriorityClass]::Normal}
   }catch{}
   Start-Sleep -Milliseconds 50
  }
+ # R61.106.52.13.13 live OBS package switching: these paths must exist even when
+ # YOMI started in Player mode so enabling OBS can start only the Browser Source child.
+ $serverExe=Join-Path $PSScriptRoot 'YomiObsServer.exe'
+ $serverOut=Join-Path $DataRoot 'logs\server.log'
+ $serverErr=Join-Path $DataRoot 'logs\server-error.log'
  if($streamer){try{
   Set-StartStatus 'Starting OBS overlay server...'
   $serverExe=Join-Path $PSScriptRoot 'YomiObsServer.exe'
@@ -574,6 +579,64 @@ try{$mpvProcess.PriorityClass=[System.Diagnostics.ProcessPriorityClass]::Normal}
   }
  }
 
+ $obsConfigPath=Join-Path $DataRoot 'config.json'
+ $obsConfigStamp=0
+ try{$obsConfigStamp=(Get-Item -LiteralPath $obsConfigPath -ErrorAction Stop).LastWriteTimeUtc.Ticks}catch{}
+
+ function Sync-YomiObsRuntimeMode {
+  $item=$null
+  try{$item=Get-Item -LiteralPath $script:obsConfigPath -ErrorAction Stop}catch{return}
+  $stamp=[int64]$item.LastWriteTimeUtc.Ticks
+  if($stamp -eq [int64]$script:obsConfigStamp){return}
+  $script:obsConfigStamp=$stamp
+
+  $latest=$null
+  try{$latest=Get-YomiConfig}catch{return}
+  if($null -eq $latest){return}
+
+  $desiredStreamer=([string]$latest.app_mode -eq 'Streamer / OBS')
+  $desiredPort=8876
+  try{$desiredPort=[int]$latest.server_port}catch{}
+  if($desiredPort -lt 1 -or $desiredPort -gt 65535){$desiredPort=8876}
+  $currentPort=8876
+  try{$currentPort=[int]$script:config.server_port}catch{}
+  if($currentPort -lt 1 -or $currentPort -gt 65535){$currentPort=8876}
+  $portChanged=($desiredPort -ne $currentPort)
+
+  if($desiredStreamer){
+   $wasStreamer=[bool]$script:streamer
+   if($wasStreamer -and $portChanged -and $script:server -and -not $script:server.HasExited){
+    Stop-Process -Id $script:server.Id -Force -ErrorAction SilentlyContinue
+    $script:server=$null
+    Remove-Item $serverPidFile -Force -ErrorAction SilentlyContinue
+   }
+   $script:config=$latest
+   $script:streamer=$true
+   $env:YOMI_SERVER_PORT=[string]$desiredPort
+   if(-not $wasStreamer -or $portChanged){
+    $script:serverRestartCount=0
+    $script:serverRestartWindow=[DateTime]::UtcNow
+    $script:nextServerRestartAttempt=[DateTime]::MinValue
+    $script:serverHealthFailures=0
+    $reason=$(if($portChanged){'OBS configured port changed at runtime'}else{'OBS package enabled at runtime'})
+    Write-SupervisorLog ('OBS RUNTIME SYNC enabling local output port='+$desiredPort+' reason='+$reason)
+    [void](Restart-YomiOverlayServerWatchdog -BypassCircuit $true -Reason $reason)
+   }
+   return
+  }
+
+  if($script:streamer){
+   if($script:server -and -not $script:server.HasExited){Stop-Process -Id $script:server.Id -Force -ErrorAction SilentlyContinue}
+   $script:server=$null
+   Remove-Item $serverPidFile -Force -ErrorAction SilentlyContinue
+   $script:serverHealthFailures=0
+   Write-SupervisorLog 'OBS RUNTIME SYNC disabled local output without restarting audio'
+   Write-WatchdogStatus 'healthy' 'OBS output disabled by current configuration.'
+  }
+  $script:config=$latest
+  $script:streamer=$false
+ }
+
  function Consume-YomiObsRepairRequest {
   if(-not(Test-Path $obsRepairRequestFile)){return}
   $request=$null
@@ -620,12 +683,17 @@ try{$mpvProcess.PriorityClass=[System.Diagnostics.ProcessPriorityClass]::Normal}
   Write-YomiUtf8NoBom -Path $runtimeInstanceFile -Text ($runtimeRecord|ConvertTo-Json -Depth 6 -Compress)
  }catch{}
 
+ $nextSupervisorHealthProbe=[DateTime]::MinValue
  while(-not $mpvProcess.HasExited){
-  Start-Sleep -Seconds 2
+  Start-Sleep -Milliseconds 350
   if($mpvProcess.HasExited){break}
 
-  if($streamer){
-   Consume-YomiObsRepairRequest
+  Sync-YomiObsRuntimeMode
+  if($streamer){Consume-YomiObsRepairRequest}
+  $runSlowProbe=([DateTime]::UtcNow -ge $nextSupervisorHealthProbe)
+  if($runSlowProbe){$nextSupervisorHealthProbe=[DateTime]::UtcNow.AddSeconds(2)}
+
+  if($streamer -and $runSlowProbe){
    $expectedPid=$(if($server -and -not $server.HasExited){$server.Id}else{0})
    $overlayHealth=Get-YomiOverlayHealth -Port ([int]$config.server_port) -ExpectedPid $expectedPid
    $serverDead=($null -eq $server) -or $server.HasExited
@@ -650,6 +718,7 @@ try{$mpvProcess.PriorityClass=[System.Diagnostics.ProcessPriorityClass]::Normal}
    }
   }
 
+  if(-not $runSlowProbe){continue}
   $leaseFile=Join-Path $stateRoot 'runtime-lease.json'
   if(Test-Path $leaseFile){
    try{

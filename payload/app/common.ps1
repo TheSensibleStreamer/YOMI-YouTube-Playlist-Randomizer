@@ -4,7 +4,7 @@ $script:ConfigPath = Join-Path $script:DataRoot 'config.json'
 $script:ConfigPreviousPath = Join-Path $script:DataRoot 'config.previous.json'
 $script:ConfigHistoryRoot = Join-Path $script:DataRoot 'config-history'
 $script:ConfigWriteMutexName = 'Local\YOMI_CONFIG_WRITE'
-$script:YomiFallbackVersion = '4.2.0.9.6'
+$script:YomiFallbackVersion = '4.2.0.9.7'
 $contractsPath = Join-Path $PSScriptRoot 'contracts.ps1'
 if(Test-Path $contractsPath){. $contractsPath}
 $script:YomiProductName = 'YOMI - YouTube OBS Music Interface'

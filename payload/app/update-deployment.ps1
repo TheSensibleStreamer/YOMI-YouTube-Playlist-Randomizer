@@ -12,7 +12,8 @@ param(
     [string]$DataRoot,
     [string]$SnapshotPath,
     [switch]$CopyReport,
-    [switch]$OpenReport
+    [switch]$OpenReport,
+    [switch]$OuterHashAlreadyVerified
 )
 
 $ErrorActionPreference='Stop'
@@ -31,7 +32,7 @@ function VersionText([string]$Root){$p=Join-Path $Root 'VERSION.txt';if(-not(Tes
 function Test-ZipPath([string]$Name){if([string]::IsNullOrWhiteSpace($Name)){return $false};if($Name.StartsWith('/') -or $Name.StartsWith('\')){return $false};if($Name -match '^[A-Za-z]:'){return $false};$parts=$Name.Replace('\','/').Split('/');return -not($parts -contains '..')}
 function Test-Package([string]$Zip,[string]$Out,[string]$Version,[string]$OuterHash){
     if(-not(Test-Path -LiteralPath $Zip -PathType Leaf)){throw 'Update package is missing.'}
-    if($OuterHash -and (Hash $Zip) -ne $OuterHash.ToLowerInvariant()){throw 'Outer package SHA-256 does not match the update manifest.'}
+    if($OuterHash -and -not $OuterHashAlreadyVerified -and (Hash $Zip) -ne $OuterHash.ToLowerInvariant()){throw 'Outer package SHA-256 does not match the update manifest.'}
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive=[IO.Compression.ZipFile]::OpenRead($Zip)
     try{
@@ -46,7 +47,7 @@ function Test-Package([string]$Zip,[string]$Out,[string]$Version,[string]$OuterH
     foreach($file in @(Get-ChildItem -LiteralPath $Out -File -Recurse)){ $rel=$file.FullName.Substring($Out.Length).TrimStart('\').Replace('\','/');if($rel -eq 'installer/build-manifest.json'){continue};if(-not $manifestNames.ContainsKey($rel)){throw ('Unmanifested package file: '+$rel)}}
     return [pscustomobject]@{version=$manifestVersion;verified_files=$verified;installer=(Join-Path $Out 'INSTALL YOMI.cmd');manifest=$manifestPath}
 }
-function Copy-Tree([string]$From,[string]$To){if(-not(Test-Path -LiteralPath $From)){throw ('Source tree missing: '+$From)};Remove-Item -LiteralPath $To -Recurse -Force -ErrorAction SilentlyContinue;New-Item -ItemType Directory -Path $To -Force|Out-Null;$robo=Join-Path $env:SystemRoot 'System32\robocopy.exe';if(Test-Path $robo){& $robo $From $To /E /COPY:DAT /DCOPY:T /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null;if($LASTEXITCODE -gt 7){throw ('Last-known-good copy failed with robocopy exit '+$LASTEXITCODE)}}else{Copy-Item -Path (Join-Path $From '*') -Destination $To -Recurse -Force}}
+function Copy-Tree([string]$From,[string]$To){if(-not(Test-Path -LiteralPath $From)){throw ('Source tree missing: '+$From)};Remove-Item -LiteralPath $To -Recurse -Force -ErrorAction SilentlyContinue;New-Item -ItemType Directory -Path $To -Force|Out-Null;$robo=Join-Path $env:SystemRoot 'System32\robocopy.exe';if(Test-Path $robo){& $robo $From $To /E /COPY:DAT /DCOPY:T /MT:16 /R:1 /W:1 /XJ /NFL /NDL /NJH /NJS /NP|Out-Null;if($LASTEXITCODE -gt 7){throw ('Last-known-good copy failed with robocopy exit '+$LASTEXITCODE)}}else{Copy-Item -Path (Join-Path $From '*') -Destination $To -Recurse -Force}}
 function Save-Lkg([string]$Root,[string]$Explicit){if(-not(Test-Path -LiteralPath $Root)){return $null};$version=VersionText $Root;$dest=$Explicit;if([string]::IsNullOrWhiteSpace($dest)){$dest=Join-Path $updateRoot ('last-known-good\'+$version+'-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))};Copy-Tree $Root $dest;$meta=[pscustomobject]@{schema=1;version=$version;created_utc=[DateTime]::UtcNow.ToString('o');source=$Root;path=$dest};Write-Utf8 (Join-Path $dest 'YOMI-LKG.json') ($meta|ConvertTo-Json -Depth 5);$parent=Split-Path $dest -Parent;$dirs=@(Get-ChildItem -LiteralPath $parent -Directory -ErrorAction SilentlyContinue|Sort-Object LastWriteTimeUtc -Descending);for($i=1;$i -lt $dirs.Count;$i++){Remove-Item -LiteralPath $dirs[$i].FullName -Recurse -Force -ErrorAction SilentlyContinue};return $dest}
 function Invoke-BoundedWpfHealthProbe([string]$Exe,[int]$TimeoutMs=45000){
     if(-not(Test-Path -LiteralPath $Exe -PathType Leaf)){return [pscustomobject]@{exit=$null;detail='executable missing';timed_out=$false}}
@@ -131,7 +132,7 @@ function Restore-Lkg([string]$Root,[string]$Snap){
     Copy-Tree $Snap $Root
     Remove-Item -LiteralPath (Join-Path $Root 'YOMI-LKG.json') -Force -ErrorAction SilentlyContinue
 }
-if($Prepare){$probe=Test-Package $PackagePath $ExtractRoot $ExpectedVersion $ExpectedPackageHash;$tx=[pscustomobject]@{schema=1;transaction_id=[Guid]::NewGuid().ToString('N');state='PACKAGE_VERIFIED';reason='outer-and-inner-manifest-verified';from_version=(VersionText $InstallRoot);to_version=$probe.version;package_path=$PackagePath;package_sha256=(Hash $PackagePath);staging_path=$ExtractRoot;verified_files=$probe.verified_files;installer=$probe.installer;snapshot_path=$null;created_utc=[DateTime]::UtcNow.ToString('o');updated_utc=[DateTime]::UtcNow.ToString('o')};Write-Tx $tx;$tx|ConvertTo-Json -Depth 8;exit 0}
+if($Prepare){$probe=Test-Package $PackagePath $ExtractRoot $ExpectedVersion $ExpectedPackageHash;$tx=[pscustomobject]@{schema=1;transaction_id=[Guid]::NewGuid().ToString('N');state='PACKAGE_VERIFIED';reason='outer-and-inner-manifest-verified';from_version=(VersionText $InstallRoot);to_version=$probe.version;package_path=$PackagePath;package_sha256=$(if($OuterHashAlreadyVerified -and $ExpectedPackageHash){$ExpectedPackageHash.ToLowerInvariant()}else{Hash $PackagePath});staging_path=$ExtractRoot;verified_files=$probe.verified_files;installer=$probe.installer;snapshot_path=$null;created_utc=[DateTime]::UtcNow.ToString('o');updated_utc=[DateTime]::UtcNow.ToString('o')};Write-Tx $tx;$tx|ConvertTo-Json -Depth 8;exit 0}
 if($Snapshot){$snap=Save-Lkg $InstallRoot $SnapshotPath;$tx=Read-Json $txFile;if($null -eq $tx){throw 'No prepared update transaction exists.'};$tx.snapshot_path=$snap;$tx.state='LKG_SNAPSHOTTED';$tx.reason='last-known-good-snapshot-complete';Write-Tx $tx;$tx|ConvertTo-Json -Depth 8;exit 0}
 if($VerifyInstalled){$tx=Read-Json $txFile;$version=$ExpectedVersion;if([string]::IsNullOrWhiteSpace($version) -and $tx){$version=[string]$tx.to_version};$health=Test-Installed $InstallRoot $version;if($tx){$tx.health=$health;$tx.state=$(if($health.healthy){'HEALTHY'}else{'HEALTH_FAILED'});$tx.reason=$(if($health.healthy){'installed-control-plane-verified'}else{($health.failures -join ',')});Write-Tx $tx};$health|ConvertTo-Json -Depth 8;if($health.healthy){exit 0}else{exit 4}}
 if($Rollback){$tx=Read-Json $txFile;$snap=$SnapshotPath;if([string]::IsNullOrWhiteSpace($snap) -and $tx){$snap=[string]$tx.snapshot_path};Restore-Lkg $InstallRoot $snap;$health=Test-Installed $InstallRoot '';if($tx){$tx.state='ROLLED_BACK';$tx.reason='last-known-good-restored';$tx.rollback_health=$health;Write-Tx $tx};if($health.healthy){exit 0}else{exit 5}}
