@@ -6130,7 +6130,6 @@ namespace Yomi.Desktop
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
-                    string summary = GetString(manifest, "summary", "A newer public YOMI build is available.");
                     string currentText = "4.2.0.9.5";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
@@ -6141,7 +6140,7 @@ namespace Yomi.Desktop
                             if (!automatic) BuildYomiStatusDialog("Updates", "YOMI " + currentText + " is current.\r\n\r\nNo newer public build is available.", null, null).ShowDialog();
                         }
                         else
-                            BuildYomiStatusDialog("Update available", "YOMI " + latestText + " is available. You have " + currentText + ".\r\n\r\n" + summary, "Run updater", StartPublicUpdaterHidden).ShowDialog();
+                            BuildYomiStatusDialog("Update available", "YOMI " + latestText + " is available. You have " + currentText + ".", "Run updater", StartPublicUpdaterHidden).ShowDialog();
                     }));
                 }
                 catch (Exception ex)
