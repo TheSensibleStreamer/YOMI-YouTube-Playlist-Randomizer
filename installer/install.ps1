@@ -46,6 +46,7 @@ if (-not $isAdmin) {
 }
 
 $installRoot = Join-Path $env:ProgramFiles 'YOMI'
+$existingInstallAtStart = Test-Path -LiteralPath (Join-Path $installRoot 'VERSION.txt') -PathType Leaf
 $dataRoot = Join-Path $env:LOCALAPPDATA 'YOMI'
 $defenderMarker = Join-Path $dataRoot 'defender-yt-dlp-process-exclusion.txt'
 $tempRoot = Join-Path $env:TEMP ('YOMI-Install-' + [Guid]::NewGuid().ToString('N'))
@@ -60,7 +61,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.9.7 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.9.8 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -113,7 +114,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.9.7-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.9.8-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -283,13 +284,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.7-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.8-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.9.7 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.9.8 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
@@ -593,7 +594,7 @@ try {
     }
     catch {}
 
-    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.7.
+    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.8.
     # Those builds can leave update.ps1 alive with Program Files\YOMI\app as its process CWD,
     # which prevents the installation directory from being atomically renamed.
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -898,7 +899,7 @@ try {
     if (Test-Path $updateTxFile) {
         try {
             $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.7') {
+            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.8') {
                 $updateTx.state = 'COMPLETE'
                 $updateTx.reason = 'installer-verified-control-plane-after-bootstrap-lock-release'
                 $updateTx.updated_utc = [DateTime]::UtcNow.ToString('o')
@@ -934,9 +935,14 @@ try {
     Write-Host 'INSTALL PASSED.' -ForegroundColor Green
     Write-Host 'Unrelated media-player installations were not modified.' -ForegroundColor Green
     Write-Host ''
-    Write-Host 'Opening Settings now...' -ForegroundColor Yellow
-
-    Start-Process (Join-Path $installRoot 'app\YomiLauncher.exe') -ArgumentList 'settings'
+    if ($existingInstallAtStart) {
+        Write-Host 'Opening YOMI now...' -ForegroundColor Yellow
+        Start-Process (Join-Path $installRoot 'app\YomiLauncher.exe') -ArgumentList 'controller'
+    }
+    else {
+        Write-Host 'Opening Settings for first-time setup...' -ForegroundColor Yellow
+        Start-Process (Join-Path $installRoot 'app\YomiLauncher.exe') -ArgumentList 'settings'
+    }
 }
 catch {
     try {

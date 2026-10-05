@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "product": "YOMI",
-  "version": "4.2.0.9.7",
+  "version": "4.2.0.9.8",
   "consolidation": "DEV13.59",
   "status": "NO_UNEXPLAINED_GAPS",
   "acceptance_rule": "Every known development step is accounted for as runtime-carried, explicitly superseded with preserved behavior, or retained historical evidence. A missing standalone capsule is not silently invented.",

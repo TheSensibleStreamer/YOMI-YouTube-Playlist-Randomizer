@@ -1,2 +1,2 @@
-YOMI 4.2.0.9.7 Focused Media Player
-R61.106.52.13.13
+YOMI 4.2.0.9.8 Focused Media Player
+R61.106.52.13.14
