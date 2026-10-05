@@ -1,0 +1,86 @@
+name: Simplify YOMI downloads
+
+on:
+  push:
+    paths:
+      - ".github/cleanup-release.trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  release-and-clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify and publish one release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f YOMI-v4.2.0.9.3.zip
+          echo "6ac4431a08935118c5020440844485027aa4a617f261973d43186c6575bfe531  YOMI-v4.2.0.9.3.zip" | sha256sum -c -
+          cp YOMI-v4.2.0.9.3.zip YOMI-Windows.zip
+          gh release create v4.2.0.9.3 YOMI-Windows.zip \
+            --title "YOMI 4.2.0.9.3" \
+            --notes "Current Windows release of YOMI - YouTube OBS Music Interface. Download YOMI-Windows.zip, extract it, then run INSTALL YOMI.cmd." \
+            --latest
+
+      - name: Simplify repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > README.md <<'EOF'
+# YOMI
+
+**YouTube OBS Music Interface**
+
+A free, low-overhead, configurable Windows YouTube playlist randomizer and music player with OBS integration for streamers.
+
+## Download
+
+[**DOWNLOAD YOMI FOR WINDOWS**](https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/releases/latest/download/YOMI-Windows.zip)
+
+**Current version: 4.2.0.9.3**
+
+## Install
+
+1. Download `YOMI-Windows.zip`.
+2. Right-click the ZIP and choose **Extract All**.
+3. Open the extracted folder.
+4. Double-click **INSTALL YOMI.cmd**.
+5. Approve the Windows administrator prompt.
+
+YOMI must be extracted before installation because the installer uses multiple files inside the package.
+
+That is it.
+EOF
+
+          python - <<'PY'
+import json
+from pathlib import Path
+p = Path("update.json")
+d = json.loads(p.read_text(encoding="utf-8"))
+d["package_name"] = "YOMI-Windows.zip"
+d["package_url"] = "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/releases/latest/download/YOMI-Windows.zip"
+d["changelog_url"] = "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/releases/latest"
+p.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
+PY
+
+          rm -f CHANGELOG.md
+          rm -f YOMI-v*.zip
+          rm -f YOMI-v*.sha256.txt
+          rm -rf previous
+          rm -f .github/cleanup-release.trigger
+          rm -f .github/workflows/cleanup-release.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Simplify YOMI downloads and repository root"
+          git push origin HEAD:main
