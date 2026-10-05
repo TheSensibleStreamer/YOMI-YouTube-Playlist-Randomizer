@@ -60,7 +60,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.9.1 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.9.2 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -113,7 +113,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.9.1-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.9.2-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -283,13 +283,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.1-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.2-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.9.1 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.9.2 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
@@ -593,6 +593,26 @@ try {
     }
     catch {}
 
+    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.2.
+    # Those builds can leave update.ps1 alive with Program Files\YOMI\app as its process CWD,
+    # which prevents the installation directory from being atomically renamed.
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.ProcessId -ne $installerPid -and
+            $_.CommandLine -and
+            (
+                $_.CommandLine -like "*$installRoot\app\update.ps1*" -or
+                $_.CommandLine -like "*$installRoot\app\update-deployment.ps1*" -or
+                $_.CommandLine -like "*$installRoot\app\YomiUpdateHost.ps1*"
+            )
+        } |
+        ForEach-Object {
+            Write-Host ("      Releasing old updater lock PID " + $_.ProcessId + " " + $_.Name) -ForegroundColor DarkGray
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+
+    Start-Sleep -Milliseconds 350
+
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
         Where-Object {
             $_.ProcessId -ne $installerPid -and
@@ -607,6 +627,9 @@ try {
                         $_.CommandLine -like "*C:\Program Files\YOMI\app\server.ps1*" -or
                         $_.CommandLine -like "*C:\Program Files\YOMI\app\settings.ps1*" -or
                         $_.CommandLine -like "*C:\Program Files\YOMI\app\playlist-refresh.ps1*" -or
+                        $_.CommandLine -like "*C:\Program Files\YOMI\app\update.ps1*" -or
+                        $_.CommandLine -like "*C:\Program Files\YOMI\app\update-deployment.ps1*" -or
+                        $_.CommandLine -like "*C:\Program Files\YOMI\app\YomiUpdateHost.ps1*" -or
                         $_.CommandLine -like "*yomi-rc2*" -or
                         $_.CommandLine -like "*yomi-rc3*" -or
                         $_.CommandLine -like "*yomi-v4*" -or
@@ -633,15 +656,41 @@ try {
 
     if (Test-Path $installRoot) {
         $old = "$installRoot.old"
-        Remove-Item $old -Recurse -Force -ErrorAction SilentlyContinue
-        Move-Item $installRoot $old -Force
+        if (Test-Path $old) {
+            Remove-Item $old -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $old) {
+            $old = "$installRoot.old-" + [Guid]::NewGuid().ToString('N')
+        }
+
+        $movedOld = $false
+        $lastMoveError = $null
+        for ($attempt = 1; $attempt -le 20; $attempt++) {
+            try {
+                [IO.Directory]::Move($installRoot, $old)
+                $movedOld = $true
+                break
+            }
+            catch {
+                $lastMoveError = $_
+                Start-Sleep -Milliseconds 250
+            }
+        }
+        if (-not $movedOld) {
+            throw $lastMoveError
+        }
+
         try {
             Move-Item $stage $installRoot -Force
             Remove-Item $old -Recurse -Force -ErrorAction SilentlyContinue
         }
         catch {
-            if (Test-Path $installRoot) { Remove-Item $installRoot -Recurse -Force -ErrorAction SilentlyContinue }
-            Move-Item $old $installRoot -Force
+            if (Test-Path $installRoot) {
+                Remove-Item $installRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $old) {
+                [IO.Directory]::Move($old, $installRoot)
+            }
             throw
         }
     }
@@ -837,6 +886,31 @@ try {
     }
     if ($installFfmpeg) { foreach ($r in @((Join-Path $installRoot 'runtime\ffmpeg\ffmpeg.exe'),(Join-Path $installRoot 'runtime\ffmpeg\ffprobe.exe'))) { if (-not (Test-Path $r)) { throw "Final verification failed: $r" } } }
     if ($installDeno -and -not (Test-Path (Join-Path $installRoot 'runtime\deno\deno.exe'))) { throw 'Final verification failed: Deno was selected but deno.exe is missing.' }
+
+    Write-Host '      Verifying current WPF control plane...' -ForegroundColor DarkCyan
+    $controllerSelfTest = Start-Process -FilePath (Join-Path $installRoot 'app\YomiControllerWpf.exe') -ArgumentList '--self-test' -WorkingDirectory (Join-Path $installRoot 'app') -PassThru -Wait
+    if ($controllerSelfTest.ExitCode -ne 0) {
+        throw ('Final verification failed: YomiControllerWpf self-test exit ' + $controllerSelfTest.ExitCode)
+    }
+
+    # If this install bootstrapped itself by terminating the old updater, close the transaction here.
+    $updateTxFile = Join-Path $dataRoot 'state\update-transaction.json'
+    if (Test-Path $updateTxFile) {
+        try {
+            $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.2') {
+                $updateTx.state = 'COMPLETE'
+                $updateTx.reason = 'installer-verified-control-plane-after-bootstrap-lock-release'
+                $updateTx.updated_utc = [DateTime]::UtcNow.ToString('o')
+                [IO.File]::WriteAllText(
+                    $updateTxFile,
+                    ($updateTx | ConvertTo-Json -Depth 12),
+                    [Text.UTF8Encoding]::new($false)
+                )
+            }
+        }
+        catch {}
+    }
 
 
     Write-Host ''

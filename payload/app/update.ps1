@@ -8,6 +8,12 @@ $lastCheckFile=Join-Path $stateRoot 'last-update-check.txt';$lastPromptFile=Join
 $manifestUri='https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json'
 $deploy=Join-Path $PSScriptRoot 'update-deployment.ps1';$txFile=Join-Path $stateRoot 'update-transaction.json'
 New-Item -ItemType Directory -Path $stateRoot,$updateRoot -Force|Out-Null
+# Never keep Program Files\YOMI\app as this process's current directory while an update
+# replaces the installation tree. This prevents the updater itself from locking the app folder.
+try {
+    [Environment]::CurrentDirectory = $updateRoot
+    Set-Location -LiteralPath $updateRoot
+} catch {}
 $deploymentPolicy='Verified rollback';$configPath=Join-Path $dataRoot 'config.json';if(Test-Path $configPath){try{$uc=Get-Content $configPath -Raw -Encoding UTF8|ConvertFrom-Json;if($uc.PSObject.Properties['update_deployment_policy']){$deploymentPolicy=[string]$uc.update_deployment_policy}}catch{}}
 $created=$false;$updateMutex=New-Object Threading.Mutex($true,'Local\YOMI_Update_Check',[ref]$created);$ownsMutex=$created
 if(-not $created){if(-not $Manual -or -not $updateMutex.WaitOne(5000)){$updateMutex.Dispose();exit 0};$ownsMutex=$true}

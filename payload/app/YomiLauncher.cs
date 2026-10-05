@@ -67,7 +67,16 @@ public static class YomiLauncher
                 "-NoProfile -ExecutionPolicy Bypass -STA -File \"" +
                 script.Replace("\"", "\\\"") + "\"" +
                 (mode == "update" ? " -Manual" : "");
-            psi.WorkingDirectory = appDir;
+            string launchWorkingDirectory = appDir;
+            if (updateMode)
+            {
+                launchWorkingDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "YOMI", "updates"
+                );
+                Directory.CreateDirectory(launchWorkingDirectory);
+            }
+            psi.WorkingDirectory = launchWorkingDirectory;
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
             psi.WindowStyle = ProcessWindowStyle.Normal;

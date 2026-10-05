@@ -4,9 +4,9 @@ A lightweight Windows YouTube playlist randomizer and music player with optional
 
 ## Install
 
-**Current version: 4.2.0.9.1**
+**Current version: 4.2.0.9.2**
 
-1. Download `YOMI-v4.2.0.9.1.zip`.
+1. Download `YOMI-v4.2.0.9.2.zip`.
 2. Fully extract the ZIP.
 3. Double-click `INSTALL YOMI.cmd`.
 4. Open YOMI, add your YouTube playlist, and press **Listen**.
