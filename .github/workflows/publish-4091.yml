@@ -65,17 +65,8 @@ jobs:
               t=t.replace("Current version: 4.2.0.9", "Current version: 4.2.0.9.1")
               t=t.replace("YOMI-v4.2.0.9.zip", "YOMI-v4.2.0.9.1.zip")
               p.write_text(t, encoding="utf-8")
-          Path("CHANGELOG.md").write_text("""# YOMI Changelog
-
-## 4.2.0.9.1
-
-- Fixed Settings launch routing so YOMI opens the current WPF Settings UI instead of the legacy PowerShell Settings window.
-- Preserves the 4.2.0.9 updater, font, Queue, and playback fixes.
-
-## Previous versions
-
-See [Previous Versions](./previous/README.md).
-""", encoding="utf-8")
+          changelog = "# YOMI Changelog\\n\\n## 4.2.0.9.1\\n\\n- Fixed Settings launch routing so YOMI opens the current WPF Settings UI instead of the legacy PowerShell Settings window.\\n- Preserves the 4.2.0.9 updater, font, Queue, and playback fixes.\\n\\n## Previous versions\\n\\nSee [Previous Versions](./previous/README.md).\\n"
+          Path("CHANGELOG.md").write_text(changelog, encoding="utf-8")
           pp=Path("previous/README.md")
           if pp.exists():
               t=pp.read_text(encoding="utf-8")
