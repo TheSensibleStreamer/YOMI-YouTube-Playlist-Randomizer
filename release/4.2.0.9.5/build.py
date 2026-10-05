@@ -30,19 +30,6 @@ replace_count(
     5
 )
 
-# Final verification must prove the canonical main icon exists.
-anchor = """        (Join-Path $installRoot 'app\\YomiLauncher.exe'),
-        (Join-Path $installRoot 'assets\\yomi-v408.ico'),
-        (Join-Path $installRoot 'assets\\yomi-settings-v408.ico'),"""
-replacement = """        (Join-Path $installRoot 'app\\YomiLauncher.exe'),
-        (Join-Path $installRoot 'app\\yomi.ico'),
-        (Join-Path $installRoot 'assets\\yomi-v408.ico'),
-        (Join-Path $installRoot 'assets\\yomi-settings-v408.ico'),"""
-text = read("installer/install.ps1")
-if text.count(anchor) != 1:
-    raise SystemExit("installer icon verification anchor missing")
-write("installer/install.ps1", text.replace(anchor, replacement, 1))
-
 # Identity bump.
 text_exts = {".ps1", ".cs", ".json", ".txt", ".xaml", ".cmd", ".config", ".manifest", ".md"}
 changed = 0
@@ -67,7 +54,7 @@ if not (ROOT / "payload/app/yomi.ico").exists():
     raise SystemExit("canonical payload/app/yomi.ico missing")
 if not (ROOT / "payload/assets/yomi-v408.ico").exists():
     raise SystemExit("restored legacy main icon missing")
-if installer.count("(Join-Path $installRoot 'app\\yomi.ico')") < 6:
+if installer.count("(Join-Path $installRoot 'app\\yomi.ico')") != 5:
     raise SystemExit("main shortcuts/final verification are not using canonical icon")
 if "string canonical = Path.Combine(_appDir, \"yomi.ico\");" not in controller:
     raise SystemExit("controller canonical icon lookup missing")
