@@ -21,6 +21,28 @@ def replace_exact(path, old, new, expected=None):
         raise SystemExit(f'{path}: anchor missing: {old!r}')
     write(path, text.replace(old, new))
 
+# Patch OBS font rendering without transporting its giant generated HTML line as a diff.
+obs = read('payload/app/YomiObsServer.ps1')
+obs_replacements = [
+    (
+        "let font=String(c.text_font||'Bahnschrift Condensed'),color=",
+        "let fontChoice=String(c.text_font||'Bahnschrift Condensed'),font=fontChoice,fontStretch='normal',color="
+    ),
+    (
+        "opacity=Math.max(.05,Math.min(1,num(c.text_opacity,1)));\\n  let safeX=",
+        "opacity=Math.max(.05,Math.min(1,num(c.text_opacity,1)));\\n  if(fontChoice.toLowerCase()==='bahnschrift condensed'){font='Bahnschrift';fontStretch='condensed';}\\n  else if(fontChoice.toLowerCase()==='bahnschrift semicondensed'){font='Bahnschrift';fontStretch='semi-condensed';}\\n  let safeX="
+    ),
+    (
+        "e.style.fontFamily=font;e.style.fontWeight='400';",
+        "e.style.fontFamily=font;e.style.fontStretch=fontStretch;e.style.fontWeight='400';"
+    ),
+]
+for old, new in obs_replacements:
+    if obs.count(old) != 1:
+        raise SystemExit(f'YomiObsServer font anchor count was {obs.count(old)}, expected 1: {old}')
+    obs = obs.replace(old, new, 1)
+write('payload/app/YomiObsServer.ps1', obs)
+
 # Keep the required Queue semantics: normal = B tracks; filtered/search = A of B tracks.
 controller = read('payload/app/YomiControllerWpf.cs')
 regressed = '''            _queueFilterSummaryText.Text = activeTotal.ToString(CultureInfo.InvariantCulture) + (activeTotal == 1 ? " track" : " tracks");
