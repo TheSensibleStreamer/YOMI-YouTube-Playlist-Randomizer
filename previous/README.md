@@ -1,5 +1,6 @@
 # Previous Versions
 
+- [YOMI 4.2.0.9.2](../YOMI-v4.2.0.9.2.zip)
 - [YOMI 4.2.0.9.1](../YOMI-v4.2.0.9.1.zip)
 - [YOMI 4.2.0.9](../YOMI-v4.2.0.9.zip)
 - [YOMI 4.2.0.8](../YOMI-v4.2.0.8.zip)

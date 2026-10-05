@@ -60,7 +60,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 4.2.0.9.2 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 4.2.0.9.3 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -113,7 +113,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-4.2.0.9.2-Installer'
+    $request.UserAgent = 'YOMI-4.2.0.9.3-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -283,13 +283,13 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.2-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-4.2.0.9.3-Installer' }
 
     # Ask what the user wants BEFORE optional prerequisite downloads.
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $pf = New-Object System.Windows.Forms.Form
-    $pf.Text = 'YOMI 4.2.0.9.2 - YouTube OBS Music Interface'
+    $pf.Text = 'YOMI 4.2.0.9.3 - YouTube OBS Music Interface'
     $pf.StartPosition = 'CenterScreen'
     $pf.Size = New-Object System.Drawing.Size(640,500)
     $pf.MinimumSize = $pf.Size
@@ -593,7 +593,7 @@ try {
     }
     catch {}
 
-    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.2.
+    # Bootstrap lock escape for 4.2.0.9/4.2.0.9.3.
     # Those builds can leave update.ps1 alive with Program Files\YOMI\app as its process CWD,
     # which prevents the installation directory from being atomically renamed.
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -888,9 +888,9 @@ try {
     if ($installDeno -and -not (Test-Path (Join-Path $installRoot 'runtime\deno\deno.exe'))) { throw 'Final verification failed: Deno was selected but deno.exe is missing.' }
 
     Write-Host '      Verifying current WPF control plane...' -ForegroundColor DarkCyan
-    $controllerSelfTest = Start-Process -FilePath (Join-Path $installRoot 'app\YomiControllerWpf.exe') -ArgumentList '--self-test' -WorkingDirectory (Join-Path $installRoot 'app') -PassThru -Wait
+    $controllerSelfTest = Start-Process -FilePath (Join-Path $installRoot 'app\YomiControllerWpf.exe') -ArgumentList '--install-probe' -WorkingDirectory (Join-Path $installRoot 'app') -PassThru -Wait
     if ($controllerSelfTest.ExitCode -ne 0) {
-        throw ('Final verification failed: YomiControllerWpf self-test exit ' + $controllerSelfTest.ExitCode)
+        throw ('Final verification failed: YomiControllerWpf install probe exit ' + $controllerSelfTest.ExitCode)
     }
 
     # If this install bootstrapped itself by terminating the old updater, close the transaction here.
@@ -898,7 +898,7 @@ try {
     if (Test-Path $updateTxFile) {
         try {
             $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.2') {
+            if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.3') {
                 $updateTx.state = 'COMPLETE'
                 $updateTx.reason = 'installer-verified-control-plane-after-bootstrap-lock-release'
                 $updateTx.updated_utc = [DateTime]::UtcNow.ToString('o')

@@ -152,10 +152,11 @@ namespace Yomi.Desktop
         [STAThread]
         public static int Main(string[] args)
         {
+            bool installProbe = args != null && args.Any(a => String.Equals(a, "--install-probe", StringComparison.OrdinalIgnoreCase));
             bool selfTest = args != null && args.Any(a => String.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase));
             bool startupSelfTest = args != null && args.Any(a => String.Equals(a, "--startup-self-test", StringComparison.OrdinalIgnoreCase));
             bool startupSelfTestAll = args != null && args.Any(a => String.Equals(a, "--startup-self-test-all", StringComparison.OrdinalIgnoreCase));
-            bool anySelfTest = selfTest || startupSelfTest || startupSelfTestAll;
+            bool anySelfTest = installProbe || selfTest || startupSelfTest || startupSelfTestAll;
             bool created = false;
             string mutexName = anySelfTest
                 ? @"Local\YOMI_CONTROLLER_WPF_SELFTEST_" + Guid.NewGuid().ToString("N")
@@ -201,6 +202,15 @@ namespace Yomi.Desktop
                     Window window;
                     using (var stream = File.OpenRead(windowPath))
                         window = (Window)XamlReader.Load(stream);
+
+                    // Install verification only proves that the shipped WPF resources and
+                    // window can load. Strict semantic/fidelity assertions remain dev tests.
+                    if (installProbe)
+                    {
+                        try { window.Close(); } catch { }
+                        try { app.Shutdown(); } catch { }
+                        return 0;
+                    }
 
                     if (selfTest)
                     {
@@ -6023,18 +6033,18 @@ namespace Yomi.Desktop
         private void ShowAboutYomi()
         {
             string text =
-                "YOMI 4.2.0.9.2 - YouTube OBS Music Interface\r\n" +
+                "YOMI 4.2.0.9.3 - YouTube OBS Music Interface\r\n" +
                 "Focused build: " + InstalledFocusedBuildSummary() + "\r\n" +
                 UpdateLaneSummary() + "\r\n\r\n" +
                 "A music player built for lightweight YouTube playback and OBS presentation.";
-            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.2", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.3", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private Window BuildYomiStatusDialog(string titleText, string bodyText, string primaryLabel, Action primaryAction)
         {
             var dialog = new Window
             {
-                Title = "YOMI 4.2.0.9.2 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI 4.2.0.9.3 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6050,7 +6060,7 @@ namespace Yomi.Desktop
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 4.2.0.9.2   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI 4.2.0.9.3   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
             var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
@@ -6115,13 +6125,13 @@ namespace Yomi.Desktop
                     string json;
                     using (var client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.2-Controller";
+                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.3-Controller";
                         json = client.DownloadString("https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json");
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
                     string summary = GetString(manifest, "summary", "A newer public YOMI build is available.");
-                    string currentText = "4.2.0.9.2";
+                    string currentText = "4.2.0.9.3";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
                     _window.Dispatcher.BeginInvoke(new Action(delegate
@@ -8005,7 +8015,7 @@ namespace Yomi.Desktop
 
             _settingsWindow = new Window
             {
-                Title = "YOMI 4.2.0.9.2 - Settings",
+                Title = "YOMI 4.2.0.9.3 - Settings",
                 Width = Math.Max(760.0, _settingsWindowWidth), Height = Math.Max(500.0, _settingsWindowHeight),
                 MinWidth = 760.0, MinHeight = 500.0,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.CanResize,
@@ -8059,7 +8069,7 @@ namespace Yomi.Desktop
             if (sourceIcon != null && sourceIcon.Source != null) iconFrame.Child = new Image { Source = sourceIcon.Source, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
             titleGrid.Children.Add(iconFrame);
             var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0), SnapsToDevicePixels = true, RenderTransform = new TranslateTransform(0, 1) };
-            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.2", FontSize = 14, FontWeight = FontWeights.SemiBold });
+            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.3", FontSize = 14, FontWeight = FontWeights.SemiBold });
             var settingsLabel = new TextBlock { Text = "  Settings", FontSize = 14 };
             settingsLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             identity.Children.Add(settingsLabel); Grid.SetColumn(identity, 1); titleGrid.Children.Add(identity);
@@ -25589,7 +25599,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
         private string ObsCacheKey(Dictionary<string, object> config)
         {
-            string version = GetString(config, "version", "4.2.0.9.2");
+            string version = GetString(config, "version", "4.2.0.9.3");
             string digits = new string(version.Where(Char.IsDigit).ToArray());
             return String.IsNullOrWhiteSpace(digits) ? "4208" : digits;
         }
