@@ -25,6 +25,16 @@ $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
+    if ($UpdateMode -and -not [string]::IsNullOrWhiteSpace($UpdateStatusFile)) {
+        try {
+            $statusParent=Split-Path $UpdateStatusFile -Parent
+            if($statusParent){New-Item -ItemType Directory -Path $statusParent -Force|Out-Null}
+            $statusObj=[ordered]@{schema=1;percent=61;state='waiting-admin';message='Waiting for Windows administrator approval...';updated_utc=[DateTime]::UtcNow.ToString('o')}
+            $statusTmp=$UpdateStatusFile+'.tmp-'+[Guid]::NewGuid().ToString('N')
+            [IO.File]::WriteAllText($statusTmp,($statusObj|ConvertTo-Json -Compress),[Text.UTF8Encoding]::new($false))
+            Move-Item -LiteralPath $statusTmp -Destination $UpdateStatusFile -Force
+        } catch {}
+    }
     $args = @('-NoProfile')
     if ($UpdateMode) { $args += @('-WindowStyle','Hidden') }
     $args += @('-ExecutionPolicy','Bypass','-File',('"' + $PSCommandPath + '"'))
