@@ -222,8 +222,12 @@ write(music_path,m)
 # ------------------------------------------------------------------
 obs_path="payload/app/YomiObsServerHost.cs"
 obs=read(obs_path)
-old_seam="""  if(shareSeam&&vertical){artFrame.style.borderRadius=r+' '+r+' 0 0';vidFrame.style.borderRadius='0 0 '+r+' '+r;vidFrame.style.setProperty('--yomi-border-top','0px');}\n  else if(shareSeam){artFrame.style.borderRadius=r+' 0 0 '+r;vidFrame.style.borderRadius='0 '+r+' '+r+' 0';vidFrame.style.setProperty('--yomi-border-left','0px');}\n  else{artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;}\n"""
-new_seam="""  if(shareSeam&&vertical){artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;vidFrame.style.setProperty('--yomi-border-top','0px');}\n  else if(shareSeam){artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;vidFrame.style.setProperty('--yomi-border-left','0px');}\n  else{artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;}\n"""
+old_seam=("  if(shareSeam&&vertical){artFrame.style.borderRadius=r+' '+r+' 0 0';vidFrame.style.borderRadius='0 0 '+r+' '+r;vidFrame.style.setProperty('--yomi-border-top','0px');}\\n"
+          "  else if(shareSeam){artFrame.style.borderRadius=r+' 0 0 '+r;vidFrame.style.borderRadius='0 '+r+' '+r+' 0';vidFrame.style.setProperty('--yomi-border-left','0px');}\\n"
+          "  else{artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;}\\n")
+new_seam=("  if(shareSeam&&vertical){artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;vidFrame.style.setProperty('--yomi-border-top','0px');}\\n"
+          "  else if(shareSeam){artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;vidFrame.style.setProperty('--yomi-border-left','0px');}\\n"
+          "  else{artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;}\\n")
 obs=replace_once(obs,old_seam,new_seam,"OBS shared seam corner radius")
 write(obs_path,obs)
 
