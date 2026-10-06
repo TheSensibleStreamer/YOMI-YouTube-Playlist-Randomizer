@@ -38,7 +38,14 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
           <TextBlock x:Name="TitleText" VerticalAlignment="Center" Foreground="#F0F0EC" FontWeight="SemiBold" Text="YOMI Update"/>
           <Button x:Name="CloseButton" Grid.Column="1" Width="28" Height="22" Margin="0,2,0,2"
                   Background="Transparent" BorderThickness="0" Foreground="#C8C8C4"
-                  FontSize="16" Content="×" IsEnabled="False"/>
+                  IsEnabled="False">
+            <Viewbox Width="9" Height="9" Stretch="Uniform">
+              <Canvas Width="9" Height="9">
+                <Path Stroke="#C8C8C4" StrokeThickness="1.35" StrokeStartLineCap="Square" StrokeEndLineCap="Square"
+                      Data="M 1,1 L 8,8 M 8,1 L 1,8"/>
+              </Canvas>
+            </Viewbox>
+          </Button>
         </Grid>
       </Border>
       <Grid Grid.Row="1" Margin="18,16,18,15">
@@ -52,10 +59,10 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
         </Grid.RowDefinitions>
         <TextBlock x:Name="VersionText" Foreground="#F0F0EC" FontSize="15" FontWeight="SemiBold"/>
         <TextBlock x:Name="StatusText" Grid.Row="1" Margin="0,7,0,0" Foreground="#BDBDB8" TextWrapping="Wrap"/>
-        <Grid x:Name="ProgressTrack" Grid.Row="3" Height="9" Background="#292929" ClipToBounds="True">
+        <Grid x:Name="ProgressTrack" Grid.Row="3" Height="9" Background="#292929" ClipToBounds="True" Visibility="Collapsed">
           <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" Background="#8D8D86"/>
         </Grid>
-        <TextBlock x:Name="PercentText" Grid.Row="4" Margin="0,7,0,0" Foreground="#8F8F89" FontSize="12"/>
+        <TextBlock x:Name="PercentText" Grid.Row="4" Margin="0,7,0,0" Foreground="#8F8F89" FontSize="12" Visibility="Collapsed"/>
         <Button x:Name="DoneButton" Grid.Row="5" HorizontalAlignment="Right" MinWidth="86" Height="29"
                 Padding="12,0" Background="#252525" BorderBrush="#444440" BorderThickness="1"
                 Foreground="#E8E8E3" Content="Close" Visibility="Collapsed"/>
@@ -79,8 +86,8 @@ $doneButton=$window.FindName('DoneButton')
 
 $titleText.Text='YOMI  '+$LatestVersion+'   Update available'
 $versionText.Text='YOMI '+$LatestVersion+' is available. You have '+$CurrentVersion+'.'
-$statusText.Text='Ready to update. Download, verification, installation and restart stay in this window.'
-$percentText.Text='Ready'
+$statusText.Text='A new version of YOMI is ready to install.'
+$percentText.Text=''
 $running=$false
 $started=$false
 $exitCode=$null
@@ -166,6 +173,8 @@ function Start-YomiPublicUpdate {
     $script:running=$true
     $closeButton.IsEnabled=$false
     $doneButton.Visibility='Collapsed'
+    $progressTrack.Visibility='Visible'
+    $percentText.Visibility='Visible'
     $titleText.Text='YOMI  '+$LatestVersion+'   Updating'
     try{
         $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
