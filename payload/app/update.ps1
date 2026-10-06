@@ -70,7 +70,22 @@ try{
  if(Test-Path -LiteralPath $packagePath -PathType Leaf){
   try{$cachedHash=(Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToLowerInvariant();if($cachedHash -eq $expectedHash){$packageReady=$true}else{Remove-Item -LiteralPath $packagePath -Force -ErrorAction SilentlyContinue}}catch{Remove-Item -LiteralPath $packagePath -Force -ErrorAction SilentlyContinue}
  }
- if(-not $packageReady){Download-PackageWithStatus $packageUri $downloading $headers $latest;Write-UpdateStatus 28 'verifying-download' 'Verifying downloaded package...';$actual=(Get-FileHash $downloading -Algorithm SHA256).Hash.ToLowerInvariant();if($actual -ne $expectedHash){Remove-Item $downloading -Force -ErrorAction SilentlyContinue;throw "Update integrity check failed. Expected $expectedHash but received $actual."};Move-Item $downloading $packagePath -Force}else{Write-UpdateStatus 28 'verifying-download' 'Using already verified cached package...'}
+ if(-not $packageReady){
+  Download-PackageWithStatus $packageUri $downloading $headers $latest
+  Write-UpdateStatus 28 'verifying-download' 'Verifying downloaded package...'
+  $actual=(Get-FileHash $downloading -Algorithm SHA256).Hash.ToLowerInvariant()
+  if($actual -ne $expectedHash){
+   Remove-Item $downloading -Force -ErrorAction SilentlyContinue
+   Write-UpdateStatus 18 'downloading' 'Downloaded bytes did not match the manifest. Retrying from a fresh cache path...'
+   $separator=$(if($packageUri.Contains('?')){'&'}else{'?'})
+   $retryUri=$packageUri+$separator+'yomi_version='+[Uri]::EscapeDataString($latest)+'&yomi_sha='+$expectedHash.Substring(0,16)
+   Download-PackageWithStatus $retryUri $downloading $headers $latest
+   Write-UpdateStatus 28 'verifying-download' 'Verifying retried package...'
+   $actual=(Get-FileHash $downloading -Algorithm SHA256).Hash.ToLowerInvariant()
+   if($actual -ne $expectedHash){Remove-Item $downloading -Force -ErrorAction SilentlyContinue;throw "Update integrity check failed after a fresh retry. Expected $expectedHash but received $actual."}
+  }
+  Move-Item $downloading $packagePath -Force
+ }else{Write-UpdateStatus 28 'verifying-download' 'Using already verified cached package...'}
  Write-UpdateStatus 38 'preparing' 'Checking package contents and preparing the update...'
  $extractRoot=Join-Path $updateRoot ('ready-'+$latest);$prep=& powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $deploy -Prepare -PackagePath $packagePath -ExtractRoot $extractRoot -ExpectedVersion $latest -ExpectedPackageHash $expectedHash -InstallRoot $installRoot -DataRoot $dataRoot -OuterHashAlreadyVerified 2>&1;if($LASTEXITCODE -ne 0){Update-Tx 'PACKAGE_REJECTED' ($prep -join ' ');throw ('Package rehearsal failed: '+($prep -join ' '))}
  Write-UpdateStatus 52 'snapshot' 'Saving the current working installation for automatic rollback...'
