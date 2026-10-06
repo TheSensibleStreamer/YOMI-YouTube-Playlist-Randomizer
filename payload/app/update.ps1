@@ -30,6 +30,28 @@ function Write-UpdateStatus([int]$Percent,[string]$State,[string]$Message){
  }catch{}
 }
 function Msg([string]$Text,[Windows.Forms.MessageBoxIcon]$Icon){if($Manual -and [string]::IsNullOrWhiteSpace($StatusFile)){[Windows.Forms.MessageBox]::Show($Text,'YOMI Update',[Windows.Forms.MessageBoxButtons]::OK,$Icon)|Out-Null}}
+function Download-PackageWithStatus([string]$Uri,[string]$OutFile,[hashtable]$Headers,[string]$Version){
+ $request=[Net.HttpWebRequest]::Create($Uri);$request.Method='GET';$request.AllowAutoRedirect=$true;$request.MaximumAutomaticRedirections=10;$request.Timeout=120000;$request.ReadWriteTimeout=120000;$request.KeepAlive=$true
+ foreach($key in $Headers.Keys){if($key -ieq 'User-Agent'){$request.UserAgent=[string]$Headers[$key]}else{$request.Headers[$key]=[string]$Headers[$key]}}
+ $response=$null;$input=$null;$output=$null
+ try{
+  $response=$request.GetResponse();$total=[int64]$response.ContentLength;$input=$response.GetResponseStream()
+  $output=New-Object IO.FileStream($OutFile,[IO.FileMode]::Create,[IO.FileAccess]::Write,[IO.FileShare]::None,1048576,[IO.FileOptions]::SequentialScan)
+  $buffer=New-Object byte[] 1048576;[int64]$downloaded=0;$lastStatus=[DateTime]::MinValue
+  while(($read=$input.Read($buffer,0,$buffer.Length)) -gt 0){
+   $output.Write($buffer,0,$read);$downloaded+=$read
+   $now=Get-Date
+   if(($now-$lastStatus).TotalMilliseconds -ge 120){
+    if($total -gt 0){$ratio=[Math]::Min(1.0,$downloaded/[double]$total);$pct=10+[int][Math]::Floor(17*$ratio);$detail=("{0:N1} / {1:N1} MB" -f ($downloaded/1MB),($total/1MB))}
+    else{$pct=18;$detail=("{0:N1} MB" -f ($downloaded/1MB))}
+    Write-UpdateStatus $pct 'downloading' ("Downloading YOMI $Version... "+$detail);$lastStatus=$now
+   }
+  }
+  $output.Flush()
+  if($downloaded -le 0){throw 'The update package download returned zero bytes.'}
+  if($total -gt 0 -and $downloaded -ne $total){throw "The update package download was incomplete: expected $total bytes, received $downloaded."}
+ }finally{if($output){$output.Dispose()};if($input){$input.Dispose()};if($response){$response.Dispose()}}
+}
 function Update-Tx([string]$State,[string]$Reason){if(-not(Test-Path $txFile)){return};try{$tx=Get-Content $txFile -Raw -Encoding UTF8|ConvertFrom-Json;$tx.state=$State;$tx.reason=$Reason;$tx.updated_utc=[DateTime]::UtcNow.ToString('o');[IO.File]::WriteAllText($txFile,($tx|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))}catch{}}
 try{
  Write-UpdateStatus 3 'checking' 'Checking the public YOMI update manifest...'
@@ -48,7 +70,7 @@ try{
  if(Test-Path -LiteralPath $packagePath -PathType Leaf){
   try{$cachedHash=(Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash.ToLowerInvariant();if($cachedHash -eq $expectedHash){$packageReady=$true}else{Remove-Item -LiteralPath $packagePath -Force -ErrorAction SilentlyContinue}}catch{Remove-Item -LiteralPath $packagePath -Force -ErrorAction SilentlyContinue}
  }
- if(-not $packageReady){Invoke-WebRequest -Uri $packageUri -Headers $headers -UseBasicParsing -TimeoutSec 120 -OutFile $downloading;Write-UpdateStatus 28 'verifying-download' 'Verifying downloaded package...';$actual=(Get-FileHash $downloading -Algorithm SHA256).Hash.ToLowerInvariant();if($actual -ne $expectedHash){Remove-Item $downloading -Force -ErrorAction SilentlyContinue;throw "Update integrity check failed. Expected $expectedHash but received $actual."};Move-Item $downloading $packagePath -Force}else{Write-UpdateStatus 28 'verifying-download' 'Using already verified cached package...'}
+ if(-not $packageReady){Download-PackageWithStatus $packageUri $downloading $headers $latest;Write-UpdateStatus 28 'verifying-download' 'Verifying downloaded package...';$actual=(Get-FileHash $downloading -Algorithm SHA256).Hash.ToLowerInvariant();if($actual -ne $expectedHash){Remove-Item $downloading -Force -ErrorAction SilentlyContinue;throw "Update integrity check failed. Expected $expectedHash but received $actual."};Move-Item $downloading $packagePath -Force}else{Write-UpdateStatus 28 'verifying-download' 'Using already verified cached package...'}
  Write-UpdateStatus 38 'preparing' 'Checking package contents and preparing the update...'
  $extractRoot=Join-Path $updateRoot ('ready-'+$latest);$prep=& powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $deploy -Prepare -PackagePath $packagePath -ExtractRoot $extractRoot -ExpectedVersion $latest -ExpectedPackageHash $expectedHash -InstallRoot $installRoot -DataRoot $dataRoot -OuterHashAlreadyVerified 2>&1;if($LASTEXITCODE -ne 0){Update-Tx 'PACKAGE_REJECTED' ($prep -join ' ');throw ('Package rehearsal failed: '+($prep -join ' '))}
  Write-UpdateStatus 52 'snapshot' 'Saving the current working installation for automatic rollback...'
