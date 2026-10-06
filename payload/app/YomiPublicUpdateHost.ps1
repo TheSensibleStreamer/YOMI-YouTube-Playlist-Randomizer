@@ -77,14 +77,18 @@ $progressFill=$window.FindName('ProgressFill')
 $percentText=$window.FindName('PercentText')
 $doneButton=$window.FindName('DoneButton')
 
-$titleText.Text='YOMI  '+$LatestVersion+'   Update'
-$versionText.Text='Updating YOMI '+$CurrentVersion+'  →  '+$LatestVersion
-$statusText.Text='Starting update...'
-$percentText.Text='0%'
-$running=$true
+$titleText.Text='YOMI  '+$LatestVersion+'   Update available'
+$versionText.Text='YOMI '+$LatestVersion+' is available. You have '+$CurrentVersion+'.'
+$statusText.Text='Ready to update. Download, verification, installation and restart stay in this window.'
+$percentText.Text='Ready'
+$running=$false
+$started=$false
 $exitCode=$null
 $updateProcess=$null
-$lastState='starting'
+$lastState='ready'
+$closeButton.IsEnabled=$true
+$doneButton.Content='Update'
+$doneButton.Visibility='Visible'
 
 function Set-Progress([int]$Percent,[string]$Message){
     $p=[Math]::Max(0,[Math]::Min(100,$Percent))
@@ -106,6 +110,7 @@ function Finish-Host([int]$Code){
     $script:running=$false
     $script:exitCode=$Code
     $closeButton.IsEnabled=$true
+    $doneButton.Content='Close'
     $doneButton.Visibility='Visible'
     if($Code -eq 0){
         Set-Progress 100 'Update complete. Restarting YOMI...'
@@ -136,7 +141,6 @@ $titleBar.Add_MouseLeftButtonDown({
     try{if($_.ButtonState -eq [Windows.Input.MouseButtonState]::Pressed){$window.DragMove()}}catch{}
 })
 $closeButton.Add_Click({if(-not $running){$window.Close()}})
-$doneButton.Add_Click({if(-not $running){$window.Close()}})
 $window.Add_Closing({if($running){$_.Cancel=$true}})
 
 $timer=New-Object Windows.Threading.DispatcherTimer
@@ -156,28 +160,41 @@ $timer.Add_Tick({
     }
 })
 
-try{
-    $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $args='-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$UpdaterScript+'" -Manual -Approved -StatusFile "'+$statusFile+'" -InstallRootOverride "'+$InstallRoot+'" -DataRootOverride "'+$DataRoot+'"'
-    $psi=New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName=$powershell
-    $psi.Arguments=$args
-    $psi.WorkingDirectory=Split-Path $UpdaterScript -Parent
-    $psi.UseShellExecute=$false
-    $psi.CreateNoWindow=$true
-    $psi.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
-    $updateProcess=New-Object Diagnostics.Process
-    $updateProcess.StartInfo=$psi
-    if(-not $updateProcess.Start()){throw 'Could not start the YOMI update engine.'}
-    $timer.Start()
-    Set-Progress 1 'Starting the YOMI update engine...'
-}catch{
-    $lastState='error'
-    $running=$false
-    $closeButton.IsEnabled=$true
-    $doneButton.Visibility='Visible'
-    Set-Progress 100 ('Could not start the updater: '+$_.Exception.Message)
-    $percentText.Text='Update failed'
+function Start-YomiPublicUpdate {
+    if($script:started){return}
+    $script:started=$true
+    $script:running=$true
+    $closeButton.IsEnabled=$false
+    $doneButton.Visibility='Collapsed'
+    $titleText.Text='YOMI  '+$LatestVersion+'   Updating'
+    try{
+        $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $args='-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$UpdaterScript+'" -Manual -Approved -StatusFile "'+$statusFile+'" -InstallRootOverride "'+$InstallRoot+'" -DataRootOverride "'+$DataRoot+'"'
+        $psi=New-Object Diagnostics.ProcessStartInfo
+        $psi.FileName=$powershell
+        $psi.Arguments=$args
+        $psi.WorkingDirectory=Split-Path $UpdaterScript -Parent
+        $psi.UseShellExecute=$false
+        $psi.CreateNoWindow=$true
+        $psi.WindowStyle=[Diagnostics.ProcessWindowStyle]::Hidden
+        $script:updateProcess=New-Object Diagnostics.Process
+        $script:updateProcess.StartInfo=$psi
+        if(-not $script:updateProcess.Start()){throw 'Could not start the YOMI update engine.'}
+        $timer.Start()
+        Set-Progress 1 'Starting the YOMI update engine...'
+    }catch{
+        $script:lastState='error'
+        $script:running=$false
+        $closeButton.IsEnabled=$true
+        $doneButton.Content='Close'
+        $doneButton.Visibility='Visible'
+        Set-Progress 100 ('Could not start the updater: '+$_.Exception.Message)
+        $percentText.Text='Update failed'
+    }
 }
+$doneButton.Add_Click({
+    if(-not $started){Start-YomiPublicUpdate}
+    elseif(-not $running){$window.Close()}
+})
 
 [void]$window.ShowDialog()
