@@ -6075,18 +6075,51 @@ namespace Yomi.Desktop
             return dialog;
         }
 
-        private void StartPublicUpdaterHidden()
+        private void ShowPublicUpdateHost(string latestVersion, string currentVersion)
         {
             try
             {
                 string publicUpdater = Path.Combine(_appDir, "update.ps1");
-                if (!File.Exists(publicUpdater)) { BuildYomiStatusDialog("Updates", "The public updater is not present in this installation.", null, null).ShowDialog(); return; }
+                string deployment = Path.Combine(_appDir, "update-deployment.ps1");
+                string publicHost = Path.Combine(_appDir, "YomiPublicUpdateHost.ps1");
+                if (!File.Exists(publicUpdater) || !File.Exists(deployment) || !File.Exists(publicHost))
+                {
+                    BuildYomiStatusDialog("Updates", "The integrated public updater is not complete in this installation.", null, null).ShowDialog();
+                    return;
+                }
+
+                // The updater window must survive replacement of Program Files\\YOMI.
+                // Copy the tiny control plane into LocalAppData before showing it.
+                string runner = Path.Combine(_dataRoot, "updates", "public-runner");
+                Directory.CreateDirectory(runner);
+                string updaterCopy = Path.Combine(runner, "update.ps1");
+                string deploymentCopy = Path.Combine(runner, "update-deployment.ps1");
+                string hostCopy = Path.Combine(runner, "YomiPublicUpdateHost.ps1");
+                File.Copy(publicUpdater, updaterCopy, true);
+                File.Copy(deployment, deploymentCopy, true);
+                File.Copy(publicHost, hostCopy, true);
+
                 string powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-                var psi = new ProcessStartInfo(powershell, "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(publicUpdater) + " -Manual -Approved")
-                { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+                string arguments =
+                    "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File " + Quote(hostCopy) +
+                    " -LatestVersion " + Quote(latestVersion) +
+                    " -CurrentVersion " + Quote(currentVersion) +
+                    " -UpdaterScript " + Quote(updaterCopy) +
+                    " -InstallRoot " + Quote(_installRoot) +
+                    " -DataRoot " + Quote(_dataRoot);
+                var psi = new ProcessStartInfo(powershell, arguments)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    WorkingDirectory = runner
+                };
                 Process.Start(psi);
             }
-            catch (Exception ex) { BuildYomiStatusDialog("Updates", "Could not start the updater.\r\n\r\n" + ex.Message, null, null).ShowDialog(); }
+            catch (Exception ex)
+            {
+                BuildYomiStatusDialog("Updates", "Could not start the integrated updater.\r\n\r\n" + ex.Message, null, null).ShowDialog();
+            }
         }
 
         private static string NormalizeDottedVersionText(string text)
@@ -6140,7 +6173,7 @@ namespace Yomi.Desktop
                             if (!automatic) BuildYomiStatusDialog("Updates", "YOMI " + currentText + " is current.\r\n\r\nNo newer public build is available.", null, null).ShowDialog();
                         }
                         else
-                            BuildYomiStatusDialog("Update available", "YOMI " + latestText + " is available. You have " + currentText + ".", "Run updater", StartPublicUpdaterHidden).ShowDialog();
+                            ShowPublicUpdateHost(latestText, currentText);
                     }));
                 }
                 catch (Exception ex)
