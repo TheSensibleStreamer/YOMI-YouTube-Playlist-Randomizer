@@ -6160,7 +6160,12 @@ namespace Yomi.Desktop
                     using (var client = new WebClient())
                     {
                         client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.9.6-Controller";
-                        json = client.DownloadString("https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json");
+                        client.Headers[HttpRequestHeader.CacheControl] = "no-cache, no-store, max-age=0";
+                        client.Headers[HttpRequestHeader.Pragma] = "no-cache";
+                        client.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.BypassCache);
+                        string manifestUrl = "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json?yomi_manifest=" +
+                            Uri.EscapeDataString(DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture));
+                        json = client.DownloadString(manifestUrl);
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
