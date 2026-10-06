@@ -267,7 +267,7 @@ local function viz_path(i) return visualizer_dir .. "\\track-" .. i .. ".mp4" en
 local function status_path(i,suffix) return status_dir .. "\\track-" .. i .. "." .. suffix end
 
 local function visualizer_fps()
-    return tostring(cfg.visualizer_fps or "30 FPS"):find("60",1,true) and 60 or 30
+    return tostring(cfg.visualizer_fps or "60 FPS"):find("60",1,true) and 60 or 30
 end
 
 function visualizer_render_dimensions()
@@ -289,10 +289,10 @@ function visualizer_profile()
         tostring(visualizer_fps()),
         tostring(w),tostring(h),
         tostring(cfg.visualizer_activity or "Active"),
-        tostring(cfg.visualizer_adaptive_fill or "Adaptive"),
+        tostring(cfg.visualizer_adaptive_fill or "Off"),
         tostring(cfg.visualizer_frequency_scale or "Logarithmic"),
         tostring(cfg.visualizer_high_frequency_trim or 0),
-        tostring(cfg.visualizer_high_frequency_lift_db or 4),
+        tostring(cfg.visualizer_high_frequency_lift_db or 0),
         tostring(cfg.visualizer_color_mode or "Solid"),
         tostring(cfg.visualizer_solid_color or "#8A8A84"),
         tostring(cfg.visualizer_gradient_preset or "Sunset"),
@@ -2055,7 +2055,7 @@ end
 function visualizer_audio_prefix()
     local activity=tostring(cfg.visualizer_activity or "Active")
     local gain=activity=="Subtle" and 1 or (activity=="Normal" and 3 or 5)
-    local fill=tostring(cfg.visualizer_adaptive_fill or "Adaptive")
+    local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
     if fill=="Aggressive" then gain=gain+3 elseif fill=="Off" then gain=math.max(0,gain-2) end
     local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 4))
     local chain={"highpass=f=30"}
@@ -2068,7 +2068,7 @@ function visualizer_frequency_parameters()
     local activity=tostring(cfg.visualizer_activity or "Active")
     local averaging,win=1,1024
     if activity=="Subtle" then averaging,win=4,2048 elseif activity=="Normal" then averaging,win=2,1024 end
-    local fill=tostring(cfg.visualizer_adaptive_fill or "Adaptive")
+    local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
     local ascale=fill=="Off" and "sqrt" or (fill=="Aggressive" and "log" or "cbrt")
     local fscale=tostring(cfg.visualizer_frequency_scale or "Logarithmic")=="Linear" and "lin" or "log"
     return averaging,win,ascale,fscale
@@ -2538,7 +2538,15 @@ safe_register_script_message("yomi-jump",function(raw)
     if n>=1 and n<=#urls then
         explicit_audio_retry(n,"jump")
         cancel_pending_transport();sync_playback_subset_cursor(n);desired_index=n;requested_index=0;work_generation=work_generation+1
-        -- "Play now" means play now even if the old occurrence happened to be paused.
+        -- An uncached Play-now request replaces the audible occurrence immediately.
+        -- Do not leave the previous song playing for several seconds while yt-dlp resolves.
+        if playing_index>0 and playing_index~=n and not audio_ready(n) then
+            pcall(function() mp.commandv("stop") end)
+            playing_index=0
+            loaded_waiting_for_restart=0
+            log("JUMP STOP outgoing audio; uncached target "..n.." is preparing")
+        end
+        -- Play now starts the destination unless the controller subsequently latches Pause.
         mp.set_property_native("pause",false)
         play_index(n)
     end
