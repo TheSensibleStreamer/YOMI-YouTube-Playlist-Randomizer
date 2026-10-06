@@ -37,7 +37,7 @@ function Test-Package([string]$Zip,[string]$Out,[string]$Version,[string]$OuterH
     $archive=[IO.Compression.ZipFile]::OpenRead($Zip)
     try{
         $names=@{};foreach($entry in $archive.Entries){if(-not(Test-ZipPath $entry.FullName)){throw ('Unsafe ZIP path: '+$entry.FullName)};if($names.ContainsKey($entry.FullName)){throw ('Duplicate ZIP path: '+$entry.FullName)};$names[$entry.FullName]=$true}
-        foreach($required in @('INSTALL YOMI.cmd','installer/install.ps1','installer/build-manifest.json','payload/app/supervisor.ps1','payload/app/update.ps1')){if(-not $names.ContainsKey($required)){throw ('Required update payload entry missing: '+$required)}}
+        foreach($required in @('INSTALL YOMI.cmd','installer/install.ps1','installer/build-manifest.json','payload/app/supervisor.ps1','payload/app/update.ps1','payload/app/YomiPublicUpdateHost.ps1')){if(-not $names.ContainsKey($required)){throw ('Required update payload entry missing: '+$required)}}
     }finally{$archive.Dispose()}
     Remove-Item -LiteralPath $Out -Recurse -Force -ErrorAction SilentlyContinue;New-Item -ItemType Directory -Path $Out -Force|Out-Null
     Expand-Archive -LiteralPath $Zip -DestinationPath $Out -Force
@@ -80,7 +80,7 @@ function Test-Installed([string]$Root,[string]$Version){
     if(-not(Test-Path -LiteralPath $Root -PathType Container)){$fail.Add('install-root-missing')}
     $actual=VersionText $Root
     if($Version -and $actual -ne $Version){$fail.Add('version-mismatch')}
-    foreach($rel in @('runtime\mpv\mpv.exe','runtime\yt-dlp\yt-dlp.exe','app\PriorityRun.exe','app\ArtworkEdgeDetector.exe','app\YomiLauncher.exe','app\music.lua','app\server.ps1','app\controller.ps1','app\update.ps1','app\common.ps1')){
+    foreach($rel in @('runtime\mpv\mpv.exe','runtime\yt-dlp\yt-dlp.exe','app\PriorityRun.exe','app\ArtworkEdgeDetector.exe','app\YomiLauncher.exe','app\music.lua','app\server.ps1','app\controller.ps1','app\update.ps1','app\YomiPublicUpdateHost.ps1','app\common.ps1')){
         if(-not(Test-Path -LiteralPath (Join-Path $Root $rel) -PathType Leaf)){$fail.Add('missing:'+ $rel)}
     }
     $parseErrors=0
