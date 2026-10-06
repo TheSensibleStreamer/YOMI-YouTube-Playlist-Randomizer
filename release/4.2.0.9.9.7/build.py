@@ -45,7 +45,7 @@ host=read("payload/app/YomiPublicUpdateHost.ps1")
 # One-hop updater invariant: update checks must bypass both local and CDN manifest caches.
 for required in [
     "RequestCacheLevel.BypassCache",
-    "Cache-Control",
+    "HttpRequestHeader.CacheControl",
     "no-cache, no-store, max-age=0",
     "?yomi_manifest=",
 ]:
