@@ -944,6 +944,11 @@ public static class YomiShellIconRefresh {
         try {
             $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
             if ($updateTx -and [string]$updateTx.to_version -eq '4.2.0.9.9.4') {
+                # Compatibility with 9.9.3/9.9.4 deployment scripts running under StrictMode:
+                # their transaction schema omitted these fields, then verification tried to
+                # assign them directly and failed with "Exception setting health".
+                $updateTx | Add-Member -NotePropertyName health -NotePropertyValue $null -Force
+                $updateTx | Add-Member -NotePropertyName rollback_health -NotePropertyValue $null -Force
                 $updateTx.state = 'COMPLETE'
                 $updateTx.reason = 'installer-verified-control-plane-after-bootstrap-lock-release'
                 $updateTx.updated_utc = [DateTime]::UtcNow.ToString('o')
