@@ -909,13 +909,13 @@ namespace Yomi.Desktop
         private WorkspaceProfile _compactQueueReturnProfile = WorkspaceProfile.Custom;
         private AppearancePreset _appearancePreset = AppearancePreset.Midnight;
         private bool _appearanceManuallySelected;
-        private ThemeIntensity _themeIntensity = ThemeIntensity.Soft;
-        private double _themeIntensityAmount = 0.0;
+        private ThemeIntensity _themeIntensity = ThemeIntensity.Vivid;
+        private double _themeIntensityAmount = 1.0;
         private bool _appearanceAccentEnabled;
         private AppearancePreset _appearanceAccentPreset = AppearancePreset.Dusk;
         private ThemeBlendStrength _themeBlendStrength = ThemeBlendStrength.Balanced;
         private double _themeBlendAmount = 0.60;
-        private double _windowTransparencyPercent = 0.0;
+        private double _windowTransparencyPercent = 10.0;
         private InformationDensity _informationDensity = InformationDensity.Clean;
         private bool _quietSurface = true;
         private bool _menuBarVisible;
@@ -1719,7 +1719,7 @@ namespace Yomi.Desktop
         private const int SettingsHistoryLimit = 48;
         // R61.77: public 4.2.0.7 broadcast text baseline. Keep one controller-side
         // fallback authority so Settings, geometry and Restore Defaults cannot drift.
-        private const int DefaultOverlayTextSize = 33;
+        private const int DefaultOverlayTextSize = 32;
         private const string DefaultOverlayTextFont = "Bahnschrift Condensed";
         private const string DefaultOverlayTextColor = "#F2F0E8";
         private const int DefaultOverlayTextOutline = 6;
@@ -6033,18 +6033,18 @@ namespace Yomi.Desktop
         private void ShowAboutYomi()
         {
             string text =
-                "YOMI 4.2.0.9.8 - YouTube OBS Music Interface\r\n" +
+                "YOMI 4.2.0.9.9 - YouTube OBS Music Interface\r\n" +
                 "Focused build: " + InstalledFocusedBuildSummary() + "\r\n" +
                 UpdateLaneSummary() + "\r\n\r\n" +
                 "A music player built for lightweight YouTube playback and OBS presentation.";
-            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.8", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.9", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private Window BuildYomiStatusDialog(string titleText, string bodyText, string primaryLabel, Action primaryAction)
         {
             var dialog = new Window
             {
-                Title = "YOMI 4.2.0.9.8 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI 4.2.0.9.9 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6060,7 +6060,7 @@ namespace Yomi.Desktop
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 4.2.0.9.8   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI 4.2.0.9.9   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
             var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
@@ -6125,12 +6125,12 @@ namespace Yomi.Desktop
                     string json;
                     using (var client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.8-Controller";
+                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.9-Controller";
                         json = client.DownloadString("https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json");
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
-                    string currentText = "4.2.0.9.8";
+                    string currentText = "4.2.0.9.9";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
                     _window.Dispatcher.BeginInvoke(new Action(delegate
@@ -6577,12 +6577,12 @@ namespace Yomi.Desktop
             // Compact / understated. These are useful for long track titles, not generic office filler.
             foreach (string choice in new[]
             {
-                "Bahnschrift Condensed", "Bahnschrift SemiCondensed", "Franklin Gothic Medium", "Agency FB",
-                "Aptos Narrow", "Franklin Gothic Medium Cond", "News Gothic MT", "Tw Cen MT Condensed", "Gill Sans MT Condensed", "Rockwell Condensed",
-                "Haettenschweiler", "Roboto Condensed", "IBM Plex Sans Condensed", "Barlow Condensed", "Oswald"
+                "Bahnschrift Condensed", "Aptos Narrow", "Franklin Gothic Medium Cond", "News Gothic MT",
+                "Tw Cen MT Condensed", "Gill Sans MT Condensed", "Roboto Condensed", "IBM Plex Sans Condensed",
+                "Barlow Condensed", "Oswald", "Franklin Gothic Medium", "Rockwell Condensed"
             })
             {
-                if (box.Items.Count >= 10) break;
+                if (box.Items.Count >= 12) break;
                 add(choice);
             }
 
@@ -6649,12 +6649,12 @@ namespace Yomi.Desktop
             foreach (ComboBox outputModules in new[] { _settingsOutput1Modules, _settingsOutput2Modules, _settingsOutput3Modules, _settingsOutput4Modules }) FillCombo(outputModules, outputBundles);
             foreach (ComboBox outputLayout in new[] { _settingsOutput1Layout, _settingsOutput2Layout, _settingsOutput3Layout, _settingsOutput4Layout })
                 FillCombo(outputLayout, "Horizontal", "Vertical", "Broadcast Strip", "Cards", "Stack", "Terminal", "Timeline");
-            FillCombo(_settingsTextSize, "24", "28", "30", "33", "36", "40", "44", "48");
+            FillCombo(_settingsTextSize, "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64");
             FillCombo(_settingsMinTextSize, "12", "14", "16", "18", "20", "22", "24");
             FillCombo(_settingsTextGap, "0", "4", "8", "10", "12", "14", "16", "20", "24", "28", "32");
             FillCuratedTextFontCombo(_settingsTextFont); _settingsTextFont.SelectionChanged += delegate { RefreshTextFontComboPreview(); }; _settingsTextFont.LostKeyboardFocus += delegate { RefreshTextFontComboPreview(); };
             FillNamedColorCombo(_settingsTextColor, GeneralNamedColors); _settingsTextColor.SelectionChanged += delegate { if (!_settingsPopulating) RefreshStyledComboForeground(_settingsTextColor); };
-            FillCombo(_settingsTextOutline, "0", "1", "2", "3", "4", "5", "6", "7", "8");
+            FillCombo(_settingsTextOutline, "0", "1", "2", "3", "4", "5", "6", "7", "8", "10", "12", "14", "16");
             FillNamedColorCombo(_settingsOutlineColor, GeneralNamedColors); _settingsOutlineColor.SelectionChanged += delegate { if (!_settingsPopulating) RefreshStyledComboForeground(_settingsOutlineColor); };
             FillCombo(_settingsTextOpacity, "0.50", "0.65", "0.75", "0.85", "0.90", "1.00");
             FillCombo(_settingsTextAlignment, "Auto", "Left", "Center", "Right");
@@ -8014,7 +8014,7 @@ namespace Yomi.Desktop
 
             _settingsWindow = new Window
             {
-                Title = "YOMI 4.2.0.9.8 - Settings",
+                Title = "YOMI 4.2.0.9.9 - Settings",
                 Width = Math.Max(760.0, _settingsWindowWidth), Height = Math.Max(500.0, _settingsWindowHeight),
                 MinWidth = 760.0, MinHeight = 500.0,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.CanResize,
@@ -8068,7 +8068,7 @@ namespace Yomi.Desktop
             if (sourceIcon != null && sourceIcon.Source != null) iconFrame.Child = new Image { Source = sourceIcon.Source, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
             titleGrid.Children.Add(iconFrame);
             var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0), SnapsToDevicePixels = true, RenderTransform = new TranslateTransform(0, 1) };
-            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.8", FontSize = 14, FontWeight = FontWeights.SemiBold });
+            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.9", FontSize = 14, FontWeight = FontWeights.SemiBold });
             var settingsLabel = new TextBlock { Text = "  Settings", FontSize = 14 };
             settingsLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             identity.Children.Add(settingsLabel); Grid.SetColumn(identity, 1); titleGrid.Children.Add(identity);
@@ -8426,7 +8426,7 @@ namespace Yomi.Desktop
                     SetComboPreserve(_settingsTextAlignment, DefaultOverlayTextAlignment);
                     SetComboPreserve(_settingsTextSpacing, DefaultOverlayTextSpacing);
                     _settingsTextGlow.IsChecked = false;
-                    SetCombo(_settingsWorkspace, "Player"); SetCombo(_settingsTheme, "System Theme"); SetCombo(_settingsThemeIntensity, "Soft"); SetCombo(_settingsThemeAccent, "None"); SetCombo(_settingsThemeBlend, "Balanced"); if (_settingsThemeIntensitySlider != null) _settingsThemeIntensitySlider.Value = 0; if (_settingsThemeBlendSlider != null) _settingsThemeBlendSlider.Value = 60; if (_settingsWindowTransparencySlider != null) _settingsWindowTransparencySlider.Value = 0; SetCombo(_settingsDetail, "Simple"); _settingsClassicMenu.IsChecked = true; if (_settingsReduceMotion != null) _settingsReduceMotion.IsChecked = false;
+                    SetCombo(_settingsWorkspace, "Player"); SetCombo(_settingsTheme, "System Theme"); SetCombo(_settingsThemeIntensity, "Vivid"); SetCombo(_settingsThemeAccent, "None"); SetCombo(_settingsThemeBlend, "Balanced"); if (_settingsThemeIntensitySlider != null) _settingsThemeIntensitySlider.Value = 100; if (_settingsThemeBlendSlider != null) _settingsThemeBlendSlider.Value = 60; if (_settingsWindowTransparencySlider != null) _settingsWindowTransparencySlider.Value = 10; SetCombo(_settingsDetail, "Simple"); _settingsClassicMenu.IsChecked = true; if (_settingsReduceMotion != null) _settingsReduceMotion.IsChecked = false;
                 }
                 else
                 {
@@ -8652,7 +8652,7 @@ namespace Yomi.Desktop
                     SendMpv("set_property", "mute", "false");
                 }
 
-                _themeIntensity = ThemeIntensity.Soft; _themeIntensityAmount = 0.0; _appearanceAccentEnabled = false; _appearanceAccentPreset = AppearancePreset.Dusk; _themeBlendStrength = ThemeBlendStrength.Balanced; _themeBlendAmount = 0.60; _windowTransparencyPercent = 0.0; if (_window != null) _window.Opacity = 1.0;
+                _themeIntensity = ThemeIntensity.Vivid; _themeIntensityAmount = 1.0; _appearanceAccentEnabled = false; _appearanceAccentPreset = AppearancePreset.Dusk; _themeBlendStrength = ThemeBlendStrength.Balanced; _themeBlendAmount = 0.60; _windowTransparencyPercent = 10.0; if (_window != null) _window.Opacity = 1.0;
                 SetSystemAppearanceMode(false);
                 SetInformationDensity(InformationDensity.Clean, false);
                 SetQuietSurface(true, false);
@@ -22001,7 +22001,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 // for a preserved explicit legacy choice; unsaved state follows Windows instead.
                 if (_appearanceManuallySelected && uiSchema < 29 && _appearancePreset == AppearancePreset.HighContrast) _appearancePreset = AppearancePreset.Midnight;
                 ThemeIntensity savedThemeIntensity;
-                _themeIntensity = Enum.TryParse(GetString(map, "theme_intensity", "Soft"), true, out savedThemeIntensity) ? savedThemeIntensity : ThemeIntensity.Soft;
+                _themeIntensity = Enum.TryParse(GetString(map, "theme_intensity", "Vivid"), true, out savedThemeIntensity) ? savedThemeIntensity : ThemeIntensity.Vivid;
                 double legacyIntensityAmount = _themeIntensity == ThemeIntensity.Vivid ? 1.0 : (_themeIntensity == ThemeIntensity.Rich ? 0.50 : 0.0);
                 _themeIntensityAmount = Math.Max(0.0, Math.Min(1.0, GetDouble(map, "theme_intensity_amount", legacyIntensityAmount)));
                 _themeIntensity = ThemeIntensityFromAmount(_themeIntensityAmount);
@@ -22013,7 +22013,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 double legacyBlendAmount = _themeBlendStrength == ThemeBlendStrength.Strong ? 0.85 : (_themeBlendStrength == ThemeBlendStrength.Subtle ? 0.35 : 0.60);
                 _themeBlendAmount = Math.Max(0.0, Math.Min(1.0, GetDouble(map, "theme_blend_amount", legacyBlendAmount)));
                 _themeBlendStrength = ThemeBlendFromAmount(_themeBlendAmount);
-                _windowTransparencyPercent = Math.Max(0.0, Math.Min(85.0, GetDouble(map, "window_transparency_percent", 0.0)));
+                _windowTransparencyPercent = Math.Max(0.0, Math.Min(85.0, GetDouble(map, "window_transparency_percent", 10.0)));
                 if (_window != null) _window.Opacity = 1.0;
                 InformationDensity density;
                 if (migratePresentation) _informationDensity = InformationDensity.Clean;
@@ -25598,7 +25598,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
         private string ObsCacheKey(Dictionary<string, object> config)
         {
-            string version = GetString(config, "version", "4.2.0.9.8");
+            string version = GetString(config, "version", "4.2.0.9.9");
             string digits = new string(version.Where(Char.IsDigit).ToArray());
             return String.IsNullOrWhiteSpace(digits) ? "4208" : digits;
         }

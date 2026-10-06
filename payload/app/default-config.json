@@ -1,5 +1,5 @@
 {
-  "version": "4.2.0.9.8",
+  "version": "4.2.0.9.9",
   "config_schema_version": 2,
   "playlist": "",
   "general_preset": "Default",
@@ -35,7 +35,7 @@
   "video_zoom": 1.25,
   "title_enabled": true,
   "channel_enabled": true,
-  "text_size": 33,
+  "text_size": 32,
   "text_font": "Bahnschrift Condensed",
   "text_color": "#F2F0E8",
   "text_outline": 6,
@@ -90,19 +90,97 @@
   "stats_detail": "Broadcast",
   "sources_preset": "Default",
   "director_fixed_sources": [
-    { "module": "artwork", "label": "Artwork", "enabled": false, "width": 320, "height": 180 },
-    { "module": "video", "label": "Video", "enabled": false, "width": 320, "height": 180 },
-    { "module": "title", "label": "Title", "enabled": false, "width": 900, "height": 120 },
-    { "module": "channel", "label": "Channel", "enabled": false, "width": 900, "height": 100 },
-    { "module": "visualizer", "label": "Visualizer", "enabled": false, "width": 900, "height": 180 },
-    { "module": "progress", "label": "Progress", "enabled": false, "width": 900, "height": 100 },
-    { "module": "stats", "label": "Stats", "enabled": false, "width": 1200, "height": 420 },
-    { "module": "technical", "label": "Technical", "enabled": false, "width": 1000, "height": 320 },
-    { "module": "pipeline", "label": "Pipeline", "enabled": false, "width": 1000, "height": 360 },
-    { "module": "comment", "label": "Featured Comment", "enabled": false, "width": 900, "height": 360 },
-    { "module": "history", "label": "History", "enabled": false, "width": 1200, "height": 220 },
-    { "module": "upnext", "label": "Up Next", "enabled": false, "width": 1000, "height": 220 },
-    { "module": "mission", "label": "Mission", "enabled": false, "width": 1000, "height": 320 }
+    {
+      "module": "artwork",
+      "label": "Artwork",
+      "enabled": false,
+      "width": 320,
+      "height": 180
+    },
+    {
+      "module": "video",
+      "label": "Video",
+      "enabled": false,
+      "width": 320,
+      "height": 180
+    },
+    {
+      "module": "title",
+      "label": "Title",
+      "enabled": false,
+      "width": 900,
+      "height": 120
+    },
+    {
+      "module": "channel",
+      "label": "Channel",
+      "enabled": false,
+      "width": 900,
+      "height": 100
+    },
+    {
+      "module": "visualizer",
+      "label": "Visualizer",
+      "enabled": false,
+      "width": 900,
+      "height": 180
+    },
+    {
+      "module": "progress",
+      "label": "Progress",
+      "enabled": false,
+      "width": 900,
+      "height": 100
+    },
+    {
+      "module": "stats",
+      "label": "Stats",
+      "enabled": false,
+      "width": 1200,
+      "height": 420
+    },
+    {
+      "module": "technical",
+      "label": "Technical",
+      "enabled": false,
+      "width": 1000,
+      "height": 320
+    },
+    {
+      "module": "pipeline",
+      "label": "Pipeline",
+      "enabled": false,
+      "width": 1000,
+      "height": 360
+    },
+    {
+      "module": "comment",
+      "label": "Featured Comment",
+      "enabled": false,
+      "width": 900,
+      "height": 360
+    },
+    {
+      "module": "history",
+      "label": "History",
+      "enabled": false,
+      "width": 1200,
+      "height": 220
+    },
+    {
+      "module": "upnext",
+      "label": "Up Next",
+      "enabled": false,
+      "width": 1000,
+      "height": 220
+    },
+    {
+      "module": "mission",
+      "label": "Mission",
+      "enabled": false,
+      "width": 1000,
+      "height": 320
+    }
   ],
   "outputs_preset": "Default",
   "director_outputs": [
