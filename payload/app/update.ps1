@@ -58,7 +58,9 @@ try{
  [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
  if(-not(Test-Path -LiteralPath $deploy)){throw 'The transactional update deployment engine is missing.'}
  $versionFile=Join-Path $installRoot 'VERSION.txt';$current=VersionText ($(if(Test-Path $versionFile){Get-Content $versionFile -Raw}else{'0.0'}));$headers=@{'User-Agent'=('YOMI-'+$current+'-Updater')}
- $manifest=Invoke-RestMethod -Uri $manifestUri -Headers $headers -UseBasicParsing -TimeoutSec 20;Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII;$latest=VersionText ([string]$manifest.version)
+ $manifestHeaders=@{}+$headers;$manifestHeaders['Cache-Control']='no-cache, no-store, max-age=0';$manifestHeaders['Pragma']='no-cache'
+ $manifestFreshUri=$manifestUri+'?yomi_manifest='+[Uri]::EscapeDataString([DateTime]::UtcNow.Ticks.ToString())
+ $manifest=Invoke-RestMethod -Uri $manifestFreshUri -Headers $manifestHeaders -UseBasicParsing -TimeoutSec 20;Set-Content $lastCheckFile ((Get-Date).ToString('o')) -Encoding ASCII;$latest=VersionText ([string]$manifest.version)
  if((Compare-VersionText $latest $current) -le 0){Write-UpdateStatus 100 'current' "YOMI $current is already current.";Msg "YOMI $current is current.`r`n`r`nNo newer public build is available." ([Windows.Forms.MessageBoxIcon]::Information);exit 0}
   $answer=if($Approved){[Windows.Forms.DialogResult]::Yes}else{[Windows.Forms.MessageBox]::Show("YOMI $latest is available. You have $current.`r`n`r`nUpdate now?",'YOMI Update Available',[Windows.Forms.MessageBoxButtons]::YesNo,[Windows.Forms.MessageBoxIcon]::Information)}
  if($answer -ne [Windows.Forms.DialogResult]::Yes){exit 0}
