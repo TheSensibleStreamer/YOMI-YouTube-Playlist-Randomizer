@@ -40,6 +40,7 @@ host=read("payload/app/YomiPublicUpdateHost.ps1")
 controller=read("payload/app/YomiControllerWpf.cs")
 updater=read("payload/app/update.ps1")
 installer=read("installer/install.ps1")
+deployment=read("payload/app/update-deployment.ps1")
 
 required_host=[
     'Data="M 1,1 L 8,8 M 8,1 L 1,8"',
@@ -82,6 +83,22 @@ for forbidden in [
 ]:
     if forbidden in installer:
         raise SystemExit("legacy installer UI returned: "+forbidden)
+
+for required in [
+    "health=$null;rollback_health=$null",
+    "Add-Member -NotePropertyName health -NotePropertyValue $health -Force",
+    "Add-Member -NotePropertyName rollback_health -NotePropertyValue $health -Force",
+]:
+    if required not in deployment:
+        raise SystemExit("health transaction fix missing: "+required)
+
+for required in [
+    "Compatibility with 9.9.3/9.9.4 deployment scripts running under StrictMode",
+    "Add-Member -NotePropertyName health -NotePropertyValue $null -Force",
+    "Add-Member -NotePropertyName rollback_health -NotePropertyValue $null -Force",
+]:
+    if required not in installer:
+        raise SystemExit("old-runner health compatibility shim missing: "+required)
 
 files={}
 for p in sorted(ROOT.rglob("*")):
