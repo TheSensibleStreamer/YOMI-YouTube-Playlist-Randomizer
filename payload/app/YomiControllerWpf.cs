@@ -6033,18 +6033,18 @@ namespace Yomi.Desktop
         private void ShowAboutYomi()
         {
             string text =
-                "YOMI 4.2.0.9.9 - YouTube OBS Music Interface\r\n" +
+                "YOMI 4.2.0.9.9.1 - YouTube OBS Music Interface\r\n" +
                 "Focused build: " + InstalledFocusedBuildSummary() + "\r\n" +
                 UpdateLaneSummary() + "\r\n\r\n" +
                 "A music player built for lightweight YouTube playback and OBS presentation.";
-            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.9", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(_window, text, "About YOMI 4.2.0.9.9.1", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private Window BuildYomiStatusDialog(string titleText, string bodyText, string primaryLabel, Action primaryAction)
         {
             var dialog = new Window
             {
-                Title = "YOMI 4.2.0.9.9 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI 4.2.0.9.9.1 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6060,7 +6060,7 @@ namespace Yomi.Desktop
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 4.2.0.9.9   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI 4.2.0.9.9.1   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
             var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
@@ -6125,12 +6125,12 @@ namespace Yomi.Desktop
                     string json;
                     using (var client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.9-Controller";
+                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.9.1-Controller";
                         json = client.DownloadString("https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/update.json");
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
-                    string currentText = "4.2.0.9.9";
+                    string currentText = "4.2.0.9.9.1";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
                     _window.Dispatcher.BeginInvoke(new Action(delegate
@@ -6303,6 +6303,17 @@ namespace Yomi.Desktop
             return box.SelectedItem == null ? fallback : ComboItemText(box.SelectedItem);
         }
         private static bool Checked(CheckBox box) { return box.IsChecked == true; }
+        private static int NormalizeOverlayTextSize(int value)
+        {
+            int clamped = Math.Max(24, Math.Min(64, value));
+            return Math.Max(24, Math.Min(64, (int)Math.Round(clamped / 4.0, MidpointRounding.AwayFromZero) * 4));
+        }
+        private static string NormalizeOverlayFontChoice(string value)
+        {
+            return String.Equals((value ?? "").Trim(), "Bahnschrift SemiCondensed", StringComparison.OrdinalIgnoreCase)
+                ? "Bahnschrift Condensed"
+                : (value ?? "").Trim();
+        }
         private static int ComboInt(ComboBox box, int fallback) { int n; return Int32.TryParse(ComboText(box, fallback.ToString(CultureInfo.InvariantCulture)), NumberStyles.Integer, CultureInfo.InvariantCulture, out n) ? n : fallback; }
         private static double ComboDouble(ComboBox box, double fallback) { double n; return Double.TryParse(ComboText(box, fallback.ToString(CultureInfo.InvariantCulture)), NumberStyles.Float, CultureInfo.InvariantCulture, out n) ? n : fallback; }
 
@@ -8014,7 +8025,7 @@ namespace Yomi.Desktop
 
             _settingsWindow = new Window
             {
-                Title = "YOMI 4.2.0.9.9 - Settings",
+                Title = "YOMI 4.2.0.9.9.1 - Settings",
                 Width = Math.Max(760.0, _settingsWindowWidth), Height = Math.Max(500.0, _settingsWindowHeight),
                 MinWidth = 760.0, MinHeight = 500.0,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.CanResize,
@@ -8068,7 +8079,7 @@ namespace Yomi.Desktop
             if (sourceIcon != null && sourceIcon.Source != null) iconFrame.Child = new Image { Source = sourceIcon.Source, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
             titleGrid.Children.Add(iconFrame);
             var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0), SnapsToDevicePixels = true, RenderTransform = new TranslateTransform(0, 1) };
-            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.9", FontSize = 14, FontWeight = FontWeights.SemiBold });
+            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.9.1", FontSize = 14, FontWeight = FontWeights.SemiBold });
             var settingsLabel = new TextBlock { Text = "  Settings", FontSize = 14 };
             settingsLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             identity.Children.Add(settingsLabel); Grid.SetColumn(identity, 1); titleGrid.Children.Add(identity);
@@ -8408,7 +8419,7 @@ namespace Yomi.Desktop
                 _settingsArtwork.IsChecked = GetBool(c, "artwork_enabled", true); _settingsVideo.IsChecked = GetBool(c, "video_enabled", true); _settingsTitle.IsChecked = GetBool(c, "title_enabled", true); _settingsChannel.IsChecked = GetBool(c, "channel_enabled", true); _settingsSmartArtworkCrop.IsChecked = GetBool(c, "smart_artwork_crop", true); SetCombo(_settingsOverlayVideoQuality, unifiedVideoQuality); SetComboPreserve(_settingsVideoFps, GetString(c, "video_fps", "Source FPS"));
                 SetComboPreserve(_settingsBroadcastPreset, GetString(c, "overlay_preset", "Custom")); _settingsDirectorMode.IsChecked = GetBool(c, "director_mode", false); LoadDirectorOutputDraft(c, 1, _settingsOutput1Enabled, _settingsOutput1Modules, _settingsOutput1Layout); LoadDirectorOutputDraft(c, 2, _settingsOutput2Enabled, _settingsOutput2Modules, _settingsOutput2Layout); LoadDirectorOutputDraft(c, 3, _settingsOutput3Enabled, _settingsOutput3Modules, _settingsOutput3Layout); LoadDirectorOutputDraft(c, 4, _settingsOutput4Enabled, _settingsOutput4Modules, _settingsOutput4Layout);
                 SetComboPreserve(_settingsCanvasWidth, GetInt(c, "canvas_width", 2560).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsCanvasHeight, String.Equals(GetString(c, "canvas_height_mode", "Auto"), "Auto", StringComparison.OrdinalIgnoreCase) ? "Auto" : GetInt(c, "canvas_height", 90).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaWidth, GetInt(c, "media_width", 160).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaHeight, GetInt(c, "media_height", 90).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsSafeMargin, GetInt(c, "overlay_safe_margin_px", 8).ToString(CultureInfo.InvariantCulture));
-                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, GetInt(c, "text_size", DefaultOverlayTextSize).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, GetString(c, "text_font", DefaultOverlayTextFont)); RefreshTextFontComboPreview(); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square"));
+                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square"));
                 _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Adaptive")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoice(GetInt(c, "visualizer_internal_width", 180), GetInt(c, "visualizer_internal_height", 36))); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 4).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "30 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
                 bool settingsObsPackageEnabled = String.Equals(GetString(c, "app_mode", "Streamer / OBS"), "Streamer / OBS", StringComparison.OrdinalIgnoreCase);
                 int settingsPreparedTracks = defaults ? 15 : Math.Max(1, Math.Min(30, GetInt(c, "prefetch_ahead", 15)));
@@ -25598,7 +25609,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
         private string ObsCacheKey(Dictionary<string, object> config)
         {
-            string version = GetString(config, "version", "4.2.0.9.9");
+            string version = GetString(config, "version", "4.2.0.9.9.1");
             string digits = new string(version.Where(Char.IsDigit).ToArray());
             return String.IsNullOrWhiteSpace(digits) ? "4208" : digits;
         }
