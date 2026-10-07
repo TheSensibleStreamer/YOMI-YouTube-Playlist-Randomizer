@@ -18,7 +18,7 @@
   "media_width": 160,
   "media_height": 90,
   "media_aspect_layout": "Fixed",
-  "obs_media_scaling": "Bicubic",
+  "obs_media_scaling": "Smooth",
   "overlay_width": 2560,
   "overlay_height": 90,
   "overlay_text_gap_px": 14,
