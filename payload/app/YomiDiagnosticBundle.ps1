@@ -199,7 +199,8 @@ $updateTruth = @(
     @{ Source = (Join-Path $stateRoot "update-transaction.json"); Name = "update-transaction.json" },
     @{ Source = (Join-Path $localYomi "updates\public-runner\update-status.json"); Name = "update-status.json" },
     @{ Source = (Join-Path $stateRoot "last-update-prompt.json"); Name = "last-update-prompt.json" },
-    @{ Source = (Join-Path $stateRoot "last-update-check.txt"); Name = "last-update-check.txt" }
+    @{ Source = (Join-Path $stateRoot "last-update-check.txt"); Name = "last-update-check.txt" },
+    @{ Source = (Join-Path $localYomi "update-restart.log"); Name = "update-restart.log" }
 )
 foreach($item in $updateTruth){
     if(Test-Path -LiteralPath $item.Source -PathType Leaf){
