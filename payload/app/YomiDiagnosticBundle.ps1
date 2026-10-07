@@ -193,6 +193,20 @@ if (Test-Path $controllerCrash -PathType Leaf) { Copy-Item -LiteralPath $control
 $focusedBuild = Join-Path $env:ProgramFiles "YOMI\\app\\FOCUSED-BUILD.txt"
 if (Test-Path $focusedBuild -PathType Leaf) { Copy-Item -LiteralPath $focusedBuild -Destination (Join-Path $truthDir "FOCUSED-BUILD.txt") -Force }
 
+# The inner installer can PASS and still be rolled back by the outer updater.
+# Keep the transactional updater result beside Runtime-Truth so that distinction is explicit.
+$updateTruth = @(
+    @{ Source = (Join-Path $stateRoot "update-transaction.json"); Name = "update-transaction.json" },
+    @{ Source = (Join-Path $localYomi "updates\public-runner\update-status.json"); Name = "update-status.json" },
+    @{ Source = (Join-Path $stateRoot "last-update-prompt.json"); Name = "last-update-prompt.json" },
+    @{ Source = (Join-Path $stateRoot "last-update-check.txt"); Name = "last-update-check.txt" }
+)
+foreach($item in $updateTruth){
+    if(Test-Path -LiteralPath $item.Source -PathType Leaf){
+        Copy-Item -LiteralPath $item.Source -Destination (Join-Path $truthDir $item.Name) -Force
+    }
+}
+
 $port = 8876
 try {
     if (Test-Path $configPath) {
