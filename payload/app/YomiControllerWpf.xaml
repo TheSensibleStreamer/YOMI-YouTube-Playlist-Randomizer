@@ -1169,6 +1169,9 @@
                                         <TextBlock Text="Non-16:9 video layout" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
                                         <ComboBox x:Name="SettingsMediaAspectLayout" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
                                         <TextBlock Text="Fixed keeps the normal video slot and centers narrower video inside it. Reflow removes the unused width so the video and text slide left." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                        <TextBlock Text="OBS media scaling" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
+                                        <ComboBox x:Name="SettingsObsMediaScaling" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
+                                        <TextBlock Text="Bicubic is the smooth default. Nearest neighbor keeps hard pixel edges when OBS resizes thumbnail and video media." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                     </StackPanel></Border>
                                     <Border x:Name="SettingsSectionBroadcastGeometry" Style="{StaticResource SettingsGroup}"><StackPanel>
                                         <TextBlock Text="OBS canvas and media size" Style="{StaticResource SettingsHeading}"/>
