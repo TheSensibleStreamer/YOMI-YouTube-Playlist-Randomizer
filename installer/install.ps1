@@ -53,7 +53,32 @@ if (-not $isAdmin) {
             -Wait `
             -PassThru
 
-        exit $elevated.ExitCode
+        $elevatedExitCode = [int]$elevated.ExitCode
+        if ($UpdateMode -and $elevatedExitCode -eq 0) {
+            # This non-elevated wrapper survives the elevated Program Files replacement.
+            # Launch the newly installed YOMI here so even an older public updater can
+            # complete the very first update that carries the new restart architecture.
+            $restartLog = Join-Path (Join-Path $env:LOCALAPPDATA 'YOMI') 'update-restart.log'
+            try {
+                $installedRoot = Join-Path $env:ProgramFiles 'YOMI'
+                $installedApp = Join-Path $installedRoot 'app'
+                $installedLauncher = Join-Path $installedApp 'YomiLauncher.exe'
+                Add-Content -LiteralPath $restartLog -Value ([DateTime]::Now.ToString('o')+' | installer-wrapper | elevated update succeeded; opening installed YOMI') -Encoding UTF8
+                if (-not (Test-Path -LiteralPath $installedLauncher -PathType Leaf)) {
+                    throw 'Installed YomiLauncher.exe was not found after update.'
+                }
+                $relaunch = Start-Process -FilePath $installedLauncher -ArgumentList 'controller' -WorkingDirectory $installedApp -PassThru
+                if ($relaunch) {
+                    Add-Content -LiteralPath $restartLog -Value ([DateTime]::Now.ToString('o')+' | installer-wrapper | launcher pid '+$relaunch.Id) -Encoding UTF8
+                }
+            }
+            catch {
+                try {
+                    Add-Content -LiteralPath $restartLog -Value ([DateTime]::Now.ToString('o')+' | installer-wrapper | reopen failed: '+$_.Exception.Message) -Encoding UTF8
+                } catch {}
+            }
+        }
+        exit $elevatedExitCode
     }
     catch {
         Write-Host 'Administrator permission was not granted.' -ForegroundColor Red
