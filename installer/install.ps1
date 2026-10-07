@@ -103,7 +103,7 @@ try {
 }
 catch {}
 
-Write-Host '===== YOMI 420.69.9010 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
+Write-Host '===== YOMI 420.69.9011 - YOUTUBE OBS MUSIC INTERFACE =====' -ForegroundColor Cyan
 Write-Host ''
 Write-Host 'This installs a SEPARATE copy.' -ForegroundColor Green
 Write-Host 'It does not modify unrelated mpv installations.' -ForegroundColor Green
@@ -188,7 +188,7 @@ function Download-FileWithProgress {
     $request.Method = 'GET'
     $request.AllowAutoRedirect = $true
     $request.MaximumAutomaticRedirections = 10
-    $request.UserAgent = 'YOMI-420.69.9010-Installer'
+    $request.UserAgent = 'YOMI-420.69.9011-Installer'
     $request.Timeout = 30000
     $request.ReadWriteTimeout = 30000
     $request.KeepAlive = $true
@@ -358,7 +358,7 @@ try {
     Write-Host '      64-bit Windows: OK' -ForegroundColor Green
     Write-Host '      Installer payload: OK' -ForegroundColor Green
 
-    $headers = @{ 'User-Agent' = 'YOMI-420.69.9010-Installer' }
+    $headers = @{ 'User-Agent' = 'YOMI-420.69.9011-Installer' }
 
     # YOMI is one product. Normal installs and updates always carry the complete
     # runtime so behavior never depends on an old installer profile choice.
@@ -637,7 +637,7 @@ try {
     }
     catch {}
 
-    # Bootstrap lock escape for 4.2.0.9/420.69.9010.
+    # Bootstrap lock escape for 4.2.0.9/420.69.9011.
     # Those builds can leave update.ps1 alive with Program Files\YOMI\app as its process CWD,
     # which prevents the installation directory from being atomically renamed.
     Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -1015,7 +1015,7 @@ public static class YomiShellIconRefresh {
     if (Test-Path $updateTxFile) {
         try {
             $updateTx = Get-Content $updateTxFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($updateTx -and [string]$updateTx.to_version -eq '420.69.9010') {
+            if ($updateTx -and [string]$updateTx.to_version -eq '420.69.9011') {
                 # Compatibility with 9.9.3/9.9.4 deployment scripts running under StrictMode:
                 # their transaction schema omitted these fields, then verification tried to
                 # assign them directly and failed with "Exception setting health".
