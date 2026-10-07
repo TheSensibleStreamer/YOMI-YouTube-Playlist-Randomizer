@@ -843,6 +843,8 @@ namespace Yomi.Desktop
         private double _compactControllerWidth = CompactControllerDefaultWidth;
         private double _compactControllerHeight = CompactControllerDefaultHeight;
         private bool _queuePlaybackSubsetActive;
+        private bool _queuePlaybackSubsetRestorePending;
+        private long _queuePlaybackSubsetLastRestoreAttemptMs = -10000;
         private string _queuePlaybackSubsetQuery = "";
         private string _queuePlaybackSubsetCsv = "";
         private int _queueTransitionGeneration;
@@ -9279,7 +9281,12 @@ namespace Yomi.Desktop
                 _queueSearchBox.Clear();
                 Keyboard.ClearFocus();
             };
-            if (_queueSearchPlayButton != null) _queueSearchPlayButton.Click += delegate { ActivateQueueSearchPlaybackSubset(); };
+            if (_queueSearchPlayButton != null)
+            {
+                _queueSearchPlayButton.Click += delegate { ActivateQueueSearchPlaybackSubset(); };
+                _queueSearchPlayButton.Content = _queuePlaybackSubsetActive ? "Listening" : "Listen";
+                _queueSearchPlayButton.IsEnabled = !_queuePlaybackSubsetActive && !String.IsNullOrWhiteSpace(_queueSearchBox == null ? "" : _queueSearchBox.Text);
+            }
             _queueJumpCurrentButton.Click += delegate { JumpQueueToCurrent(); };
             Grid queueScrollTrack = _queueOverviewTrackSurface ?? _queueOverviewSurface;
             queueScrollTrack.PreviewMouseLeftButtonDown += QueueOverviewMouseDown;
@@ -9780,9 +9787,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             BeginPlaybackTransitionProjection();
             ApplyPrimaryTransportGlyph();
             _queuePlaybackSubsetActive = true;
+            _queuePlaybackSubsetRestorePending = false;
             _queuePlaybackSubsetQuery = query;
             _queuePlaybackSubsetCsv = csv;
             if (_queueSearchPlayButton != null) { _queueSearchPlayButton.Content = "Listening"; _queueSearchPlayButton.IsEnabled = false; }
+            SaveUiState();
             AddActivity("Search playlist", query + " | " + ids.Count.ToString(CultureInfo.InvariantCulture) + " matches");
             ShowToast("Filtered playback", ids.Count.ToString(CultureInfo.InvariantCulture) + " matching tracks. Next and Previous now stay inside this filter.");
         }
@@ -9792,9 +9801,38 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             if (!_queuePlaybackSubsetActive) return;
             if (_running) SendMpv("script-message", "yomi-playback-subset-clear");
             _queuePlaybackSubsetActive = false;
+            _queuePlaybackSubsetRestorePending = false;
             _queuePlaybackSubsetQuery = "";
             _queuePlaybackSubsetCsv = "";
             if (_queueSearchPlayButton != null) { _queueSearchPlayButton.Content = "Listen"; _queueSearchPlayButton.IsEnabled = !String.IsNullOrWhiteSpace(_queueSearchBox == null ? "" : _queueSearchBox.Text); }
+            SaveUiState();
+        }
+
+        private void RestoreQueuePlaybackSubsetIfNeeded()
+        {
+            if (!_queuePlaybackSubsetActive || !_queuePlaybackSubsetRestorePending || !_running) return;
+            if (String.IsNullOrWhiteSpace(_queuePlaybackSubsetCsv) || String.IsNullOrWhiteSpace(_queuePlaybackSubsetQuery))
+            {
+                _queuePlaybackSubsetActive = false;
+                _queuePlaybackSubsetRestorePending = false;
+                _queuePlaybackSubsetCsv = "";
+                _queuePlaybackSubsetQuery = "";
+                SaveUiState();
+                return;
+            }
+            long now = _clock.ElapsedMilliseconds;
+            if (now - _queuePlaybackSubsetLastRestoreAttemptMs < 700) return;
+            _queuePlaybackSubsetLastRestoreAttemptMs = now;
+            if (!SendMpv("script-message", "yomi-playback-subset-restore", _queuePlaybackSubsetCsv, _queuePlaybackSubsetQuery)) return;
+            _queuePlaybackSubsetRestorePending = false;
+            if (_queueSearchPlayButton != null)
+            {
+                _queueSearchPlayButton.Content = "Listening";
+                _queueSearchPlayButton.IsEnabled = false;
+            }
+            AddActivity("Search playlist", "resumed filtered listening | " + _queuePlaybackSubsetQuery);
+            if (_queueFollowCurrent) FollowCurrentQueueRow(true);
+            SaveUiState();
         }
 
         private void CompileQueueFilterQuery()
@@ -13667,6 +13705,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             int engineOccurrence = GetInt(engine, "index", 0);
             int queueOccurrence = GetInt(queue, "current_index", 0);
             int occurrence = ResolveSurfaceOccurrence(currentOccurrence, engineOccurrence, queueOccurrence, phase);
+            if (occurrence > 0) RestoreQueuePlaybackSubsetIfNeeded();
             int position = GetInt(current, "position", 0);
             if (IsTransitionPhase(phase))
                 position = GetInt(queue, "current_order_slot", position);
@@ -16657,7 +16696,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
             if (sessionChanged || _trackMeta.Count == 0)
             {
-                if (sessionChanged && _queuePlaybackSubsetActive)
+                if (sessionChanged && _queuePlaybackSubsetActive && !_queuePlaybackSubsetRestorePending)
                 {
                     _queuePlaybackSubsetActive = false;
                     _queuePlaybackSubsetQuery = "";
@@ -16667,6 +16706,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                         _queueSearchPlayButton.Content = "Listen";
                         _queueSearchPlayButton.IsEnabled = _queueSearchBox != null && !String.IsNullOrWhiteSpace(_queueSearchBox.Text);
                     }
+                    SaveUiState();
                 }
                 _sessionId = sid;
                 LoadTrackMetadata(session, orderState);
@@ -22019,6 +22059,18 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _queueOpen = migratePresentation ? false : GetBool(map, "queue_open", false);
                 _legacyQueueGeometryLoaded = uiSchema < 11 && _queueOpen;
                 _queueFollowCurrent = GetBool(map, "queue_follow_current", true);
+                _queuePlaybackSubsetActive = GetBool(map, "queue_listening_active", false);
+                _queuePlaybackSubsetQuery = GetString(map, "queue_listening_query", "");
+                _queuePlaybackSubsetCsv = GetString(map, "queue_listening_occurrences", "");
+                _queuePlaybackSubsetRestorePending = _queuePlaybackSubsetActive &&
+                    !String.IsNullOrWhiteSpace(_queuePlaybackSubsetQuery) &&
+                    !String.IsNullOrWhiteSpace(_queuePlaybackSubsetCsv);
+                if (!_queuePlaybackSubsetRestorePending)
+                {
+                    _queuePlaybackSubsetActive = false;
+                    _queuePlaybackSubsetQuery = "";
+                    _queuePlaybackSubsetCsv = "";
+                }
                 QueuePlayerDock queueDock;
                 if (Enum.TryParse(GetString(map, "queue_player_dock", "Top"), true, out queueDock)) _queuePlayerDock = queueDock;
                 _queuePlayerHeight = Math.Max(108.0, Math.Min(520.0, GetDouble(map, "queue_player_height", 176.0)));
@@ -22248,7 +22300,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 if (IsContextWorkspace(_workspaceProfile)) CaptureWorkspaceContext(_workspaceProfile);
                 var state = new Dictionary<string, object>
                 {
-                    { "schema", 49 },
+                    { "schema", 50 },
                     { "surface", "wpf-product-shell" },
                     { "orientation_version", _orientationVersion },
                     { "media_mode", _mediaMode.ToString() },
@@ -22286,6 +22338,9 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     { "queue_table_media_visible", _queueTableMediaVisible },
                     { "queue_table_plays_visible", _queueTablePlaysVisible },
                     { "queue_follow_current", _queueFollowCurrent },
+                    { "queue_listening_active", _queuePlaybackSubsetActive },
+                    { "queue_listening_query", _queuePlaybackSubsetQuery ?? "" },
+                    { "queue_listening_occurrences", _queuePlaybackSubsetCsv ?? "" },
                     { "micro_mode", _microMode },
                     { "inspector_open", _inspectorOpen },
                     { "workspace_profile", _workspaceProfile.ToString() },
