@@ -70,9 +70,9 @@ jobs:
           $updater=Get-Content (Join-Path $app 'update.ps1') -Raw
           if(-not $updater.Contains('Restart handoff is ready.')){throw 'Updater restart handoff missing'}
           if($updater.Contains("Start-Process -FilePath $launcher -ArgumentList 'controller'")){throw 'Updater still has competing relaunch owner'}
-          $host=Get-Content (Join-Path $app 'YomiPublicUpdateHost.ps1') -Raw
-          if(-not $host.Contains('Queue-DetachedRelaunch')){throw 'Detached restart relay not wired'}
-          if(-not $host.Contains('detached restart relay owns the single post-update relaunch')){throw 'Single restart ownership marker missing'}
+          $updateHostText=Get-Content (Join-Path $app 'YomiPublicUpdateHost.ps1') -Raw
+          if(-not $updateHostText.Contains('Queue-DetachedRelaunch')){throw 'Detached restart relay not wired'}
+          if(-not $updateHostText.Contains('detached restart relay owns the single post-update relaunch')){throw 'Single restart ownership marker missing'}
 
   publish:
     needs: validate-windows
