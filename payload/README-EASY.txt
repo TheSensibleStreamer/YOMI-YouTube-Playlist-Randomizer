@@ -1,4 +1,4 @@
-YOMI 420.69.9001 — YouTube OBS Music Interface
+YOMI 420.69.9002 — YouTube OBS Music Interface
 
 INSTALL
 1. Fully extract this ZIP.

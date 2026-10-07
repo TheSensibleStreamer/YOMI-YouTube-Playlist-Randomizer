@@ -1,2 +1,2 @@
-YOMI 420.69.9001 Focused Media Player
-R61.106.52.13.25
+YOMI 420.69.9002 Focused Media Player
+R61.106.52.13.26
