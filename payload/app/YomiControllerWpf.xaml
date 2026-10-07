@@ -1180,6 +1180,9 @@
                                             <StackPanel><TextBlock Text="Media width" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsMediaWidth" IsEditable="True" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Media height" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsMediaHeight" IsEditable="True" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                         </Grid>
+                                        <TextBlock Text="Video aspect layout" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
+                                        <ComboBox x:Name="SettingsMediaAspectLayout" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
+                                        <TextBlock Text="Fixed keeps the configured video slot in place and centers non-16:9 video inside it. Reflow collapses unused width so the video and text move left." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                         <TextBlock Text="Safe canvas edge" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
                                         <ComboBox x:Name="SettingsSafeMargin" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
                                         <TextBlock Text="Adds empty space at the far edge of the OBS canvas." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
