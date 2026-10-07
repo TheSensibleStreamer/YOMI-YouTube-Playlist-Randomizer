@@ -6292,36 +6292,50 @@ namespace Yomi.Desktop
         }
         private static int NormalizeVisualizerAnalysisWidth(int value)
         {
-            if (value >= 300) return 340;
-            if (value >= 220) return 260;
-            if (value >= 130) return 180;
-            return 96;
+            if (value >= 138) return 180;
+            if (value >= 80) return 96;
+            if (value >= 52) return 64;
+            return 40;
         }
 
         private static int NormalizeVisualizerAnalysisHeight(int value)
         {
-            if (value >= 56) return 64;
-            if (value >= 42) return 48;
             if (value >= 30) return 36;
-            return 24;
+            if (value >= 20) return 24;
+            if (value >= 13) return 16;
+            return 10;
         }
 
         private static string VisualizerPixelSizeChoice(int width, int height)
         {
-            width = NormalizeVisualizerAnalysisWidth(width); height = NormalizeVisualizerAnalysisHeight(height);
-            if (width <= 96 || height <= 24) return "Extra Chunky";
-            if (width <= 180 || height <= 36) return "Chunky";
-            if (width <= 260 || height <= 48) return "Fine";
-            return "Extra Fine";
+            // Drifted builds stored 96/180/260/340 x 24/36/48/64 for these same labels.
+            // Infer that old semantic choice once, then persist the label explicitly.
+            if (width >= 300 || height >= 56) return "Extra Fine";
+            if (width >= 220 || height >= 42) return "Fine";
+            if (width >= 130 || height >= 30) return "Chunky";
+            return "Extra Chunky";
+        }
+
+        private static string VisualizerPixelSizeChoiceFromConfig(Dictionary<string, object> config)
+        {
+            string explicitChoice = GetString(config, "visualizer_pixel_size", "");
+            foreach (string choice in new[] { "Extra Chunky", "Chunky", "Fine", "Extra Fine" })
+                if (String.Equals(explicitChoice, choice, StringComparison.OrdinalIgnoreCase)) return choice;
+            return VisualizerPixelSizeChoice(GetInt(config, "visualizer_internal_width", 40), GetInt(config, "visualizer_internal_height", 10));
         }
 
         private static void VisualizerPixelSizeDimensions(string choice, out int width, out int height)
         {
             string value = (choice ?? "").Trim();
-            if (value.Equals("Extra Chunky", StringComparison.OrdinalIgnoreCase)) { width = 96; height = 24; return; }
-            if (value.Equals("Fine", StringComparison.OrdinalIgnoreCase)) { width = 260; height = 48; return; }
-            if (value.Equals("Extra Fine", StringComparison.OrdinalIgnoreCase)) { width = 340; height = 64; return; }
+            if (value.Equals("Extra Chunky", StringComparison.OrdinalIgnoreCase)) { width = 40; height = 10; return; }
+            if (value.Equals("Chunky", StringComparison.OrdinalIgnoreCase)) { width = 64; height = 16; return; }
+            if (value.Equals("Fine", StringComparison.OrdinalIgnoreCase)) { width = 96; height = 24; return; }
             width = 180; height = 36;
+        }
+
+        private static void VisualizerPixelSizeDimensionsFromConfig(Dictionary<string, object> config, out int width, out int height)
+        {
+            VisualizerPixelSizeDimensions(VisualizerPixelSizeChoiceFromConfig(config), out width, out height);
         }
 
         private static string ComboItemText(object item)
@@ -6766,8 +6780,8 @@ namespace Yomi.Desktop
             FillCombo(_settingsVideoPrefetch, "2", "4", "6", "8", "10", "15", "20");
             FillCombo(_settingsCacheWorkers, "1", "2", "3", "4", "6", "8");
             FillCombo(_settingsBrowserFps, "Auto", "30 FPS", "60 FPS");
-            FillCombo(_settingsVisualizerInternalWidth, "96", "180", "260", "340");
-            FillCombo(_settingsVisualizerInternalHeight, "24", "36", "48", "64");
+            FillCombo(_settingsVisualizerInternalWidth, "40", "64", "96", "180");
+            FillCombo(_settingsVisualizerInternalHeight, "10", "16", "24", "36");
             _settingsVisualizerPixelSize.SelectionChanged += delegate
             {
                 if (_settingsPopulating) return;
@@ -6867,13 +6881,12 @@ namespace Yomi.Desktop
         private void SettingsComboPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             ComboBox combo = sender as ComboBox;
-            if (combo == null || _settingsPopulating || combo.IsDropDownOpen || combo.Items.Count <= 0 || e.Delta == 0) return;
-            int current = combo.SelectedIndex;
-            if (current < 0) current = 0;
-            int next = Math.Max(0, Math.Min(combo.Items.Count - 1, current + (e.Delta > 0 ? -1 : 1)));
-            if (next == current) return;
-            combo.SelectedIndex = next;
+            if (combo == null || _settingsPopulating || e.Delta == 0) return;
+            if (combo.IsDropDownOpen) return;
+            ScrollViewer page = FindVisualParent<ScrollViewer>(combo);
+            if (page == null) return;
             e.Handled = true;
+            page.ScrollToVerticalOffset(Math.Max(0.0, page.VerticalOffset - e.Delta));
         }
 
         private string SettingsLivePreviewPath() { return Path.Combine(_stateRoot, "settings-live-preview.json"); }
@@ -8483,8 +8496,8 @@ namespace Yomi.Desktop
                 _settingsArtwork.IsChecked = GetBool(c, "artwork_enabled", true); _settingsVideo.IsChecked = GetBool(c, "video_enabled", true); _settingsTitle.IsChecked = GetBool(c, "title_enabled", true); _settingsChannel.IsChecked = GetBool(c, "channel_enabled", true); _settingsSmartArtworkCrop.IsChecked = GetBool(c, "smart_artwork_crop", true); SetCombo(_settingsOverlayVideoQuality, unifiedVideoQuality); SetComboPreserve(_settingsVideoFps, GetString(c, "video_fps", "Source FPS"));
                 SetComboPreserve(_settingsBroadcastPreset, GetString(c, "overlay_preset", "Custom")); _settingsDirectorMode.IsChecked = GetBool(c, "director_mode", false); LoadDirectorOutputDraft(c, 1, _settingsOutput1Enabled, _settingsOutput1Modules, _settingsOutput1Layout); LoadDirectorOutputDraft(c, 2, _settingsOutput2Enabled, _settingsOutput2Modules, _settingsOutput2Layout); LoadDirectorOutputDraft(c, 3, _settingsOutput3Enabled, _settingsOutput3Modules, _settingsOutput3Layout); LoadDirectorOutputDraft(c, 4, _settingsOutput4Enabled, _settingsOutput4Modules, _settingsOutput4Layout);
                 SetComboPreserve(_settingsCanvasWidth, GetInt(c, "canvas_width", 2560).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsCanvasHeight, String.Equals(GetString(c, "canvas_height_mode", "Auto"), "Auto", StringComparison.OrdinalIgnoreCase) ? "Auto" : GetInt(c, "canvas_height", 90).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaWidth, GetInt(c, "media_width", 160).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaHeight, GetInt(c, "media_height", 90).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsSafeMargin, GetInt(c, "overlay_safe_margin_px", 8).ToString(CultureInfo.InvariantCulture));
-                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square")); SetComboPreserve(_settingsMediaAspectLayout, GetString(c, "media_aspect_layout", "Fixed")); string mediaResamplingChoice = GetString(c, "obs_media_scaling", "Smooth"); SetComboPreserve(_settingsObsMediaScaling, mediaResamplingChoice.IndexOf("nearest", StringComparison.OrdinalIgnoreCase) >= 0 || mediaResamplingChoice.IndexOf("point", StringComparison.OrdinalIgnoreCase) >= 0 ? "Nearest" : "Smooth");
-                _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Off")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoice(GetInt(c, "visualizer_internal_width", 180), GetInt(c, "visualizer_internal_height", 36))); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "60 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
+                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square")); SetComboPreserve(_settingsMediaAspectLayout, GetString(c, "media_aspect_layout", "Reflow")); string mediaResamplingChoice = GetString(c, "obs_media_scaling", "Smooth"); SetComboPreserve(_settingsObsMediaScaling, mediaResamplingChoice.IndexOf("nearest", StringComparison.OrdinalIgnoreCase) >= 0 || mediaResamplingChoice.IndexOf("point", StringComparison.OrdinalIgnoreCase) >= 0 ? "Nearest" : "Smooth");
+                _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Off")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoiceFromConfig(c)); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "60 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
                 bool settingsObsPackageEnabled = String.Equals(GetString(c, "app_mode", "Streamer / OBS"), "Streamer / OBS", StringComparison.OrdinalIgnoreCase);
                 int settingsPreparedTracks = defaults ? 15 : Math.Max(1, Math.Min(30, GetInt(c, "prefetch_ahead", 15)));
                 int settingsCacheBudgetMb = defaults ? 512 : Math.Max(64, Math.Min(2048, GetInt(c, "optional_cache_budget_mb", GetInt(c, "video_cache_limit_mb", 512))));
@@ -8795,13 +8808,13 @@ namespace Yomi.Desktop
                 bool savedObsPackageEnabled = String.Equals(ComboText(_settingsAppMode, "Streamer / OBS"), "Streamer / OBS", StringComparison.OrdinalIgnoreCase);
                 int savedPreparedTracks = _settingsPrefetchSlider == null ? Math.Max(1, Math.Min(30, ComboInt(_settingsPrefetch, 15))) : Math.Max(1, Math.Min(30, (int)Math.Round(_settingsPrefetchSlider.Value)));
                 int savedCacheBudgetMb = _settingsCacheBudgetSlider == null ? 512 : Math.Max(64, Math.Min(2048, (int)Math.Round(_settingsCacheBudgetSlider.Value)));
-                c["obs_media_cache_enabled"] = savedObsPackageEnabled; c["prefetch_ahead"] = savedPreparedTracks; c["video_prefetch_ahead"] = savedPreparedTracks; c["optional_cache_budget_mb"] = savedCacheBudgetMb; c["video_cache_limit_mb"] = savedCacheBudgetMb; c["cache_workers"] = _settingsCacheWorkersSlider == null ? ComboInt(_settingsCacheWorkers, 2) : Math.Max(1, Math.Min(8, (int)Math.Round(_settingsCacheWorkersSlider.Value))); c["browser_fps_mode"] = ComboText(_settingsBrowserFps, "Auto"); int vizPixelW, vizPixelH; VisualizerPixelSizeDimensions(ComboText(_settingsVisualizerPixelSize, "Chunky"), out vizPixelW, out vizPixelH); c["visualizer_internal_width"] = vizPixelW; c["visualizer_internal_height"] = vizPixelH;
+                c["obs_media_cache_enabled"] = savedObsPackageEnabled; c["prefetch_ahead"] = savedPreparedTracks; c["video_prefetch_ahead"] = savedPreparedTracks; c["optional_cache_budget_mb"] = savedCacheBudgetMb; c["video_cache_limit_mb"] = savedCacheBudgetMb; c["cache_workers"] = _settingsCacheWorkersSlider == null ? ComboInt(_settingsCacheWorkers, 2) : Math.Max(1, Math.Min(8, (int)Math.Round(_settingsCacheWorkersSlider.Value))); c["browser_fps_mode"] = ComboText(_settingsBrowserFps, "Auto"); int vizPixelW, vizPixelH; string vizPixelChoice = ComboText(_settingsVisualizerPixelSize, "Extra Chunky"); VisualizerPixelSizeDimensions(vizPixelChoice, out vizPixelW, out vizPixelH); c["visualizer_pixel_size"] = vizPixelChoice; c["visualizer_internal_width"] = vizPixelW; c["visualizer_internal_height"] = vizPixelH;
                 mediaConfigChanged = GetBool(cachedConfig, "artwork_enabled", true) != GetBool(c, "artwork_enabled", true) ||
                     GetBool(cachedConfig, "video_enabled", true) != GetBool(c, "video_enabled", true) ||
                     GetBool(cachedConfig, "smart_artwork_crop", true) != GetBool(c, "smart_artwork_crop", true) ||
-                    !String.Equals(GetString(cachedConfig, "media_aspect_layout", "Fixed"), GetString(c, "media_aspect_layout", "Fixed"), StringComparison.OrdinalIgnoreCase) ||
+                    !String.Equals(GetString(cachedConfig, "media_aspect_layout", "Reflow"), GetString(c, "media_aspect_layout", "Reflow"), StringComparison.OrdinalIgnoreCase) ||
                     !String.Equals(UnifiedVideoQualityFromConfig(cachedConfig), UnifiedVideoQualityFromConfig(c), StringComparison.OrdinalIgnoreCase);
-                string[] visualizerKeys = new[] { "visualizer_enabled", "visualizer_adaptive_fill", "visualizer_activity", "visualizer_opacity", "visualizer_color_mode", "visualizer_solid_color", "visualizer_gradient_preset", "visualizer_gradient_orientation", "visualizer_frequency_scale", "visualizer_high_frequency_trim", "visualizer_high_frequency_lift_db", "visualizer_shape", "visualizer_bar_spacing", "visualizer_fps", "visualizer_direction", "visualizer_vertical_anchor", "visualizer_internal_width", "visualizer_internal_height" };
+                string[] visualizerKeys = new[] { "visualizer_enabled", "visualizer_adaptive_fill", "visualizer_activity", "visualizer_opacity", "visualizer_color_mode", "visualizer_solid_color", "visualizer_gradient_preset", "visualizer_gradient_orientation", "visualizer_frequency_scale", "visualizer_high_frequency_trim", "visualizer_high_frequency_lift_db", "visualizer_shape", "visualizer_bar_spacing", "visualizer_fps", "visualizer_direction", "visualizer_vertical_anchor", "visualizer_pixel_size", "visualizer_internal_width", "visualizer_internal_height" };
                 visualizerConfigChanged = visualizerKeys.Any(k => !String.Equals(Convert.ToString(cachedConfig.ContainsKey(k) ? cachedConfig[k] : null, CultureInfo.InvariantCulture), Convert.ToString(c.ContainsKey(k) ? c[k] : null, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase));
                 requestedWorkspace = _microMode ? WorkspaceProfile.Micro : WorkspaceProfile.Player;
                 string requestedThemeText = ComboText(_settingsTheme, _appearanceManuallySelected ? AppearanceLabel(_appearancePreset) : "System Theme");
@@ -9044,8 +9057,10 @@ namespace Yomi.Desktop
                 _jsonCache.Clear();
                 _visualizerShape = GetString(config, "visualizer_shape", "Spectrum");
                 _visualizerFramePreviewFps = GetString(config, "visualizer_fps", "60 FPS").StartsWith("60", StringComparison.OrdinalIgnoreCase) ? 60 : 30;
-                _visualizerRawFrameWidth = NormalizeVisualizerAnalysisWidth(GetInt(config, "visualizer_internal_width", 180));
-                _visualizerRawFrameHeight = NormalizeVisualizerAnalysisHeight(GetInt(config, "visualizer_internal_height", 36));
+                int visualizerPresetWidth, visualizerPresetHeight;
+                VisualizerPixelSizeDimensionsFromConfig(config, out visualizerPresetWidth, out visualizerPresetHeight);
+                _visualizerRawFrameWidth = visualizerPresetWidth;
+                _visualizerRawFrameHeight = visualizerPresetHeight;
                 // Palette/shape changes are geometry-neutral. The backdrop already owns a fixed
                 // zero-authority layer; changing a visualizer setting must not touch shell layout.
                 if (_visualizerBackdropImage != null) RenderOptions.SetBitmapScalingMode(_visualizerBackdropImage, BitmapScalingMode.NearestNeighbor);
@@ -9084,7 +9099,7 @@ namespace Yomi.Desktop
         private void SetVisualizerPixelSizeChoice(string value)
         {
             int w, h; VisualizerPixelSizeDimensions(value, out w, out h);
-            ApplyVisualizerQuickConfig(delegate(Dictionary<string, object> cfg) { cfg["visualizer_internal_width"] = w; cfg["visualizer_internal_height"] = h; });
+            ApplyVisualizerQuickConfig(delegate(Dictionary<string, object> cfg) { cfg["visualizer_pixel_size"] = value; cfg["visualizer_internal_width"] = w; cfg["visualizer_internal_height"] = h; });
         }
 
         private MenuItem BuildVisualizerQuickMenu()
@@ -9135,7 +9150,7 @@ namespace Yomi.Desktop
                 root.Items.Add(gradient);
 
                 var pixels = new MenuItem { Header = "Pixel size" };
-                string currentPixels = VisualizerPixelSizeChoice(GetInt(c, "visualizer_internal_width", 180), GetInt(c, "visualizer_internal_height", 36));
+                string currentPixels = VisualizerPixelSizeChoiceFromConfig(c);
                 foreach (string value in new[] { "Extra Chunky", "Chunky", "Fine", "Extra Fine" })
                 {
                     MenuItem item = VisualizerQuickChoice(pixels, value, value, delegate { SetVisualizerPixelSizeChoice(value); });
@@ -14270,12 +14285,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             string vizFill = GetString(config, "visualizer_adaptive_fill", "Off");
             int vizTrim = GetInt(config, "visualizer_high_frequency_trim", 0);
             int vizLift = GetInt(config, "visualizer_high_frequency_lift_db", 0);
-            int vizWidth = NormalizeVisualizerAnalysisWidth(GetInt(config, "visualizer_internal_width", 180));
-            int vizHeight = NormalizeVisualizerAnalysisHeight(GetInt(config, "visualizer_internal_height", 36));
+            int vizWidth, vizHeight;
+            VisualizerPixelSizeDimensionsFromConfig(config, out vizWidth, out vizHeight);
             // Analysis resolution is the actual cached pixel raster. Manual length controls
             // presentation width separately; it must not silently multiply decode bandwidth.
-            int vizRenderWidth = Math.Max(64, Math.Min(512, vizWidth));
-            int vizRenderHeight = Math.Max(16, Math.Min(128, vizHeight));
+            int vizRenderWidth = Math.Max(40, Math.Min(512, vizWidth));
+            int vizRenderHeight = Math.Max(10, Math.Min(128, vizHeight));
             if ((vizRenderWidth & 1) != 0) vizRenderWidth++;
             if ((vizRenderHeight & 1) != 0) vizRenderHeight++;
             _visualizerRawFrameWidth = vizRenderWidth;
@@ -18577,7 +18592,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             {
                 Dictionary<string, object> config = ReadJsonCached(Path.Combine(_dataRoot, "config.json"));
                 if (config.Count == 0) config = ReadJsonCached(Path.Combine(_appDir, "default-config.json"));
-                return String.Equals(GetString(config, "media_aspect_layout", "Fixed"), "Reflow", StringComparison.OrdinalIgnoreCase);
+                return String.Equals(GetString(config, "media_aspect_layout", "Reflow"), "Reflow", StringComparison.OrdinalIgnoreCase);
             }
             catch { return false; }
         }
@@ -20654,15 +20669,42 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 mediaWidth = (reserveArt ? cellWidth : 0) + reflowVideoWidth + borderHorizontal;
             }
             bool videoFillsCell = reserveVideo && Math.Abs(NormalizeVideoAspect(_videoPresentedAspect) - (16.0 / 9.0)) < 0.02;
-            bool sharedSideSeam = pair && !verticalPair && videoFillsCell;
+            bool sharedSideSeam = pair && !verticalPair && (MediaAspectReflowEnabled() || videoFillsCell);
+            bool sharedVerticalSeam = pair && verticalPair;
             if (_artworkPane != null)
             {
                 _artworkPane.BorderBrush = (Brush)_window.FindResource("BorderStrong");
-                _artworkPane.BorderThickness = reserveArt ? new Thickness(1, 1, sharedSideSeam ? 0 : 1, 1) : new Thickness(0);
+                _artworkPane.BorderThickness = reserveArt
+                    ? (sharedSideSeam ? new Thickness(1, 1, 0, 1) : (sharedVerticalSeam ? new Thickness(1, 1, 1, 0) : new Thickness(1)))
+                    : new Thickness(0);
                 _artworkPane.CornerRadius = new CornerRadius(0);
             }
-            if (_videoPresentationFrame != null) _videoPresentationFrame.CornerRadius = new CornerRadius(0);
-            if (_artworkVideoDivider != null) _artworkVideoDivider.Visibility = Visibility.Collapsed;
+            if (_videoPresentationFrame != null)
+            {
+                _videoPresentationFrame.CornerRadius = new CornerRadius(0);
+                _videoPresentationFrame.BorderBrush = (Brush)_window.FindResource("BorderStrong");
+                _videoPresentationFrame.BorderThickness = reserveVideo
+                    ? (sharedSideSeam ? new Thickness(0, 1, 1, 1) : (sharedVerticalSeam ? new Thickness(1, 0, 1, 1) : new Thickness(1)))
+                    : new Thickness(0);
+            }
+            if (_artworkVideoDivider != null)
+            {
+                if (sharedSideSeam)
+                {
+                    _artworkVideoDivider.Visibility = Visibility.Visible;
+                    _artworkVideoDivider.Width = 1; _artworkVideoDivider.Height = Double.NaN;
+                    _artworkVideoDivider.HorizontalAlignment = HorizontalAlignment.Right;
+                    _artworkVideoDivider.VerticalAlignment = VerticalAlignment.Stretch;
+                }
+                else if (sharedVerticalSeam)
+                {
+                    _artworkVideoDivider.Visibility = Visibility.Visible;
+                    _artworkVideoDivider.Width = Double.NaN; _artworkVideoDivider.Height = 1;
+                    _artworkVideoDivider.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    _artworkVideoDivider.VerticalAlignment = VerticalAlignment.Bottom;
+                }
+                else _artworkVideoDivider.Visibility = Visibility.Collapsed;
+            }
             ApplyMediaScaleFiltering();
             ApplyVideoBackdropPresentation();
 
@@ -25946,7 +25988,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             config["text_font"] = ComboText(_settingsTextFont, DefaultOverlayTextFont); config["text_color"] = NamedColorValueFromCombo(_settingsTextColor, DefaultOverlayTextColor); config["text_outline"] = ComboInt(_settingsTextOutline, DefaultOverlayTextOutline); config["outline_color"] = NamedColorValueFromCombo(_settingsOutlineColor, DefaultOverlayOutlineColor); config["text_opacity"] = ComboDouble(_settingsTextOpacity, DefaultOverlayTextOpacity); config["text_alignment"] = ComboText(_settingsTextAlignment, DefaultOverlayTextAlignment); config["title_channel_spacing"] = "Normal"; config["text_glow"] = Checked(_settingsTextGlow); config["media_border_enabled"] = Checked(_settingsMediaBorderEnabled); config["media_border_px"] = ComboInt(_settingsMediaBorderPx, 2); config["media_border_color"] = NamedColorValueFromCombo(_settingsMediaBorderColor, "#252525"); config["media_corner_style"] = ComboText(_settingsMediaCornerStyle, "Square"); config["media_aspect_layout"] = ComboText(_settingsMediaAspectLayout, "Fixed"); config["obs_media_scaling"] = ComboText(_settingsObsMediaScaling, "Smooth");
             config["visualizer_match_text_overhang"] = Checked(_settingsVisualizerMatchText);
             config["visualizer_adaptive_fill"] = ComboText(_settingsVisualizerFill, "Off"); config["visualizer_activity"] = ComboText(_settingsVisualizerActivity, "Active"); config["visualizer_opacity"] = ComboDouble(_settingsVisualizerOpacity, 0.3); config["visualizer_color_mode"] = ComboText(_settingsVisualizerColorMode, "Solid"); config["visualizer_solid_color"] = VisualizerColorFromCombo(_settingsVisualizerSolidColor); config["visualizer_gradient_preset"] = ComboText(_settingsVisualizerGradientPreset, "Sunset"); config["visualizer_gradient_orientation"] = ComboText(_settingsVisualizerGradientOrientation, "Horizontal"); config["visualizer_frequency_scale"] = ComboText(_settingsVisualizerFrequencyScale, "Logarithmic"); config["visualizer_high_frequency_trim"] = ComboInt(_settingsVisualizerTrim, 0); config["visualizer_high_frequency_lift_db"] = ComboInt(_settingsVisualizerLift, 0); config["visualizer_shape"] = ComboText(_settingsVisualizerShape, "Spectrum"); config["visualizer_bar_spacing"] = ComboText(_settingsVisualizerSpacing, "None"); config["visualizer_length_multiplier"] = ComboDouble(_settingsVisualizerLength, 4.0); config["visualizer_direction"] = ComboText(_settingsVisualizerDirection, "Normal"); config["visualizer_vertical_anchor"] = ComboText(_settingsVisualizerAnchor, "Source"); config["visualizer_layer"] = ComboText(_settingsVisualizerLayer, "Behind text");
-            int previewVizW, previewVizH; VisualizerPixelSizeDimensions(ComboText(_settingsVisualizerPixelSize, "Chunky"), out previewVizW, out previewVizH); config["visualizer_internal_width"] = previewVizW; config["visualizer_internal_height"] = previewVizH;
+            int previewVizW, previewVizH; string previewVizChoice = ComboText(_settingsVisualizerPixelSize, "Extra Chunky"); VisualizerPixelSizeDimensions(previewVizChoice, out previewVizW, out previewVizH); config["visualizer_pixel_size"] = previewVizChoice; config["visualizer_internal_width"] = previewVizW; config["visualizer_internal_height"] = previewVizH;
             config["video_fps"] = ComboText(_settingsVideoFps, "Source FPS");
             config["visualizer_fps"] = ComboText(_settingsVisualizerFps, "60 FPS");
             config["browser_fps_mode"] = ComboText(_settingsBrowserFps, "Auto");
