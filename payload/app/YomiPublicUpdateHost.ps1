@@ -18,7 +18,7 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="UpdateWindow"
-        Width="500" Height="232" MinWidth="500" MinHeight="232" MaxWidth="500" MaxHeight="232"
+        Width="500" Height="212" MinWidth="500" MinHeight="212" MaxWidth="500" MaxHeight="212"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         WindowStartupLocation="CenterScreen" Background="Transparent"
         ShowInTaskbar="True" Topmost="False" FontFamily="Segoe UI" FontSize="14"
@@ -48,11 +48,11 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
           </Button>
         </Grid>
       </Border>
-      <Grid Grid.Row="1" Margin="18,16,18,15">
+      <Grid Grid.Row="1" Margin="18,12,18,11">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
-          <RowDefinition Height="18"/>
+          <RowDefinition Height="12"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="*"/>
           <RowDefinition Height="Auto"/>
@@ -96,16 +96,20 @@ $lastState='ready'
 $restartPending=$false
 $restartLog=Join-Path $DataRoot 'update-restart.log'
 $restartRelayPath=$null
+$reportedProgress=0
+$displayProgress=0.0
 $closeButton.IsEnabled=$true
 $doneButton.Content='Update'
 $doneButton.Visibility='Visible'
 
 function Set-Progress([int]$Percent,[string]$Message){
     $p=[Math]::Max(0,[Math]::Min(100,$Percent))
+    $script:reportedProgress=$p
+    if($script:displayProgress -lt $p){$script:displayProgress=[double]$p}
     $statusText.Text=$Message
-    $percentText.Text=($p.ToString()+'%')
+    $percentText.Text=([Math]::Floor($script:displayProgress).ToString()+'%')
     $trackWidth=[Math]::Max(0,[double]$progressTrack.ActualWidth)
-    $progressFill.Width=$trackWidth*($p/100.0)
+    $progressFill.Width=$trackWidth*($script:displayProgress/100.0)
 }
 function Write-RestartLog([string]$Message){
     try{
@@ -302,6 +306,21 @@ $timer.Add_Tick({
             Set-Progress ([int]$s.percent) ([string]$s.message)
         }
     }catch{}
+
+    # Long compile/extract steps can be healthy while the installer has no new discrete
+    # percentage to report. During those installation phases, let the bar creep within a
+    # small bounded headroom so it visibly remains alive without ever reaching completion early.
+    if($script:running -and $script:lastState -eq 'installing' -and
+       $script:reportedProgress -ge 60 -and $script:reportedProgress -lt 99){
+        $cap=[Math]::Min(98.5,[double]$script:reportedProgress+2.5)
+        if($script:displayProgress -lt $cap){
+            $script:displayProgress=[Math]::Min($cap,$script:displayProgress+0.10)
+            $trackWidth=[Math]::Max(0,[double]$progressTrack.ActualWidth)
+            $progressFill.Width=$trackWidth*($script:displayProgress/100.0)
+            $percentText.Text=([Math]::Floor($script:displayProgress).ToString()+'%')
+        }
+    }
+
     if($null -ne $updateProcess -and $updateProcess.HasExited){
         $timer.Stop()
         Finish-Host ([int]$updateProcess.ExitCode)
