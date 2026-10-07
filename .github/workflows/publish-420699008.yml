@@ -50,9 +50,9 @@ jobs:
           foreach($required in @('queue_listening_session_id','playback_subset_restore_token','RestoreQueuePlaybackSubsetIfNeeded(Dictionary<string, object> queueState)','schema", 51')){
             if(-not $controller.Contains($required)){throw ('Filtered-session acknowledgement missing: '+$required)}
           }
-          $host=Get-Content (Resolve-Path 'payload/app/YomiPublicUpdateHost.ps1') -Raw
+          $hostText=Get-Content (Resolve-Path 'payload/app/YomiPublicUpdateHost.ps1') -Raw
           foreach($required in @('Height="212"','$displayProgress=0.0',"$script:lastState -eq 'installing'")){
-            if(-not $host.Contains($required)){throw ('Updater polish missing: '+$required)}
+            if(-not $hostText.Contains($required)){throw ('Updater polish missing: '+$required)}
           }
           $installer=Get-Content (Resolve-Path 'installer/install.ps1') -Raw
           foreach($required in @('function Set-InstallBuildProgress',"Set-InstallBuildProgress 88 'Compiling main YOMI controller...'","Set-InstallBuildProgress 92 'Checking runtime scripts...'")){
