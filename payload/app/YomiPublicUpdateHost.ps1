@@ -238,21 +238,35 @@ function Finish-Host([int]$Code){
     $doneButton.Content='Close'
     $doneButton.Visibility='Visible'
     if($Code -eq 0){
-        Set-Progress 100 'Update installed. Opening YOMI...'
+        $installed=$LatestVersion
+        try{
+            $versionPath=Join-Path $InstallRoot 'VERSION.txt'
+            if(Test-Path -LiteralPath $versionPath -PathType Leaf){
+                $raw=(Get-Content -LiteralPath $versionPath -Raw -Encoding UTF8).Trim()
+                if(-not [string]::IsNullOrWhiteSpace($raw)){$installed=$raw}
+            }
+        }catch{}
+        $titleText.Text='YOMI  '+$installed+'   Installed'
+        $versionText.Text='YOMI '+$installed+' is installed.'
+        Set-Progress 100 'Update installed and verified. Opening YOMI...'
         $percentText.Text='Installed and verified'
         $doneButton.Visibility='Collapsed'
         $closeButton.IsEnabled=$false
         $restartTimer=New-Object Windows.Threading.DispatcherTimer
-        $restartTimer.Interval=[TimeSpan]::FromMilliseconds(1000)
+        $restartTimer.Interval=[TimeSpan]::FromMilliseconds(500)
         $restartTimer.Add_Tick({
             $restartTimer.Stop()
-            if(Queue-DetachedRelaunch){
+            if(Test-YomiControllerRunning){
                 $script:restartPending=$false
-                Write-RestartLog 'closing updater host; relay will launch YOMI after this process exits'
+                Write-RestartLog 'verified updater process reopened YOMI; closing updater host'
+                $window.Close()
+            }elseif(Relaunch-Yomi){
+                $script:restartPending=$false
+                Write-RestartLog 'updater host fallback reopened YOMI; closing updater host'
                 $window.Close()
             }else{
                 $script:restartPending=$true
-                Set-Progress 100 'Update installed, but the restart handoff could not be started.'
+                Set-Progress 100 ('YOMI '+$installed+' is installed, but it did not reopen automatically.')
                 $percentText.Text='Installed'
                 $doneButton.Content='Open YOMI'
                 $doneButton.Visibility='Visible'
@@ -333,8 +347,8 @@ $doneButton.Add_Click({
     if(-not $started){Start-YomiPublicUpdate}
     elseif(-not $running){
         if($restartPending){
-            if(Queue-DetachedRelaunch){$script:restartPending=$false;$window.Close()}
-            else{Set-Progress 100 'YOMI still could not start the restart handoff.';$percentText.Text='Installed'}
+            if(Relaunch-Yomi){$script:restartPending=$false;$window.Close()}
+            else{Set-Progress 100 'YOMI is installed, but Windows still did not reopen it.';$percentText.Text='Installed'}
         }else{$window.Close()}
     }
 })
