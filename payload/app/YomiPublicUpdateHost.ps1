@@ -93,6 +93,8 @@ $started=$false
 $exitCode=$null
 $updateProcess=$null
 $lastState='ready'
+$restartPending=$false
+$restartLog=Join-Path $DataRoot 'update-restart.log'
 $closeButton.IsEnabled=$true
 $doneButton.Content='Update'
 $doneButton.Visibility='Visible'
@@ -104,13 +106,50 @@ function Set-Progress([int]$Percent,[string]$Message){
     $trackWidth=[Math]::Max(0,[double]$progressTrack.ActualWidth)
     $progressFill.Width=$trackWidth*($p/100.0)
 }
-function Relaunch-Yomi {
+function Write-RestartLog([string]$Message){
     try{
-        $launcher=Join-Path $InstallRoot 'app\YomiLauncher.exe'
-        if(Test-Path -LiteralPath $launcher -PathType Leaf){
-            Start-Process -FilePath $launcher -ArgumentList 'controller' -WorkingDirectory (Split-Path $launcher -Parent)
+        $line=[DateTime]::Now.ToString('o')+' | '+$Message
+        Add-Content -LiteralPath $restartLog -Value $line -Encoding UTF8
+    }catch{}
+}
+function Test-YomiControllerRunning {
+    try{
+        $controller=[IO.Path]::GetFullPath((Join-Path $InstallRoot 'app\YomiControllerWpf.exe'))
+        foreach($p in @(Get-CimInstance Win32_Process -Filter "Name='YomiControllerWpf.exe'" -ErrorAction SilentlyContinue)){
+            try{
+                if($p.ExecutablePath -and [IO.Path]::GetFullPath([string]$p.ExecutablePath) -eq $controller){return $true}
+            }catch{}
         }
     }catch{}
+    return $false
+}
+function Relaunch-Yomi {
+    try{
+        if(Test-YomiControllerRunning){Write-RestartLog 'controller already running';return $true}
+        $appDir=Join-Path $InstallRoot 'app'
+        $controller=Join-Path $appDir 'YomiControllerWpf.exe'
+        if(Test-Path -LiteralPath $controller -PathType Leaf){
+            $psi=New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName=$controller
+            $psi.WorkingDirectory=$appDir
+            $psi.UseShellExecute=$false
+            $psi.CreateNoWindow=$false
+            $p=[Diagnostics.Process]::Start($psi)
+            if($p){Write-RestartLog ('direct controller launch pid '+$p.Id)}
+            Start-Sleep -Milliseconds 1400
+            if(Test-YomiControllerRunning){Write-RestartLog 'direct controller launch verified';return $true}
+            try{if($p -and $p.HasExited){Write-RestartLog ('direct controller exited '+$p.ExitCode)}}catch{}
+        }else{Write-RestartLog 'controller executable missing'}
+        $launcher=Join-Path $appDir 'YomiLauncher.exe'
+        if(Test-Path -LiteralPath $launcher -PathType Leaf){
+            $lp=Start-Process -FilePath $launcher -ArgumentList 'controller' -WorkingDirectory $appDir -PassThru
+            if($lp){Write-RestartLog ('launcher fallback pid '+$lp.Id)}
+            Start-Sleep -Milliseconds 1600
+            if(Test-YomiControllerRunning){Write-RestartLog 'launcher fallback verified';return $true}
+        }else{Write-RestartLog 'launcher executable missing'}
+    }catch{Write-RestartLog ('restart exception: '+$_.Exception.Message)}
+    Write-RestartLog 'restart not verified'
+    return $false
 }
 function Finish-Host([int]$Code){
     if(-not $script:running){return}
@@ -120,16 +159,25 @@ function Finish-Host([int]$Code){
     $doneButton.Content='Close'
     $doneButton.Visibility='Visible'
     if($Code -eq 0){
-        Set-Progress 100 'Update complete. Restarting YOMI...'
+        Set-Progress 100 'Update installed. Opening YOMI...'
         $percentText.Text='Installed and verified'
         $doneButton.Visibility='Collapsed'
         $closeButton.IsEnabled=$false
         $restartTimer=New-Object Windows.Threading.DispatcherTimer
-        $restartTimer.Interval=[TimeSpan]::FromMilliseconds(800)
+        $restartTimer.Interval=[TimeSpan]::FromMilliseconds(1000)
         $restartTimer.Add_Tick({
             $restartTimer.Stop()
-            Relaunch-Yomi
-            $window.Close()
+            if(Relaunch-Yomi){
+                $script:restartPending=$false
+                $window.Close()
+            }else{
+                $script:restartPending=$true
+                Set-Progress 100 'Update installed, but YOMI did not reopen automatically.'
+                $percentText.Text='Installed'
+                $doneButton.Content='Open YOMI'
+                $doneButton.Visibility='Visible'
+                $closeButton.IsEnabled=$true
+            }
         })
         $restartTimer.Start()
     }
@@ -203,7 +251,12 @@ function Start-YomiPublicUpdate {
 }
 $doneButton.Add_Click({
     if(-not $started){Start-YomiPublicUpdate}
-    elseif(-not $running){$window.Close()}
+    elseif(-not $running){
+        if($restartPending){
+            if(Relaunch-Yomi){$script:restartPending=$false;$window.Close()}
+            else{Set-Progress 100 'YOMI still could not be opened automatically.';$percentText.Text='Installed'}
+        }else{$window.Close()}
+    }
 })
 
 [void]$window.ShowDialog()
