@@ -357,6 +357,23 @@ function video_quality_profile()
     end
     return overlay
 end
+function artwork_profile()
+    local smart=(cfg.smart_artwork_crop~=false) and "1" or "0"
+    local w=math.max(20,math.floor(tonumber(cfg.media_width) or 160))
+    local h=math.max(20,math.floor(tonumber(cfg.media_height) or 90))
+    return "r6110615-crop-restored1|smart="..smart.."|box="..w.."x"..h
+end
+function artwork_profile_ready(i)
+    if not optional_validation_ready("art",i) then return false end
+    return read_all(status_path(i,"artwork.profile"))==artwork_profile()
+end
+function mark_artwork_profile(i)
+    write_all(status_path(i,"artwork.profile"),artwork_profile())
+end
+function clear_artwork_profile(i)
+    os.remove(status_path(i,"artwork.profile"))
+end
+
 function video_profile()
     return "r61106-vfps3|fps="..video_fps_mode().."|quality="..video_quality_profile()
 end
@@ -423,7 +440,8 @@ function mark_optional_validated(kind,i)
     if not path or not exists(path) or fsize(path)<=0 then return false end
     local prefix=kind=="video" and "r6185-h264|" or "r6176-decode1|"
     write_all(optional_validation_sidecar(kind,i),prefix..tostring(fsize(path)))
-    if kind=="video" then mark_video_profile(i) end
+    if kind=="video" then mark_video_profile(i)
+    elseif kind=="art" then mark_artwork_profile(i) end
     return true
 end
 function mark_optional_source_pass(kind,i)
@@ -432,12 +450,14 @@ function mark_optional_source_pass(kind,i)
     if kind=="video" and video_fps_mode()~="source" then return false end
     local prefix=kind=="video" and "r6185-source-pass|" or "r6178-source-pass|"
     write_all(optional_validation_sidecar(kind,i),prefix..tostring(fsize(path)))
-    if kind=="video" then mark_video_profile(i) end
+    if kind=="video" then mark_video_profile(i)
+    elseif kind=="art" then mark_artwork_profile(i) end
     return true
 end
 function clear_optional_validation(kind,i)
     os.remove(optional_validation_sidecar(kind,i))
-    if kind=="video" then clear_video_profile(i) end
+    if kind=="video" then clear_video_profile(i)
+    elseif kind=="art" then clear_artwork_profile(i) end
 end
 
 function youtube_id(raw)
@@ -1537,7 +1557,7 @@ end
 
 local function optional_ready(kind,i)
     if ensure_position_binding then ensure_position_binding(i) end
-    if kind=="art" then return optional_validation_ready("art",i)
+    if kind=="art" then return artwork_profile_ready(i)
     -- Presentation readiness is intentionally separate from generation-policy readiness.
     -- A decode-valid old video may remain visible while a new FPS/quality profile rebuilds.
     elseif kind=="video" then return optional_validation_ready("video",i)
@@ -1796,15 +1816,17 @@ end
 
 local function art_job(job)
     local i=job.i
-    if optional_ready("art",i) then clear_optional_failure("art",i);job_done(job);return end
+    if artwork_profile_ready(i) then clear_optional_failure("art",i);job_done(job);return end
     clear_optional_failure("art",i);clear_optional_validation("art",i)
+
     local prefix="track-"..i..".focused-art"
     cleanup_prefix(artwork_dir,prefix)
     local a=ytdlp_common()
     table.insert(a,"--skip-download");table.insert(a,"--write-thumbnail")
     table.insert(a,"--output");table.insert(a,artwork_dir.."\\"..prefix)
     table.insert(a,urls[i])
-    log("ART START track "..i)
+    log("ART START track "..i.." smart_crop="..tostring(cfg.smart_artwork_crop~=false))
+
     run_bounded(cache_priority,ytdlp,a,45,false,function(success,result,error_text,timed_out)
         local found=nil
         for _,name in ipairs(utils.readdir(artwork_dir,"files") or {}) do
@@ -1816,28 +1838,81 @@ local function art_job(job)
         if not (success and tonumber(result.status or 0)==0 and found) then
             local summary=media_error_summary(result,error_text,timed_out)
             local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
-            if permanent then
-                log("ART PERMANENT SOURCE track "..i.." "..summary)
-            end
-            cleanup_prefix(artwork_dir,prefix);mark_optional_failure("art",i,permanent and "permanent-source" or "download");log("ART OPTIONAL FAIL track "..i.." "..summary);job_done(job);return
+            cleanup_prefix(artwork_dir,prefix)
+            mark_optional_failure("art",i,permanent and "permanent-source" or "download")
+            log("ART OPTIONAL FAIL track "..i.." "..summary)
+            job_done(job);return
         end
-        if not ffmpeg_available then
+
+        local smart=(cfg.smart_artwork_crop~=false)
+        if not smart or not ffmpeg_available then
             if not promote_art_source_pass(i,found) then mark_optional_failure("art",i,"source-pass") end
             cleanup_prefix(artwork_dir,prefix);job_done(job);return
         end
+
+        local w=math.max(20,math.floor(tonumber(cfg.media_width) or 160))
+        local h=math.max(20,math.floor(tonumber(cfg.media_height) or 90))
         local normalized=artwork_dir.."\\track-"..i..".focused-art-normalized.png"
-        os.remove(normalized)
-        run_ffmpeg_media({"-y","-hide_banner","-loglevel","error","-i",found,"-frames:v","1","-vf","format=rgba",normalized},25,normalized,function(ok,probe,probe_error,probe_timeout,direct_fallback)
-            local final=artwork_dir.."\\track-"..i..".png"
-            if ok and tonumber(probe.status or 0)==0 and exists(normalized) and fsize(normalized)>0 then
-                for _,ext in ipairs({"jpg","jpeg","png","webp"}) do os.remove(artwork_dir.."\\track-"..i.."."..ext) end
-                os.rename(normalized,final)
-                if mark_optional_validated("art",i) then clear_optional_failure("art",i);log("ART READY+DECODED track "..i)
-                else mark_optional_failure("art",i,"validate");log("ART VALIDATION FAIL track "..i) end
-            elseif not promote_art_source_pass(i,found) then
-                os.remove(normalized);mark_optional_failure("art",i,"decode");log("ART DECODE+SOURCE FAIL track "..i)
+        local processed=artwork_dir.."\\track-"..i..".focused-art-processed.png"
+        os.remove(normalized);os.remove(processed)
+
+        run_ffmpeg_media({"-y","-hide_banner","-loglevel","error","-i",found,"-frames:v","1","-vf","format=rgba",normalized},25,normalized,
+        function(ok,probe,probe_error,probe_timeout,direct_fallback)
+            if not (ok and tonumber(probe.status or 0)==0 and exists(normalized) and fsize(normalized)>0) then
+                os.remove(normalized)
+                if not promote_art_source_pass(i,found) then mark_optional_failure("art",i,"normalize") end
+                cleanup_prefix(artwork_dir,prefix);job_done(job);return
             end
-            cleanup_prefix(artwork_dir,prefix);job_done(job)
+
+            local detector=install_root.."\\app\\ArtworkEdgeDetector.exe"
+            log("ARTWORK COLOR DETECT track "..i)
+            run_bounded(cache_priority,detector,{normalized,tostring(w),tostring(h)},20,false,
+            function(det_success,det_result,det_error,det_timed_out)
+                local stdout=tostring((det_result or {}).stdout or "")
+                local stderr=tostring((det_result or {}).stderr or "")
+                local cw,ch,cx,cy,left,top,right,bottom=
+                    stdout:match("CROP%s+(%d+):(%d+):(%d+):(%d+)%s+L(%d+)%s+T(%d+)%s+R(%d+)%s+B(%d+)")
+
+                local filters={}
+                if det_success and tonumber((det_result or {}).status or -1)==0 and cw and ch and cx and cy then
+                    local crop_expr=tostring(cw)..":"..tostring(ch)..":"..tostring(cx)..":"..tostring(cy)
+                    table.insert(filters,"crop="..crop_expr)
+                    log("ARTWORK COLOR CROP track "..i.." "..crop_expr.." borders L"..tostring(left).." T"..tostring(top).." R"..tostring(right).." B"..tostring(bottom))
+                else
+                    local reason=(stdout.." "..stderr.." "..tostring(det_error or "")):gsub("[\r\n\t]+"," "):gsub("%s+"," "):match("^%s*(.-)%s*$") or ""
+                    if reason=="" then reason="no confident edge band" end
+                    log("ARTWORK COLOR NONE track "..i.." "..reason)
+                end
+
+                -- First remove detector-confirmed baked padding, then fill the configured
+                -- artwork box from the real image content. This is the pre-consolidation
+                -- Smart Crop contract that disappeared from art_job.
+                table.insert(filters,string.format("scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,format=rgba",w,h,w,h))
+
+                run_ffmpeg_media({"-y","-hide_banner","-loglevel","error","-i",normalized,"-vf",table.concat(filters,","),"-frames:v","1",processed},
+                    25,processed,
+                    function(render_ok,render_result,render_error,render_timeout,render_fallback)
+                        local final=artwork_dir.."\\track-"..i..".png"
+                        if render_ok and tonumber((render_result or {}).status or 0)==0 and exists(processed) and fsize(processed)>0 then
+                            for _,ext in ipairs({"jpg","jpeg","png","webp"}) do os.remove(artwork_dir.."\\track-"..i.."."..ext) end
+                            local moved=os.rename(processed,final)~=nil
+                            if not moved then moved=copy_file_atomic(processed,final) end
+                            if moved and mark_optional_validated("art",i) then
+                                clear_optional_failure("art",i)
+                                log("ART READY SMART-CROP track "..i.." box="..w.."x"..h)
+                            else
+                                mark_optional_failure("art",i,"promote")
+                            end
+                        else
+                            os.remove(processed)
+                            mark_optional_failure("art",i,"crop-render")
+                            log("ART CROP RENDER FAIL track "..i.." "..media_error_summary(render_result,render_error,render_timeout))
+                        end
+                        os.remove(found);os.remove(normalized);os.remove(processed)
+                        cleanup_prefix(artwork_dir,prefix)
+                        job_done(job)
+                    end)
+            end)
         end)
     end)
 end
