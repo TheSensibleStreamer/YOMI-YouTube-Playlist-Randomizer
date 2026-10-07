@@ -17,6 +17,7 @@
   "media_size_preset": "Medium",
   "media_width": 160,
   "media_height": 90,
+  "media_aspect_layout": "Fixed",
   "overlay_width": 2560,
   "overlay_height": 90,
   "overlay_text_gap_px": 14,
