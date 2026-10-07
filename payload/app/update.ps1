@@ -124,29 +124,7 @@ try{
    exit 4
  }
  Update-Tx 'HEALTHY' 'package-and-installed-control-plane-verified'
- Write-UpdateStatus 98 'restarting' "YOMI $latest is installed and verified. Opening YOMI..."
- $restartConfirmed=$false
- try{
-   $appDir=Join-Path $installRoot 'app'
-   $launcher=Join-Path $appDir 'YomiLauncher.exe'
-   if(-not(Test-Path -LiteralPath $launcher -PathType Leaf)){throw 'The installed YOMI launcher is missing.'}
-   $started=Start-Process -FilePath $launcher -ArgumentList 'controller' -WorkingDirectory $appDir -PassThru
-   for($i=0;$i -lt 30 -and -not $restartConfirmed;$i++){
-     Start-Sleep -Milliseconds 150
-     foreach($p in @(Get-CimInstance Win32_Process -Filter "Name='YomiControllerWpf.exe'" -ErrorAction SilentlyContinue)){
-       try{
-         if($p.ExecutablePath -and [IO.Path]::GetFullPath([string]$p.ExecutablePath) -eq [IO.Path]::GetFullPath((Join-Path $appDir 'YomiControllerWpf.exe'))){
-           $restartConfirmed=$true;break
-         }
-       }catch{}
-     }
-   }
- }catch{}
- if($restartConfirmed){
-   Write-UpdateStatus 100 'complete' "YOMI $latest is installed, verified, and reopened."
- }else{
-   Write-UpdateStatus 100 'complete' "YOMI $latest is installed and verified. Automatic reopen was not confirmed."
- }
+ Write-UpdateStatus 100 'complete' "YOMI $latest is installed and verified. Restart handoff is ready."
  Msg "YOMI $latest passed package verification and the post-install control-plane health proof." ([Windows.Forms.MessageBoxIcon]::Information)
 }catch{Write-UpdateStatus 100 'error' ("Update failed: "+$_.Exception.Message);Msg ("YOMI could not complete the update deployment.`r`n`r`n"+$_.Exception.Message) ([Windows.Forms.MessageBoxIcon]::Warning);exit 1}
 finally{if($ownsMutex){try{$updateMutex.ReleaseMutex()}catch{}};if($updateMutex){$updateMutex.Dispose()}}
