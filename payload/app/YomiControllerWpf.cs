@@ -995,6 +995,7 @@ namespace Yomi.Desktop
         private int _queueProjectionCurrentRemainingRows;
         private int _queueProjectionAdaptiveSlice = QueueProjectionApplySlice;
         private string _queueProjectionApplyReason = "";
+        private bool _queueVisibilityRefreshPending;
         private readonly HashSet<int> _queueProjectionDeferredOccurrences = new HashSet<int>();
         // R61.88: playback order is authoritative even when the Queue UI is closed. Keep the
         // logical model hot, but do not construct/mutate thousands of WPF QueueRow objects until
@@ -6045,7 +6046,7 @@ namespace Yomi.Desktop
                 }
             }
             catch { }
-            return "4.2.0.9.9.9";
+            return "420.69.9001";
         }
 
         private void ShowAboutYomi()
@@ -6063,7 +6064,7 @@ namespace Yomi.Desktop
         {
             var dialog = new Window
             {
-                Title = "YOMI 4.2.0.9.9.9 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI 420.69.9001 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6079,7 +6080,7 @@ namespace Yomi.Desktop
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 4.2.0.9.9.9   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI 420.69.9001   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
             var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
@@ -6177,7 +6178,7 @@ namespace Yomi.Desktop
                     string json;
                     using (var client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-4.2.0.9.9.9-Controller";
+                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-420.69.9001-Controller";
                         client.Headers[HttpRequestHeader.CacheControl] = "no-cache, no-store, max-age=0";
                         client.Headers[HttpRequestHeader.Pragma] = "no-cache";
                         client.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.BypassCache);
@@ -6187,7 +6188,7 @@ namespace Yomi.Desktop
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
-                    string currentText = "4.2.0.9.9.9";
+                    string currentText = "420.69.9001";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
                     _window.Dispatcher.BeginInvoke(new Action(delegate
@@ -8083,7 +8084,7 @@ namespace Yomi.Desktop
 
             _settingsWindow = new Window
             {
-                Title = "YOMI 4.2.0.9.9.9 - Settings",
+                Title = "YOMI 420.69.9001 - Settings",
                 Width = Math.Max(760.0, _settingsWindowWidth), Height = Math.Max(500.0, _settingsWindowHeight),
                 MinWidth = 760.0, MinHeight = 500.0,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.CanResize,
@@ -8137,7 +8138,7 @@ namespace Yomi.Desktop
             if (sourceIcon != null && sourceIcon.Source != null) iconFrame.Child = new Image { Source = sourceIcon.Source, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
             titleGrid.Children.Add(iconFrame);
             var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0), SnapsToDevicePixels = true, RenderTransform = new TranslateTransform(0, 1) };
-            identity.Children.Add(new TextBlock { Text = "YOMI 4.2.0.9.9.9", FontSize = 14, FontWeight = FontWeights.SemiBold });
+            identity.Children.Add(new TextBlock { Text = "YOMI 420.69.9001", FontSize = 14, FontWeight = FontWeights.SemiBold });
             var settingsLabel = new TextBlock { Text = "  Settings", FontSize = 14 };
             settingsLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             identity.Children.Add(settingsLabel); Grid.SetColumn(identity, 1); titleGrid.Children.Add(identity);
@@ -17476,7 +17477,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 row.PositionLabel = position;
                 bool wasHardUnavailable = IsHardUnavailableTrackTitle(row.Title);
                 row.Title = meta != null && !String.IsNullOrWhiteSpace(meta.Title) ? meta.Title : "Track " + occ;
-                if (wasHardUnavailable != IsHardUnavailableTrackTitle(row.Title)) queueVisibilityChanged = true;
+                bool isHardUnavailable = IsHardUnavailableTrackTitle(row.Title);
+                if (wasHardUnavailable != isHardUnavailable)
+                {
+                    queueVisibilityChanged = true;
+                    _queueVisibilityRefreshPending = true;
+                }
                 row.Channel = meta != null ? meta.Channel : "";
                 row.DurationSeconds = meta != null && meta.Duration > 0 ? meta.Duration : 0.0;
                 row.DurationLabel = row.DurationSeconds > 0 ? FormatTime(row.DurationSeconds) : "";
@@ -17564,8 +17570,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
             if (!deferExpensiveReconcile && _queueOpen)
             {
-                bool dynamicView = !incremental || queueVisibilityChanged || _queueScope != QueueScope.All || _queueQueryKind == QueueQueryKind.Text;
-                if (_queueView != null && dynamicView) _queueView.Refresh();
+                bool dynamicView = !incremental || queueVisibilityChanged || _queueVisibilityRefreshPending || _queueScope != QueueScope.All || _queueQueryKind == QueueQueryKind.Text;
+                if (_queueView != null && dynamicView)
+                {
+                    _queueView.Refresh();
+                    _queueVisibilityRefreshPending = false;
+                }
                 // R46: playback/readiness/order changes can move a selected row out of the
                 // active view without any user filter gesture. Reconcile selection after
                 // the authoritative row state has changed, not only after search/scope input.
@@ -25680,7 +25690,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
         private string ObsCacheKey(Dictionary<string, object> config)
         {
-            string version = GetString(config, "version", "4.2.0.9.9.9");
+            string version = GetString(config, "version", "420.69.9001");
             string digits = new string(version.Where(Char.IsDigit).ToArray());
             return String.IsNullOrWhiteSpace(digits) ? "4208" : digits;
         }

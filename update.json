@@ -1,9 +1,9 @@
 {
   "product": "YOMI - YouTube OBS Music Interface",
-  "version": "4.2.0.9.9.9",
-  "package_name": "YOMI-v4.2.0.9.9.9.zip",
-  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v4.2.0.9.9.9.zip",
-  "sha256": "8f87d370dedbe4cfb8957bf5621c125326eac2c8b4fd94a67d0606862893535e",
+  "version": "420.69.9001",
+  "package_name": "YOMI-v420.69.9001.zip",
+  "package_url": "https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v420.69.9001.zip",
+  "sha256": "b47d478aa1b05ab4ec0038ab16722d7fd725e09a2d65189f8f3f6c0a65c0499e",
   "summary": "",
   "changelog_url": "https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer",
   "update_compatibility": "one-hop-latest"
