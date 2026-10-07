@@ -6046,7 +6046,7 @@ namespace Yomi.Desktop
                 }
             }
             catch { }
-            return "420.69.9002";
+            return "420.69.9003";
         }
 
         private void ShowAboutYomi()
@@ -6064,7 +6064,7 @@ namespace Yomi.Desktop
         {
             var dialog = new Window
             {
-                Title = "YOMI 420.69.9002 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI 420.69.9003 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6080,7 +6080,7 @@ namespace Yomi.Desktop
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 420.69.9002   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI 420.69.9003   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
             var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
@@ -6178,7 +6178,7 @@ namespace Yomi.Desktop
                     string json;
                     using (var client = new WebClient())
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-420.69.9002-Controller";
+                        client.Headers[HttpRequestHeader.UserAgent] = "YOMI-420.69.9003-Controller";
                         client.Headers[HttpRequestHeader.CacheControl] = "no-cache, no-store, max-age=0";
                         client.Headers[HttpRequestHeader.Pragma] = "no-cache";
                         client.CachePolicy = new System.Net.Cache.RequestCachePolicy(System.Net.Cache.RequestCacheLevel.BypassCache);
@@ -6188,7 +6188,7 @@ namespace Yomi.Desktop
                     }
                     var manifest = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(json);
                     string latestText = NormalizeDottedVersionText(GetString(manifest, "version", "0.0"));
-                    string currentText = "420.69.9002";
+                    string currentText = "420.69.9003";
                     try { string versionPath = Path.Combine(_installRoot, "VERSION.txt"); if (File.Exists(versionPath)) currentText = NormalizeDottedVersionText(File.ReadAllText(versionPath).Trim()); } catch { }
                     int comparison = CompareDottedVersions(latestText, currentText);
                     _window.Dispatcher.BeginInvoke(new Action(delegate
@@ -8084,7 +8084,7 @@ namespace Yomi.Desktop
 
             _settingsWindow = new Window
             {
-                Title = "YOMI 420.69.9002 - Settings",
+                Title = "YOMI 420.69.9003 - Settings",
                 Width = Math.Max(760.0, _settingsWindowWidth), Height = Math.Max(500.0, _settingsWindowHeight),
                 MinWidth = 760.0, MinHeight = 500.0,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.CanResize,
@@ -8138,7 +8138,7 @@ namespace Yomi.Desktop
             if (sourceIcon != null && sourceIcon.Source != null) iconFrame.Child = new Image { Source = sourceIcon.Source, Stretch = Stretch.Uniform, SnapsToDevicePixels = true };
             titleGrid.Children.Add(iconFrame);
             var identity = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(7, 0, 0, 0), SnapsToDevicePixels = true, RenderTransform = new TranslateTransform(0, 1) };
-            identity.Children.Add(new TextBlock { Text = "YOMI 420.69.9002", FontSize = 14, FontWeight = FontWeights.SemiBold });
+            identity.Children.Add(new TextBlock { Text = "YOMI 420.69.9003", FontSize = 14, FontWeight = FontWeights.SemiBold });
             var settingsLabel = new TextBlock { Text = "  Settings", FontSize = 14 };
             settingsLabel.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             identity.Children.Add(settingsLabel); Grid.SetColumn(identity, 1); titleGrid.Children.Add(identity);
@@ -9770,6 +9770,15 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             }
             string csv = String.Join(",", ids.Select(x => x.ToString(CultureInfo.InvariantCulture)).ToArray());
             if (!SendMpv("script-message", "yomi-playback-subset", csv, query)) return;
+            // Listen is explicit playback intent. A completed startup prewarm must not survive
+            // this handoff or the next Play/Pause click is incorrectly consumed as "start warm player".
+            _startupPrewarmReady = false;
+            _startupPrewarmPlayLatched = false;
+            _pauseIntentPending = false;
+            _pauseIntentState = false;
+            _paused = false;
+            BeginPlaybackTransitionProjection();
+            ApplyPrimaryTransportGlyph();
             _queuePlaybackSubsetActive = true;
             _queuePlaybackSubsetQuery = query;
             _queuePlaybackSubsetCsv = csv;
@@ -13643,6 +13652,14 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             {
                 _audioActive = _running && (phase == "playing" || phase == "paused");
                 _paused = _audioActive && (phase == "paused" || enginePaused);
+            }
+            // Any confirmed unpaused playback consumes the silent-prewarm Ready latch.
+            // This protects playback paths that do not originate at the main Play button.
+            if (_startupPrewarmReady && _running &&
+                ((haveMpvSnapshot && !idleActive && !mpvPaused) || phase == "playing"))
+            {
+                _startupPrewarmReady = false;
+                _startupPrewarmPlayLatched = false;
             }
             _lastPlaybackPhase = phase;
 
@@ -21570,7 +21587,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         // activity, not merely the existence of the MPV process.
         private void ApplyPrimaryTransportGlyph()
         {
-            bool silentWarm = _startupPrewarmReady || _startupPrewarmInFlight || (_engineLaunchMonitorActive && _engineLaunchPrewarm);
+            bool silentWarm = (_startupPrewarmReady && !_audioActive) || _startupPrewarmInFlight || (_engineLaunchMonitorActive && _engineLaunchPrewarm);
             bool showPause = !silentWarm && _running && _audioActive && !_paused;
             _playGlyph.Visibility = showPause ? Visibility.Collapsed : Visibility.Visible;
             _pauseGlyph.Visibility = showPause ? Visibility.Visible : Visibility.Collapsed;
@@ -25690,7 +25707,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
         private string ObsCacheKey(Dictionary<string, object> config)
         {
-            string version = GetString(config, "version", "420.69.9002");
+            string version = GetString(config, "version", "420.69.9003");
             string digits = new string(version.Where(Char.IsDigit).ToArray());
             return String.IsNullOrWhiteSpace(digits) ? "4208" : digits;
         }
