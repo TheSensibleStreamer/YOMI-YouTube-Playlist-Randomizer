@@ -497,35 +497,13 @@ try {
     $launcherExe = Join-Path $appStage 'YomiLauncher.exe'
     if (Test-Path $launcherExe) { Remove-Item $launcherExe -Force }
 
-    $launcherIcon = Join-Path $appStage 'yomi.ico'
-    $launcherSourcePath = Join-Path $appStage 'YomiLauncher.cs'
-    $launcherCsc = @(
-        (Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),
-        (Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe')
-    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
-    if(-not $launcherCsc){ throw '.NET Framework C# compiler (csc.exe) was not found.' }
-    $launcherArgs=@(
-        '/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',
-        ('/win32icon:"'+$launcherIcon+'"'),
-        ('/out:"'+$launcherExe+'"'),
-        ('"'+$launcherSourcePath+'"')
-    )
-    $launcherOutput=& $launcherCsc @launcherArgs 2>&1
-    if($LASTEXITCODE -ne 0){throw ("YOMI launcher compile failed:`r`n"+($launcherOutput -join "`r`n"))}
-    if (-not (Test-Path $launcherExe)) { throw 'YomiLauncher.exe failed to compile.' }
-
-    Write-Host '      Compiling restart relay...' -ForegroundColor DarkCyan
-    $restartRelaySource = Get-Content (Join-Path $appStage 'YomiRestartRelay.cs') -Raw
-    $restartRelayExe = Join-Path $appStage 'YomiRestartRelay.exe'
-    if (Test-Path $restartRelayExe) { Remove-Item $restartRelayExe -Force }
-
     Add-Type `
-        -TypeDefinition $restartRelaySource `
+        -TypeDefinition $launcherSource `
         -Language CSharp `
-        -OutputAssembly $restartRelayExe `
+        -OutputAssembly $launcherExe `
         -OutputType WindowsApplication
 
-    if (-not (Test-Path $restartRelayExe)) { throw 'YomiRestartRelay.exe failed to compile.' }
+    if (-not (Test-Path $launcherExe)) { throw 'YomiLauncher.exe failed to compile.' }
 
     Write-Host '      Compiling native YOMI controller...' -ForegroundColor DarkCyan
     function Resolve-Csc {
@@ -860,10 +838,10 @@ try {
 
     $guiLauncher = Join-Path $installRoot 'app\YomiLauncher.exe'
 
-    # The main YOMI icon is embedded directly in YomiLauncher.exe. Start Menu can then
-    # resolve the icon from the shortcut target itself instead of depending on a standalone
-    # .ico path that temporarily disappears during an atomic program-folder swap.
-    $mainIconLocation = $guiLauncher + ',0'
+    # Windows Start caches shortcut icons aggressively. During an atomic YOMI update the
+    # Program Files tree briefly moves away, so an icon that points into that tree can be
+    # cached as broken. Publish icon bytes to a stable LocalAppData shell path and include
+    # the content hash in the filename; a changed icon automatically gets a fresh cache key.
     $shellIconRoot = Join-Path $dataRoot 'shell'
     New-Item -ItemType Directory -Path $shellIconRoot -Force | Out-Null
     function Publish-YomiShellIcon([string]$Source,[string]$Prefix) {
@@ -873,10 +851,8 @@ try {
         if(-not(Test-Path -LiteralPath $dest -PathType Leaf)){ Copy-Item -LiteralPath $Source -Destination $dest -Force }
         return ($dest + ',0')
     }
+    $mainIconLocation = Publish-YomiShellIcon (Join-Path $installRoot 'app\yomi.ico') 'yomi'
     $settingsIconLocation = Publish-YomiShellIcon (Join-Path $installRoot 'assets\yomi-settings-v408.ico') 'yomi-settings'
-    Get-ChildItem -LiteralPath $shellIconRoot -Filter 'yomi-*.ico' -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -notlike 'yomi-settings-*' } |
-        Remove-Item -Force -ErrorAction SilentlyContinue
 
     # Recreate Start Menu links rather than editing a stale .lnk in place.
     foreach($shortcutName in @('YOMI.lnk','YOMI Settings.lnk','Open YOMI Data Folder.lnk','Shuffle Playlist.lnk','Easy README.lnk','Copy Diagnostics.lnk','Uninstall YOMI.lnk')){
@@ -925,10 +901,6 @@ public static class YomiShellIconRefresh {
 }
 '@
         [YomiShellIconRefresh]::SHChangeNotify(0x08000000,0,[IntPtr]::Zero,[IntPtr]::Zero)
-        $ie4uinit=Join-Path $env:WINDIR 'System32\ie4uinit.exe'
-        if(Test-Path -LiteralPath $ie4uinit -PathType Leaf){
-            Start-Process -FilePath $ie4uinit -ArgumentList '-show' -WindowStyle Hidden -ErrorAction SilentlyContinue
-        }
     } catch {}
 
     # Register focused update packages for future test/development updates.
@@ -961,8 +933,6 @@ public static class YomiShellIconRefresh {
         (Join-Path $installRoot 'app\FOCUSED-BUILD.txt'),
         (Join-Path $installRoot 'app\ArtworkEdgeDetector.exe'),
         (Join-Path $installRoot 'app\YomiLauncher.exe'),
-        (Join-Path $installRoot 'app\YomiRestartRelay.exe'),
-        (Join-Path $installRoot 'app\YomiRestartRelay.cs'),
         (Join-Path $installRoot 'VERSION.txt'),
         (Join-Path $installRoot 'app\music.lua'),
         (Join-Path $installRoot 'app\server.ps1'),
@@ -1037,30 +1007,6 @@ public static class YomiShellIconRefresh {
     if ($existingInstallAtStart) {
         if ($UpdateMode) {
             Write-InstallUpdateStatus 92 'installing' 'Program files installed. Returning to YOMI for final verification...'
-
-            # Bootstrap restart from the newly installed files too. This makes the first update
-            # carrying YomiRestartRelay.exe self-testing: the helper starts now, waits for this
-            # elevated installer to exit, then asks the user's Explorer shell to open YOMI.
-            try {
-                $restartRelay = Join-Path $installRoot 'app\YomiRestartRelay.exe'
-                $restartLog = Join-Path $dataRoot 'update-restart.log'
-                if(Test-Path -LiteralPath $restartRelay -PathType Leaf){
-                    $relayArgs = $PID.ToString() + ' "' + $installRoot + '" "' + $restartLog + '"'
-                    $relayPsi = New-Object Diagnostics.ProcessStartInfo
-                    $relayPsi.FileName = $restartRelay
-                    $relayPsi.Arguments = $relayArgs
-                    $relayPsi.WorkingDirectory = (Join-Path $installRoot 'app')
-                    $relayPsi.UseShellExecute = $false
-                    $relayPsi.CreateNoWindow = $true
-                    $relayProcess = [Diagnostics.Process]::Start($relayPsi)
-                    if($relayProcess){
-                        Add-Content -LiteralPath $restartLog -Value ([DateTime]::Now.ToString('o')+' | installer queued compiled restart relay pid '+$relayProcess.Id) -Encoding UTF8
-                    }
-                }
-            } catch {
-                try{Add-Content -LiteralPath (Join-Path $dataRoot 'update-restart.log') -Value ([DateTime]::Now.ToString('o')+' | installer could not queue compiled restart relay: '+$_.Exception.Message) -Encoding UTF8}catch{}
-            }
-
             Write-Host 'Update install stage complete; the YOMI updater will verify and restart the app.' -ForegroundColor Yellow
         }
         else {
