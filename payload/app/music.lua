@@ -840,7 +840,7 @@ function next_subset_transport_occurrence(base,step)
     return nil
 end
 
-local function next_occurrence(i,step)
+local function next_occurrence(i,step,include_known_bad)
     local sequence=playback_subset_active and playback_subset or order
     local positions=playback_subset_active and playback_subset_position or order_position
     if #sequence==0 then return nil end
@@ -856,7 +856,7 @@ local function next_occurrence(i,step)
         slot=next_slot
         if slot>#sequence then slot=1 elseif slot<1 then slot=#sequence end
         local candidate=sequence[slot]
-        if candidate and not known_bad(candidate) then return candidate end
+        if candidate and (include_known_bad or not known_bad(candidate)) then return candidate end
     end
     return nil
 end
@@ -1216,6 +1216,7 @@ end
 function queue_stage(kind,i,required)
     if not required then return "NOT_REQUIRED" end
     local key=job_key and job_key(kind,i) or (kind..":"..tostring(i))
+    if kind=="audio" and known_bad(i) then return "UNAVAILABLE" end
     if kind=="audio" and audio_ready(i) then return "READY" end
     if kind=="art" and optional_validation_ready("art",i) then return "READY" end
     if kind=="video" and optional_validation_ready("video",i) then return "READY" end
@@ -1246,7 +1247,7 @@ local function write_queue_runtime()
         local viz=queue_stage("viz",i,viz_required)
         local function busy(v) return v=="ACTIVE" or v=="QUEUED" end
         local presentation_complete=audio=="READY" and (not art_required or art=="READY") and (not video_required or video=="READY") and (not viz_required or viz=="READY")
-        local phase=(i==playing_index and "PLAYING") or ((busy(audio) or busy(art) or busy(video) or busy(viz)) and "BUILDING") or (audio=="READY" and "READY") or "WAITING"
+        local phase=(i==playing_index and "PLAYING") or (audio=="UNAVAILABLE" and "UNAVAILABLE") or ((busy(audio) or busy(art) or busy(video) or busy(viz)) and "BUILDING") or (audio=="READY" and "READY") or "WAITING"
         table.insert(items,{
             index=i,
             order_slot=current_slot(i),
@@ -1260,7 +1261,7 @@ local function write_queue_runtime()
             sync_ready=audio=="READY",
             presentation_complete=presentation_complete,
             playback_ready=audio=="READY",
-            state=(i==playing_index and "PLAYING") or (audio=="READY" and "READY") or (busy(audio) and "PREPARING") or "WAITING",
+            state=(i==playing_index and "PLAYING") or (audio=="UNAVAILABLE" and "UNAVAILABLE") or (audio=="READY" and "READY") or (busy(audio) and "PREPARING") or "WAITING",
             title=meta_for(i).title
         })
     end
@@ -1486,6 +1487,7 @@ function stream_route_order()
     return {"no-js"}
 end
 local playing_from_cache=true
+local permanent_reprobe_attempted={}
 local pump
 local request_bundle
 local play_index
@@ -2340,7 +2342,16 @@ pump=function()
 end
 
 request_bundle=function(i,priority)
-    if not i or i<1 or i>#urls or known_bad(i) then return end
+    if not i or i<1 or i>#urls then return end
+    if known_bad(i) then
+        if permanent_reprobe_attempted[i] then return end
+        permanent_reprobe_attempted[i]=true
+        os.remove(status_path(i,"audio.permanent"))
+        os.remove(status_path(i,"audio.failed"))
+        audio_failures[i]=nil
+        stream_failures[i]=nil
+        log("AUDIO PERMANENT RECHECK track "..i.." reason=prefetch-horizon")
+    end
     local p=tonumber(priority) or 10
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
     if not audio_ready(i) then enqueue("audio",i,p) end
@@ -2357,7 +2368,7 @@ local function schedule_ahead(i)
     local cursor=i
     local audio_tracks_ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
     for n=1,audio_tracks_ahead do
-        local next_i=next_occurrence(cursor,1)
+        local next_i=next_occurrence(cursor,1,true)
         if not next_i or next_i==i then break end
         request_bundle(next_i,n)
         cursor=next_i
