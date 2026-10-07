@@ -1487,7 +1487,8 @@ function stream_route_order()
     return {"no-js"}
 end
 local playing_from_cache=true
-local permanent_reprobe_attempted={}
+-- Intentionally global: music.lua already sits at LuaJIT's top-level local-variable ceiling.
+permanent_reprobe_attempted={}
 local pump
 local request_bundle
 local play_index
