@@ -838,13 +838,33 @@ try {
 
     $guiLauncher = Join-Path $installRoot 'app\YomiLauncher.exe'
 
-    New-AppShortcut (Join-Path $startFolder 'YOMI.lnk') $guiLauncher 'controller' (Join-Path $installRoot 'app\yomi.ico')
-    New-AppShortcut (Join-Path $startFolder 'YOMI Settings.lnk') $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
-    New-AppShortcut (Join-Path $startFolder 'Open YOMI Data Folder.lnk') 'explorer.exe' ('"' + $dataRoot + '"') (Join-Path $installRoot 'app\yomi.ico')
-    New-AppShortcut (Join-Path $startFolder 'Shuffle Playlist.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot 'app\shuffle.ps1') + '" -Interactive') (Join-Path $installRoot 'app\yomi.ico')
+    # Windows Start caches shortcut icons aggressively. During an atomic YOMI update the
+    # Program Files tree briefly moves away, so an icon that points into that tree can be
+    # cached as broken. Publish icon bytes to a stable LocalAppData shell path and include
+    # the content hash in the filename; a changed icon automatically gets a fresh cache key.
+    $shellIconRoot = Join-Path $dataRoot 'shell'
+    New-Item -ItemType Directory -Path $shellIconRoot -Force | Out-Null
+    function Publish-YomiShellIcon([string]$Source,[string]$Prefix) {
+        if(-not(Test-Path -LiteralPath $Source -PathType Leaf)){ return ($Source + ',0') }
+        $hash=(Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash.ToLowerInvariant().Substring(0,12)
+        $dest=Join-Path $shellIconRoot ($Prefix+'-'+$hash+'.ico')
+        if(-not(Test-Path -LiteralPath $dest -PathType Leaf)){ Copy-Item -LiteralPath $Source -Destination $dest -Force }
+        return ($dest + ',0')
+    }
+    $mainIconLocation = Publish-YomiShellIcon (Join-Path $installRoot 'app\yomi.ico') 'yomi'
+    $settingsIconLocation = Publish-YomiShellIcon (Join-Path $installRoot 'assets\yomi-settings-v408.ico') 'yomi-settings'
+
+    # Recreate Start Menu links rather than editing a stale .lnk in place.
+    foreach($shortcutName in @('YOMI.lnk','YOMI Settings.lnk','Open YOMI Data Folder.lnk','Shuffle Playlist.lnk','Easy README.lnk','Copy Diagnostics.lnk','Uninstall YOMI.lnk')){
+        Remove-Item -LiteralPath (Join-Path $startFolder $shortcutName) -Force -ErrorAction SilentlyContinue
+    }
+    New-AppShortcut (Join-Path $startFolder 'YOMI.lnk') $guiLauncher 'controller' $mainIconLocation
+    New-AppShortcut (Join-Path $startFolder 'YOMI Settings.lnk') $guiLauncher 'settings' $settingsIconLocation
+    New-AppShortcut (Join-Path $startFolder 'Open YOMI Data Folder.lnk') 'explorer.exe' ('"' + $dataRoot + '"') $mainIconLocation
+    New-AppShortcut (Join-Path $startFolder 'Shuffle Playlist.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -File "' + (Join-Path $installRoot 'app\shuffle.ps1') + '" -Interactive') $mainIconLocation
     New-AppShortcut (Join-Path $startFolder 'Easy README.lnk') "$env:WINDIR\System32\notepad.exe" ('"' + (Join-Path $installRoot 'README-EASY.txt') + '"')
     New-AppShortcut (Join-Path $startFolder 'Copy Diagnostics.lnk') 'powershell.exe' ('-NoProfile -ExecutionPolicy Bypass -NoExit -File "' + (Join-Path $installRoot 'app\diagnostics.ps1') + '"')
-    New-AppShortcut (Join-Path $startFolder 'Uninstall YOMI.lnk') (Join-Path $installRoot 'Uninstall YOMI.cmd') '' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
+    New-AppShortcut (Join-Path $startFolder 'Uninstall YOMI.lnk') (Join-Path $installRoot 'Uninstall YOMI.cmd') '' $settingsIconLocation
 
     $desktopFolder = [Environment]::GetFolderPath('Desktop')
     $desktopYomi = Join-Path $desktopFolder 'YOMI.lnk'
@@ -855,8 +875,8 @@ try {
     if ($existingInstallAtStart) {
         # Preserve desktop-shortcut state. Existing shortcuts are rewritten so a
         # changed target or icon is picked up automatically; absent shortcuts stay absent.
-        if ($hadDesktopYomi) { New-AppShortcut $desktopYomi $guiLauncher 'controller' (Join-Path $installRoot 'app\yomi.ico') }
-        if ($hadDesktopSettings) { New-AppShortcut $desktopSettings $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico') }
+        if ($hadDesktopYomi) { New-AppShortcut $desktopYomi $guiLauncher 'controller' $mainIconLocation }
+        if ($hadDesktopSettings) { New-AppShortcut $desktopSettings $guiLauncher 'settings' $settingsIconLocation }
     }
     else {
         Add-Type -AssemblyName System.Windows.Forms
@@ -867,8 +887,8 @@ try {
             [System.Windows.Forms.MessageBoxIcon]::Question
         )
         if ($desktopAnswer -eq [System.Windows.Forms.DialogResult]::Yes) {
-            New-AppShortcut $desktopYomi $guiLauncher 'controller' (Join-Path $installRoot 'app\yomi.ico')
-            New-AppShortcut $desktopSettings $guiLauncher 'settings' (Join-Path $installRoot 'assets\yomi-settings-v408.ico')
+            New-AppShortcut $desktopYomi $guiLauncher 'controller' $mainIconLocation
+            New-AppShortcut $desktopSettings $guiLauncher 'settings' $settingsIconLocation
         }
     }
     try {
