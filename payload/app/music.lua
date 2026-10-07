@@ -2587,7 +2587,19 @@ safe_register_script_message("yomi-playback-subset",function(raw,label)
     local target=playback_subset[1]
     local active_occ=(playing_index>0 and playing_index) or current_index
     if target and (changed or active_occ~=target) then
-        cancel_pending_transport();playback_subset_cursor=1;desired_index=target;requested_index=0;work_generation=work_generation+1;mp.set_property_native("pause",false);play_index(target)
+        cancel_pending_transport();playback_subset_cursor=1;desired_index=target;requested_index=0;work_generation=work_generation+1
+        -- Filtered Listen is a real play-now handoff. If its first occurrence is not cached,
+        -- retire the outgoing file before resolving it; otherwise old/out-of-filter audio can
+        -- resume for several seconds and a failed direct-stream load can misidentify that old
+        -- playing_index as the requested occurrence.
+        if playing_index>0 and playing_index~=target and not audio_ready(target) then
+            pcall(function() mp.commandv("stop") end)
+            playing_index=0
+            loaded_waiting_for_restart=0
+            log("PLAYBACK SUBSET STOP outgoing audio; uncached target "..target.." is preparing")
+        end
+        mp.set_property_native("pause",false)
+        play_index(target)
     end
     replan_cache_horizon("playback-subset-on")
     write_queue_runtime()
