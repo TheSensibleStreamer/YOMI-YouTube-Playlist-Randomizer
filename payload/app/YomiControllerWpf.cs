@@ -845,6 +845,8 @@ namespace Yomi.Desktop
         private bool _queuePlaybackSubsetActive;
         private bool _queuePlaybackSubsetRestorePending;
         private long _queuePlaybackSubsetLastRestoreAttemptMs = -10000;
+        private string _queuePlaybackSubsetRestoreToken = "";
+        private string _queuePlaybackSubsetSessionId = "";
         private string _queuePlaybackSubsetQuery = "";
         private string _queuePlaybackSubsetCsv = "";
         private int _queueTransitionGeneration;
@@ -9788,6 +9790,8 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             ApplyPrimaryTransportGlyph();
             _queuePlaybackSubsetActive = true;
             _queuePlaybackSubsetRestorePending = false;
+            _queuePlaybackSubsetRestoreToken = "";
+            _queuePlaybackSubsetSessionId = _sessionId ?? "";
             _queuePlaybackSubsetQuery = query;
             _queuePlaybackSubsetCsv = csv;
             if (_queueSearchPlayButton != null) { _queueSearchPlayButton.Content = "Listening"; _queueSearchPlayButton.IsEnabled = false; }
@@ -9802,37 +9806,85 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             if (_running) SendMpv("script-message", "yomi-playback-subset-clear");
             _queuePlaybackSubsetActive = false;
             _queuePlaybackSubsetRestorePending = false;
+            _queuePlaybackSubsetRestoreToken = "";
+            _queuePlaybackSubsetSessionId = "";
             _queuePlaybackSubsetQuery = "";
             _queuePlaybackSubsetCsv = "";
             if (_queueSearchPlayButton != null) { _queueSearchPlayButton.Content = "Listen"; _queueSearchPlayButton.IsEnabled = !String.IsNullOrWhiteSpace(_queueSearchBox == null ? "" : _queueSearchBox.Text); }
             SaveUiState();
         }
 
-        private void RestoreQueuePlaybackSubsetIfNeeded()
+        private void RestoreQueuePlaybackSubsetIfNeeded(Dictionary<string, object> queueState)
         {
-            if (!_queuePlaybackSubsetActive || !_queuePlaybackSubsetRestorePending || !_running) return;
+            if (!_queuePlaybackSubsetActive || !_running) return;
             if (String.IsNullOrWhiteSpace(_queuePlaybackSubsetCsv) || String.IsNullOrWhiteSpace(_queuePlaybackSubsetQuery))
             {
-                _queuePlaybackSubsetActive = false;
+                ClearQueuePlaybackSubset();
+                return;
+            }
+
+            // Filter occurrence IDs belong to one authoritative session. Upgrade older 9007 state
+            // by adopting the current session once it hydrates; discard the lane only if a later
+            // real session change proves the saved occurrence IDs belong somewhere else.
+            if (String.IsNullOrWhiteSpace(_sessionId)) return;
+            if (String.IsNullOrWhiteSpace(_queuePlaybackSubsetSessionId))
+            {
+                _queuePlaybackSubsetSessionId = _sessionId;
+                SaveUiState();
+            }
+            else if (!String.Equals(_queuePlaybackSubsetSessionId, _sessionId, StringComparison.Ordinal))
+            {
+                ClearQueuePlaybackSubset();
+                return;
+            }
+
+            bool engineOwnsSubset = GetBool(queueState, "playback_subset_active", false);
+            string engineLabel = GetString(queueState, "playback_subset_label", "");
+            string engineToken = GetString(queueState, "playback_subset_restore_token", "");
+            int engineCount = GetInt(queueState, "playback_subset_count", 0);
+            int expectedCount = _queuePlaybackSubsetCsv.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Length;
+
+            // Detect an engine/supervisor recovery after Listening was already active. The UI may
+            // still remember the lane while a fresh mpv process has reverted to the main order.
+            if (!_queuePlaybackSubsetRestorePending && (!engineOwnsSubset ||
+                !String.Equals(engineLabel, _queuePlaybackSubsetQuery, StringComparison.OrdinalIgnoreCase) ||
+                engineCount != expectedCount))
+            {
+                _queuePlaybackSubsetRestorePending = true;
+                _queuePlaybackSubsetRestoreToken = Guid.NewGuid().ToString("N");
+                _queuePlaybackSubsetLastRestoreAttemptMs = -10000;
+            }
+
+            if (!_queuePlaybackSubsetRestorePending) return;
+            if (String.IsNullOrWhiteSpace(_queuePlaybackSubsetRestoreToken))
+                _queuePlaybackSubsetRestoreToken = Guid.NewGuid().ToString("N");
+
+            // A restore is complete only when queue-runtime echoes the token from THIS controller
+            // process. Merely writing a script message is not an acknowledgement: during startup
+            // music.lua can receive the command before its occurrence table is ready.
+            if (engineOwnsSubset &&
+                String.Equals(engineLabel, _queuePlaybackSubsetQuery, StringComparison.OrdinalIgnoreCase) &&
+                engineCount == expectedCount &&
+                String.Equals(engineToken, _queuePlaybackSubsetRestoreToken, StringComparison.Ordinal))
+            {
                 _queuePlaybackSubsetRestorePending = false;
-                _queuePlaybackSubsetCsv = "";
-                _queuePlaybackSubsetQuery = "";
+                _queuePlaybackSubsetRestoreToken = "";
+                if (_queueSearchPlayButton != null)
+                {
+                    _queueSearchPlayButton.Content = "Listening";
+                    _queueSearchPlayButton.IsEnabled = false;
+                }
+                AddActivity("Search playlist", "resumed filtered listening | " + _queuePlaybackSubsetQuery);
+                if (_queueFollowCurrent) FollowCurrentQueueRow(true);
                 SaveUiState();
                 return;
             }
+
             long now = _clock.ElapsedMilliseconds;
             if (now - _queuePlaybackSubsetLastRestoreAttemptMs < 700) return;
             _queuePlaybackSubsetLastRestoreAttemptMs = now;
-            if (!SendMpv("script-message", "yomi-playback-subset-restore", _queuePlaybackSubsetCsv, _queuePlaybackSubsetQuery)) return;
-            _queuePlaybackSubsetRestorePending = false;
-            if (_queueSearchPlayButton != null)
-            {
-                _queueSearchPlayButton.Content = "Listening";
-                _queueSearchPlayButton.IsEnabled = false;
-            }
-            AddActivity("Search playlist", "resumed filtered listening | " + _queuePlaybackSubsetQuery);
-            if (_queueFollowCurrent) FollowCurrentQueueRow(true);
-            SaveUiState();
+            SendMpv("script-message", "yomi-playback-subset-restore",
+                _queuePlaybackSubsetCsv, _queuePlaybackSubsetQuery, _queuePlaybackSubsetRestoreToken);
         }
 
         private void CompileQueueFilterQuery()
@@ -13705,7 +13757,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             int engineOccurrence = GetInt(engine, "index", 0);
             int queueOccurrence = GetInt(queue, "current_index", 0);
             int occurrence = ResolveSurfaceOccurrence(currentOccurrence, engineOccurrence, queueOccurrence, phase);
-            if (occurrence > 0) RestoreQueuePlaybackSubsetIfNeeded();
+            if (occurrence > 0) RestoreQueuePlaybackSubsetIfNeeded(queue);
             int position = GetInt(current, "position", 0);
             if (IsTransitionPhase(phase))
                 position = GetInt(queue, "current_order_slot", position);
@@ -16696,17 +16748,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
 
             if (sessionChanged || _trackMeta.Count == 0)
             {
-                if (sessionChanged && _queuePlaybackSubsetActive && !_queuePlaybackSubsetRestorePending)
+                if (sessionChanged && _queuePlaybackSubsetActive &&
+                    !String.IsNullOrWhiteSpace(_queuePlaybackSubsetSessionId) &&
+                    !String.IsNullOrWhiteSpace(sid) &&
+                    !String.Equals(_queuePlaybackSubsetSessionId, sid, StringComparison.Ordinal))
                 {
-                    _queuePlaybackSubsetActive = false;
-                    _queuePlaybackSubsetQuery = "";
-                    _queuePlaybackSubsetCsv = "";
-                    if (_queueSearchPlayButton != null)
-                    {
-                        _queueSearchPlayButton.Content = "Listen";
-                        _queueSearchPlayButton.IsEnabled = _queueSearchBox != null && !String.IsNullOrWhiteSpace(_queueSearchBox.Text);
-                    }
-                    SaveUiState();
+                    ClearQueuePlaybackSubset();
                 }
                 _sessionId = sid;
                 LoadTrackMetadata(session, orderState);
@@ -22060,14 +22107,17 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _legacyQueueGeometryLoaded = uiSchema < 11 && _queueOpen;
                 _queueFollowCurrent = GetBool(map, "queue_follow_current", true);
                 _queuePlaybackSubsetActive = GetBool(map, "queue_listening_active", false);
+                _queuePlaybackSubsetSessionId = GetString(map, "queue_listening_session_id", "");
                 _queuePlaybackSubsetQuery = GetString(map, "queue_listening_query", "");
                 _queuePlaybackSubsetCsv = GetString(map, "queue_listening_occurrences", "");
                 _queuePlaybackSubsetRestorePending = _queuePlaybackSubsetActive &&
                     !String.IsNullOrWhiteSpace(_queuePlaybackSubsetQuery) &&
                     !String.IsNullOrWhiteSpace(_queuePlaybackSubsetCsv);
+                _queuePlaybackSubsetRestoreToken = _queuePlaybackSubsetRestorePending ? Guid.NewGuid().ToString("N") : "";
                 if (!_queuePlaybackSubsetRestorePending)
                 {
                     _queuePlaybackSubsetActive = false;
+                    _queuePlaybackSubsetSessionId = "";
                     _queuePlaybackSubsetQuery = "";
                     _queuePlaybackSubsetCsv = "";
                 }
@@ -22300,7 +22350,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 if (IsContextWorkspace(_workspaceProfile)) CaptureWorkspaceContext(_workspaceProfile);
                 var state = new Dictionary<string, object>
                 {
-                    { "schema", 50 },
+                    { "schema", 51 },
                     { "surface", "wpf-product-shell" },
                     { "orientation_version", _orientationVersion },
                     { "media_mode", _mediaMode.ToString() },
@@ -22339,6 +22389,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     { "queue_table_plays_visible", _queueTablePlaysVisible },
                     { "queue_follow_current", _queueFollowCurrent },
                     { "queue_listening_active", _queuePlaybackSubsetActive },
+                    { "queue_listening_session_id", _queuePlaybackSubsetSessionId ?? "" },
                     { "queue_listening_query", _queuePlaybackSubsetQuery ?? "" },
                     { "queue_listening_occurrences", _queuePlaybackSubsetCsv ?? "" },
                     { "micro_mode", _microMode },
