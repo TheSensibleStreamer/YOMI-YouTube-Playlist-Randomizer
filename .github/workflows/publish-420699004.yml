@@ -18,12 +18,15 @@ jobs:
           $app=(Resolve-Path 'payload/app').Path
           $launcherOut=Join-Path $env:RUNNER_TEMP 'YomiLauncher.exe'
           $relayOut=Join-Path $env:RUNNER_TEMP 'YomiRestartRelay.exe'
-          $launcherSource=Get-Content (Join-Path $app 'YomiLauncher.cs') -Raw
-          Add-Type -TypeDefinition $launcherSource -Language CSharp -OutputAssembly $launcherOut -OutputType WindowsApplication -CompilerOptions ('/win32icon:"' + (Join-Path $app 'yomi.ico') + '"')
-          if(-not(Test-Path $launcherOut)){throw 'Launcher compile failed'}
-          $relaySource=Get-Content (Join-Path $app 'YomiRestartRelay.cs') -Raw
-          Add-Type -TypeDefinition $relaySource -Language CSharp -OutputAssembly $relayOut -OutputType WindowsApplication
-          if(-not(Test-Path $relayOut)){throw 'Restart relay compile failed'}
+          $csc=@(
+            (Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),
+            (Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe')
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if(-not $csc){throw 'csc.exe not found'}
+          & $csc /nologo /target:winexe ('/win32icon:"'+(Join-Path $app 'yomi.ico')+'"') ('/out:"'+$launcherOut+'"') ('"'+(Join-Path $app 'YomiLauncher.cs')+'"')
+          if($LASTEXITCODE -ne 0 -or -not(Test-Path $launcherOut)){throw 'Launcher compile failed'}
+          & $csc /nologo /target:winexe ('/out:"'+$relayOut+'"') ('"'+(Join-Path $app 'YomiRestartRelay.cs')+'"')
+          if($LASTEXITCODE -ne 0 -or -not(Test-Path $relayOut)){throw 'Restart relay compile failed'}
           $tokens=$null;$errors=$null
           [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'installer/install.ps1'),[ref]$tokens,[ref]$errors)
           if($errors.Count){throw ('Installer parse failed: '+$errors[0].Message)}
