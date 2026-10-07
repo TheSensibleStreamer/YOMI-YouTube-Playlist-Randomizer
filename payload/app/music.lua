@@ -783,6 +783,7 @@ playback_subset_position={}
 playback_subset_active=false
 playback_subset_label=""
 playback_subset_cursor=0
+playback_subset_restore_token=""
 -- Pending transport is declared before lane helpers so late file-loaded events can never
 -- drag the filtered intent cursor backward to an older occurrence.
 local transport_pending_target=0
@@ -1276,6 +1277,7 @@ local function write_queue_runtime()
         playback_subset_count=playback_subset_active and #playback_subset or 0,
         playback_subset_label=playback_subset_label,
         playback_subset_cursor=playback_subset_active and playback_subset_cursor or 0,
+        playback_subset_restore_token=playback_subset_active and playback_subset_restore_token or "",
         cache_plan={serial=cache_plan_serial,reason=cache_plan_reason,prefetch_ahead=active_prefetch_ahead(),optional_budget_mb=optional_cache_budget_mb,optional_bytes=optional_cache_last_bytes,last_evicted_bytes=optional_cache_last_evicted_bytes,last_evicted_occurrences=optional_cache_last_evicted_occurrences},
         slot_id=active_slot_id,
         slot_name=active_slot_name,
@@ -2658,6 +2660,7 @@ end
 safe_register_script_message("yomi-playback-subset",function(raw,label)
     local ok,changed=ensure_playback_subset(raw,label)
     if not ok then return end
+    playback_subset_restore_token=""
     -- Listen is deterministic: activating a filter always starts at its first visible occurrence.
     local target=playback_subset[1]
     local active_occ=(playing_index>0 and playing_index) or current_index
@@ -2680,14 +2683,18 @@ safe_register_script_message("yomi-playback-subset",function(raw,label)
     write_queue_runtime()
 end)
 
-safe_register_script_message("yomi-playback-subset-restore",function(raw,label)
+safe_register_script_message("yomi-playback-subset-restore",function(raw,label,restore_token)
     local ok,changed=ensure_playback_subset(raw,label)
     if not ok then return end
+    playback_subset_restore_token=tostring(restore_token or "")
     local active_occ=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
     local restored=tonumber(playback_subset_position[active_occ]) or 0
     if restored>0 then playback_subset_cursor=restored end
-    log("PLAYBACK SUBSET RESTORE count="..tostring(#playback_subset).." label="..playback_subset_label.." current="..tostring(active_occ).." cursor="..tostring(playback_subset_cursor))
-    if changed then replan_cache_horizon("playback-subset-restore") end
+    log("PLAYBACK SUBSET RESTORE count="..tostring(#playback_subset).." label="..playback_subset_label.." current="..tostring(active_occ).." cursor="..tostring(playback_subset_cursor).." token="..playback_subset_restore_token)
+    -- Replan every accepted restore, even when the subset contents are unchanged. A fresh
+    -- mpv process begins with the main-queue cache horizon, so successful reattachment must
+    -- immediately move preparation ahead to the filtered lane.
+    replan_cache_horizon("playback-subset-restore")
     write_queue_runtime()
 end)
 
@@ -2704,6 +2711,7 @@ safe_register_script_message("yomi-playback-subset-clear",function()
     playback_subset_active=false
     playback_subset_label=""
     playback_subset_cursor=0
+    playback_subset_restore_token=""
     log("PLAYBACK SUBSET OFF")
     replan_cache_horizon("playback-subset-clear")
     write_queue_runtime()
