@@ -95,6 +95,7 @@ $updateProcess=$null
 $lastState='ready'
 $restartPending=$false
 $restartLog=Join-Path $DataRoot 'update-restart.log'
+$restartRelayPath=$null
 $closeButton.IsEnabled=$true
 $doneButton.Content='Update'
 $doneButton.Visibility='Visible'
@@ -122,6 +123,84 @@ function Test-YomiControllerRunning {
         }
     }catch{}
     return $false
+}
+function Queue-DetachedRelaunch {
+    try{
+        if(Test-YomiControllerRunning){Write-RestartLog 'controller already running before relay';return $true}
+        $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        $relayName='YOMI-restart-'+([Guid]::NewGuid().ToString('N'))+'.ps1'
+        $relayPath=Join-Path $env:TEMP $relayName
+        $relayScript=@'
+param(
+    [Parameter(Mandatory=$true)][int]$ParentPid,
+    [Parameter(Mandatory=$true)][string]$InstallRoot,
+    [Parameter(Mandatory=$true)][string]$RestartLog
+)
+$ErrorActionPreference='SilentlyContinue'
+function Log([string]$Message){
+    try{Add-Content -LiteralPath $RestartLog -Value ([DateTime]::Now.ToString('o')+' | relay | '+$Message) -Encoding UTF8}catch{}
+}
+function Controller-Running {
+    try{
+        $target=[IO.Path]::GetFullPath((Join-Path $InstallRoot 'app\YomiControllerWpf.exe'))
+        foreach($p in @(Get-CimInstance Win32_Process -Filter "Name='YomiControllerWpf.exe'" -ErrorAction SilentlyContinue)){
+            try{if($p.ExecutablePath -and [IO.Path]::GetFullPath([string]$p.ExecutablePath) -eq $target){return $true}}catch{}
+        }
+    }catch{}
+    return $false
+}
+function Shell-Open([string]$File,[string]$Arguments){
+    try{
+        $appDir=Join-Path $InstallRoot 'app'
+        $shell=New-Object -ComObject Shell.Application
+        $shell.ShellExecute($File,$Arguments,$appDir,'open',1)
+        return $true
+    }catch{Log ('shell launch exception: '+$_.Exception.Message);return $false}
+}
+Log ('relay started; waiting for updater host pid '+$ParentPid)
+for($i=0;$i -lt 200;$i++){
+    if(-not (Get-Process -Id $ParentPid -ErrorAction SilentlyContinue)){break}
+    Start-Sleep -Milliseconds 100
+}
+Start-Sleep -Milliseconds 500
+if(Controller-Running){
+    Log 'controller already running after updater host exit'
+    try{Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force}catch{}
+    exit 0
+}
+$appDir=Join-Path $InstallRoot 'app'
+$controller=Join-Path $appDir 'YomiControllerWpf.exe'
+$launcher=Join-Path $appDir 'YomiLauncher.exe'
+if(Test-Path -LiteralPath $controller -PathType Leaf){
+    Log 'shell-broker direct controller launch'
+    [void](Shell-Open $controller '')
+    Start-Sleep -Milliseconds 3000
+}
+if(-not (Controller-Running) -and (Test-Path -LiteralPath $launcher -PathType Leaf)){
+    Log 'direct launch did not stay up; shell-broker launcher fallback'
+    [void](Shell-Open $launcher 'controller')
+    Start-Sleep -Milliseconds 3500
+}
+if(-not (Controller-Running) -and (Test-Path -LiteralPath $controller -PathType Leaf)){
+    Log 'launcher fallback did not stay up; final direct retry'
+    [void](Shell-Open $controller '')
+    Start-Sleep -Milliseconds 3500
+}
+if(Controller-Running){Log 'restart verified after updater host exit'}else{Log 'restart failed after detached relay attempts'}
+try{Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force}catch{}
+'@
+        Set-Content -LiteralPath $relayPath -Value $relayScript -Encoding UTF8
+        $script:restartRelayPath=$relayPath
+        $args='-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "'+$relayPath+'" -ParentPid '+$PID+' -InstallRoot "'+$InstallRoot+'" -RestartLog "'+$restartLog+'"'
+        $shell=New-Object -ComObject Shell.Application
+        $shell.ShellExecute($powershell,$args,$env:TEMP,'open',0)
+        Write-RestartLog ('detached shell relay queued: '+$relayPath)
+        return $true
+    }catch{
+        Write-RestartLog ('could not queue detached shell relay: '+$_.Exception.Message)
+        try{if($relayPath -and (Test-Path -LiteralPath $relayPath)){Remove-Item -LiteralPath $relayPath -Force}}catch{}
+        return $false
+    }
 }
 function Relaunch-Yomi {
     try{
@@ -167,12 +246,13 @@ function Finish-Host([int]$Code){
         $restartTimer.Interval=[TimeSpan]::FromMilliseconds(1000)
         $restartTimer.Add_Tick({
             $restartTimer.Stop()
-            if(Relaunch-Yomi){
+            if(Queue-DetachedRelaunch){
                 $script:restartPending=$false
+                Write-RestartLog 'closing updater host; relay will launch YOMI after this process exits'
                 $window.Close()
             }else{
                 $script:restartPending=$true
-                Set-Progress 100 'Update installed, but YOMI did not reopen automatically.'
+                Set-Progress 100 'Update installed, but the restart handoff could not be started.'
                 $percentText.Text='Installed'
                 $doneButton.Content='Open YOMI'
                 $doneButton.Visibility='Visible'
@@ -253,8 +333,8 @@ $doneButton.Add_Click({
     if(-not $started){Start-YomiPublicUpdate}
     elseif(-not $running){
         if($restartPending){
-            if(Relaunch-Yomi){$script:restartPending=$false;$window.Close()}
-            else{Set-Progress 100 'YOMI still could not be opened automatically.';$percentText.Text='Installed'}
+            if(Queue-DetachedRelaunch){$script:restartPending=$false;$window.Close()}
+            else{Set-Progress 100 'YOMI still could not start the restart handoff.';$percentText.Text='Installed'}
         }else{$window.Close()}
     }
 })
