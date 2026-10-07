@@ -17,7 +17,7 @@
   "media_size_preset": "Medium",
   "media_width": 160,
   "media_height": 90,
-  "media_aspect_layout": "Fixed",
+  "media_aspect_layout": "Reflow",
   "obs_media_scaling": "Smooth",
   "overlay_width": 2560,
   "overlay_height": 90,
@@ -42,7 +42,7 @@
   "text_color": "#F2F0E8",
   "text_outline": 6,
   "outline_color": "#151515",
-  "text_opacity": 1.0,
+  "text_opacity": 1,
   "text_alignment": "Auto",
   "title_channel_spacing": "Normal",
   "text_glow": false,
@@ -57,7 +57,7 @@
   "visualizer_internal_height": 10,
   "visualizer_opacity": 0.3,
   "visualizer_activity": "Active",
-  "visualizer_length_multiplier": 4.0,
+  "visualizer_length_multiplier": 4,
   "visualizer_color_mode": "Solid",
   "visualizer_solid_color": "#8A8A84",
   "visualizer_gradient_preset": "Sunset",
@@ -268,5 +268,6 @@
   "recovery_policy": "Validated resume",
   "update_deployment_policy": "Verified rollback",
   "source_demand_policy": "Configured modules",
-  "server_port": 8876
+  "server_port": 8876,
+  "visualizer_pixel_size": "Extra Chunky"
 }
