@@ -127,6 +127,26 @@ function Test-YomiControllerRunning {
 function Queue-DetachedRelaunch {
     try{
         if(Test-YomiControllerRunning){Write-RestartLog 'controller already running before relay';return $true}
+
+        # Preferred path: a compiled helper survives updater teardown without relying on a
+        # temporary PowerShell script or ShellExecute successfully starting another PowerShell.
+        $compiledRelay=Join-Path $InstallRoot 'app\YomiRestartRelay.exe'
+        if(Test-Path -LiteralPath $compiledRelay -PathType Leaf){
+            $relayArgs=$PID.ToString()+' "'+$InstallRoot+'" "'+$restartLog+'"'
+            $psi=New-Object Diagnostics.ProcessStartInfo
+            $psi.FileName=$compiledRelay
+            $psi.Arguments=$relayArgs
+            $psi.WorkingDirectory=(Join-Path $InstallRoot 'app')
+            $psi.UseShellExecute=$false
+            $psi.CreateNoWindow=$true
+            $relayProcess=[Diagnostics.Process]::Start($psi)
+            if($relayProcess){
+                Write-RestartLog ('compiled restart relay queued pid '+$relayProcess.Id)
+                return $true
+            }
+        }
+
+        # Compatibility fallback for pre-relay installations.
         $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $relayName='YOMI-restart-'+([Guid]::NewGuid().ToString('N'))+'.ps1'
         $relayPath=Join-Path $env:TEMP $relayName
