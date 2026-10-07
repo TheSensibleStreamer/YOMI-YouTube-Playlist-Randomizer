@@ -1,0 +1,109 @@
+name: Publish YOMI 420.69.9008
+on:
+  push:
+    paths:
+      - "release/420.69.9008.trigger"
+permissions:
+  contents: write
+
+jobs:
+  validate-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate controller, updater, and installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($script in @('installer/install.ps1','payload/app/update.ps1','payload/app/YomiPublicUpdateHost.ps1')){
+            $tokens=$null;$errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script),[ref]$tokens,[ref]$errors)
+            if($errors.Count){throw ($script+' parse failed: '+$errors[0].Message)}
+          }
+
+          function Resolve-FrameworkReferencePath([string]$Name) {
+            $loaded=[AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq $Name -and $_.Location } | Select-Object -First 1
+            if($loaded){ return [string]$loaded.Location }
+            $dirs=@()
+            try { $runtimeDir=[Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory(); if($runtimeDir){$dirs+=$runtimeDir;$dirs+=(Join-Path $runtimeDir 'WPF')} } catch {}
+            foreach($frameworkRoot in @((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319'))){$dirs+=$frameworkRoot;$dirs+=(Join-Path $frameworkRoot 'WPF')}
+            $pf86=[Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+            if($pf86){$refRoot=Join-Path $pf86 'Reference Assemblies\Microsoft\Framework\.NETFramework';if(Test-Path $refRoot){foreach($v in @(Get-ChildItem $refRoot -Directory -ErrorAction SilentlyContinue|Where-Object{$_.Name -like 'v4*'}|Sort-Object Name -Descending)){$dirs+=$v.FullName;$dirs+=(Join-Path $v.FullName 'Facades')}}}
+            foreach($dir in @($dirs|Where-Object{$_}|Select-Object -Unique)){$candidate=Join-Path $dir ($Name+'.dll');if(Test-Path $candidate){return $candidate}}
+            throw ('Missing framework reference: '+$Name)
+          }
+          $csc=@((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe')) | Where-Object {Test-Path $_} | Select-Object -First 1
+          if(-not $csc){throw 'csc.exe not found'}
+          $app=(Resolve-Path 'payload/app').Path
+          $src=Join-Path $app 'YomiControllerWpf.cs'
+          $manifest=Join-Path $app 'YomiControllerWpf.manifest'
+          $out=Join-Path $env:RUNNER_TEMP 'YomiControllerWpf.exe'
+          $refs=@('PresentationFramework','PresentationCore','WindowsBase','System.Xaml','WindowsFormsIntegration','System.Windows.Forms','System.Drawing','System.Web.Extensions','System.Xml','System','System.Core')
+          $args=@('/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',('/win32manifest:"'+$manifest+'"'),('/out:"'+$out+'"'))
+          foreach($refName in $refs){$args+=('/reference:"'+(Resolve-FrameworkReferencePath $refName)+'"')}
+          $args+=('"'+$src+'"')
+          $compile=& $csc @args 2>&1
+          if($LASTEXITCODE -ne 0){throw ('Controller compile failed: '+($compile -join [Environment]::NewLine))}
+          if(-not(Test-Path $out)){throw 'Controller compile produced no executable'}
+
+          $controller=Get-Content $src -Raw
+          foreach($required in @('queue_listening_session_id','playback_subset_restore_token','RestoreQueuePlaybackSubsetIfNeeded(Dictionary<string, object> queueState)','schema", 51')){
+            if(-not $controller.Contains($required)){throw ('Filtered-session acknowledgement missing: '+$required)}
+          }
+          $host=Get-Content (Resolve-Path 'payload/app/YomiPublicUpdateHost.ps1') -Raw
+          foreach($required in @('Height="212"','$displayProgress=0.0',"$script:lastState -eq 'installing'")){
+            if(-not $host.Contains($required)){throw ('Updater polish missing: '+$required)}
+          }
+          $installer=Get-Content (Resolve-Path 'installer/install.ps1') -Raw
+          foreach($required in @('function Set-InstallBuildProgress',"Set-InstallBuildProgress 88 'Compiling main YOMI controller...'","Set-InstallBuildProgress 92 'Checking runtime scripts...'")){
+            if(-not $installer.Contains($required)){throw ('Granular install progress missing: '+$required)}
+          }
+
+  publish:
+    needs: validate-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Parse playback Lua
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet luaparser
+          python - <<'PY'
+          from pathlib import Path
+          from luaparser import ast
+          ast.parse(Path("payload/app/music.lua").read_text(encoding="utf-8"))
+          print("music.lua parse PASS")
+          PY
+      - name: Build verified package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .release-work
+          mkdir .release-work
+          cp -a payload .release-work/payload
+          cp -a installer .release-work/installer
+          cp "INSTALL YOMI.cmd" ".release-work/INSTALL YOMI.cmd"
+          python release/420.69.9008/build.py .release-work YOMI-Windows.zip | tee /tmp/yomi-420699008-build.json
+          cp YOMI-Windows.zip YOMI-v420.69.9008.zip
+          python -c 'import hashlib,json,pathlib; p=pathlib.Path("YOMI-v420.69.9008.zip"); h=hashlib.sha256(p.read_bytes()).hexdigest(); r=json.loads(pathlib.Path("/tmp/yomi-420699008-build.json").read_text()); assert r["sha256"]==h and r["version"]=="420.69.9008"; d={"product":"YOMI - YouTube OBS Music Interface","version":"420.69.9008","package_name":"YOMI-v420.69.9008.zip","package_url":"https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-v420.69.9008.zip","sha256":h,"summary":"","changelog_url":"https://github.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer","update_compatibility":"one-hop-latest"}; pathlib.Path("update.json").write_text(json.dumps(d,indent=2),encoding="utf-8")'
+          rm -rf payload installer
+          cp -a .release-work/payload payload
+          cp -a .release-work/installer installer
+          cp ".release-work/INSTALL YOMI.cmd" "INSTALL YOMI.cmd"
+          rm -rf .release-work
+          python -c 'from pathlib import Path; p=Path("README.md"); t=p.read_text(encoding="utf-8").replace("Current version: 420.69.9007","Current version: 420.69.9008").replace("YOMI-v420.69.9007.zip","YOMI-v420.69.9008.zip"); p.write_text(t,encoding="utf-8")'
+      - name: Publish clean root
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf release/420.69.9008
+          rm -f release/420.69.9008.trigger
+          rm -f .github/workflows/publish-420699008.yml
+          git add -A
+          git commit -m "Publish YOMI 420.69.9008"
+          git push origin HEAD:main
