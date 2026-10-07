@@ -498,13 +498,20 @@ try {
     if (Test-Path $launcherExe) { Remove-Item $launcherExe -Force }
 
     $launcherIcon = Join-Path $appStage 'yomi.ico'
-    Add-Type `
-        -TypeDefinition $launcherSource `
-        -Language CSharp `
-        -OutputAssembly $launcherExe `
-        -OutputType WindowsApplication `
-        -CompilerOptions ('/win32icon:"' + $launcherIcon + '"')
-
+    $launcherSourcePath = Join-Path $appStage 'YomiLauncher.cs'
+    $launcherCsc = @(
+        (Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),
+        (Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if(-not $launcherCsc){ throw '.NET Framework C# compiler (csc.exe) was not found.' }
+    $launcherArgs=@(
+        '/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',
+        ('/win32icon:"'+$launcherIcon+'"'),
+        ('/out:"'+$launcherExe+'"'),
+        ('"'+$launcherSourcePath+'"')
+    )
+    $launcherOutput=& $launcherCsc @launcherArgs 2>&1
+    if($LASTEXITCODE -ne 0){throw ("YOMI launcher compile failed:`r`n"+($launcherOutput -join "`r`n"))}
     if (-not (Test-Path $launcherExe)) { throw 'YomiLauncher.exe failed to compile.' }
 
     Write-Host '      Compiling restart relay...' -ForegroundColor DarkCyan
