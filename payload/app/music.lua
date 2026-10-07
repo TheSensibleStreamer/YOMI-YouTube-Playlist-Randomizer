@@ -2680,6 +2680,17 @@ safe_register_script_message("yomi-playback-subset",function(raw,label)
     write_queue_runtime()
 end)
 
+safe_register_script_message("yomi-playback-subset-restore",function(raw,label)
+    local ok,changed=ensure_playback_subset(raw,label)
+    if not ok then return end
+    local active_occ=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    local restored=tonumber(playback_subset_position[active_occ]) or 0
+    if restored>0 then playback_subset_cursor=restored end
+    log("PLAYBACK SUBSET RESTORE count="..tostring(#playback_subset).." label="..playback_subset_label.." current="..tostring(active_occ).." cursor="..tostring(playback_subset_cursor))
+    if changed then replan_cache_horizon("playback-subset-restore") end
+    write_queue_runtime()
+end)
+
 safe_register_script_message("yomi-playback-subset-step",function(raw,label,raw_step)
     local ok,changed=ensure_playback_subset(raw,label)
     if not ok then return end
