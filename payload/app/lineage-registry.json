@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "product": "YOMI",
-  "version": "420.69.9008",
+  "version": "420.69.9009",
   "consolidation": "DEV13.59",
   "law": "No gaps: every known development step is runtime-carried, explicitly superseded with behavioral preservation, or retained as named historical evidence.",
   "ranges": [
