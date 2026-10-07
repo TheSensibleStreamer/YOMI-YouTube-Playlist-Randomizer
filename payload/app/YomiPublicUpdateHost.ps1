@@ -252,32 +252,22 @@ function Finish-Host([int]$Code){
         }catch{}
         $titleText.Text='YOMI  '+$installed+'   Installed'
         $versionText.Text='YOMI '+$installed+' is installed.'
-        Set-Progress 100 'Update installed and verified. Opening YOMI...'
+        Set-Progress 100 'Update installed and verified. Restarting YOMI...'
         $percentText.Text='Installed and verified'
         $doneButton.Visibility='Collapsed'
         $closeButton.IsEnabled=$false
-        $restartTimer=New-Object Windows.Threading.DispatcherTimer
-        $restartTimer.Interval=[TimeSpan]::FromMilliseconds(500)
-        $restartTimer.Add_Tick({
-            $restartTimer.Stop()
-            if(Test-YomiControllerRunning){
-                $script:restartPending=$false
-                Write-RestartLog 'verified updater process reopened YOMI; closing updater host'
-                $window.Close()
-            }elseif(Relaunch-Yomi){
-                $script:restartPending=$false
-                Write-RestartLog 'updater host fallback reopened YOMI; closing updater host'
-                $window.Close()
-            }else{
-                $script:restartPending=$true
-                Set-Progress 100 ('YOMI '+$installed+' is installed, but it did not reopen automatically.')
-                $percentText.Text='Installed'
-                $doneButton.Content='Open YOMI'
-                $doneButton.Visibility='Visible'
-                $closeButton.IsEnabled=$true
-            }
-        })
-        $restartTimer.Start()
+        if(Queue-DetachedRelaunch){
+            $script:restartPending=$false
+            Write-RestartLog 'detached restart relay owns the single post-update relaunch'
+            $window.Close()
+        }else{
+            $script:restartPending=$true
+            Set-Progress 100 ('YOMI '+$installed+' is installed, but the restart handoff could not be queued.')
+            $percentText.Text='Installed'
+            $doneButton.Content='Open YOMI'
+            $doneButton.Visibility='Visible'
+            $closeButton.IsEnabled=$true
+        }
     }
     elseif($Code -eq 4){
         Set-Progress 100 'The update failed verification. The last working YOMI installation was restored.'
