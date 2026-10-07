@@ -57,7 +57,8 @@ for required in [
     "installer queued compiled restart relay pid",
     "YomiRestartRelay.exe",
     "YomiRestartRelay.cs",
-    "CompilerOptions ('/win32icon:",
+    "'/win32icon:\"'+$launcherIcon+'\"'",
+    "$launcherOutput=& $launcherCsc @launcherArgs",
     "$mainIconLocation = $guiLauncher + ',0'",
     "ie4uinit.exe",
 ]:
