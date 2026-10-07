@@ -18456,6 +18456,17 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             return Math.Max(0.20, Math.Min(5.0, aspect));
         }
 
+        private bool MediaAspectReflowEnabled()
+        {
+            try
+            {
+                Dictionary<string, object> config = ReadJsonCached(Path.Combine(_dataRoot, "config.json"));
+                if (config.Count == 0) config = ReadJsonCached(Path.Combine(_appDir, "default-config.json"));
+                return String.Equals(GetString(config, "media_aspect_layout", "Fixed"), "Reflow", StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
         private void CommitVideoPresentation(string path, string generation, int occurrence, double aspect)
         {
             if (!VideoRequestMatches(path, generation, occurrence)) return;
@@ -20519,6 +20530,14 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             }
             if (!reserveArt && !reserveVideo) mediaWidth = 0;
             ApplyVideoPresentationGeometry(reserveArt, reserveVideo, videoInRack, reserveVideo ? cellWidth : 0, drawableHeight);
+            // Fixed preserves the configured 16:9 reservation and centers narrower video inside it.
+            // Reflow collapses unused horizontal reservation so the video and following text move left.
+            if (MediaAspectReflowEnabled() && reserveVideo && !verticalPair && _videoPresentationFrame != null && _videoPresentationFrame.Width > 0)
+            {
+                double reflowVideoWidth = Math.Max(1.0, Math.Min(cellWidth, _videoPresentationFrame.Width));
+                _videoColumn.Width = new GridLength(reflowVideoWidth);
+                mediaWidth = (reserveArt ? cellWidth : 0) + reflowVideoWidth + borderHorizontal;
+            }
             bool videoFillsCell = reserveVideo && Math.Abs(NormalizeVideoAspect(_videoPresentedAspect) - (16.0 / 9.0)) < 0.02;
             bool sharedSideSeam = pair && !verticalPair && videoFillsCell;
             if (_artworkPane != null)
