@@ -141,8 +141,20 @@ function Set-InstallStage {
     Write-Host ''
     Write-Host $line -ForegroundColor Cyan
     if ($UpdateMode) {
-        $pct = 60 + [Math]::Floor((32.0 * $Number) / [Math]::Max(1,$Total))
-        Write-InstallUpdateStatus $pct 'installing' ('Installing YOMI: ' + $Text)
+        # Installation is not time-linear. Building/compiling the staged program is the
+        # slowest section, so reserve a much larger slice of the visible progress bar for it.
+        $stagePct = switch ($Number) {
+            1 { 62 }
+            2 { 65 }
+            3 { 69 }
+            4 { 73 }
+            5 { 77 }
+            6 { 80 }
+            7 { 93 }
+            8 { 97 }
+            default { 60 + [Math]::Floor((37.0 * $Number) / [Math]::Max(1,$Total)) }
+        }
+        Write-InstallUpdateStatus $stagePct 'installing' ('Installing YOMI: ' + $Text)
     }
 
     try {
@@ -151,6 +163,11 @@ function Set-InstallStage {
             -Encoding ASCII
     }
     catch {}
+}
+
+function Set-InstallBuildProgress([int]$Percent,[string]$Text) {
+    if (-not $UpdateMode) { return }
+    Write-InstallUpdateStatus $Percent 'installing' ('Building YOMI: ' + $Text)
 }
 
 function Download-FileWithProgress {
@@ -425,6 +442,7 @@ try {
     # ------------------------------------------------------------
 
     Set-InstallStage 6 8 'Extracting and building the program...'
+    Set-InstallBuildProgress 80 'Preparing program files...'
 
     $stage = Join-Path $tempRoot 'install-stage'
     $appStage = Join-Path $stage 'app'
@@ -446,6 +464,7 @@ try {
     Copy-Item (Join-Path $payload 'VERSION.txt') (Join-Path $stage 'VERSION.txt') -Force
     Copy-Item (Join-Path $payload 'Uninstall YOMI.cmd') (Join-Path $stage 'Uninstall YOMI.cmd') -Force
 
+    Set-InstallBuildProgress 81 'Extracting mpv runtime...'
     Write-Host '      Extracting mpv...' -ForegroundColor DarkCyan
     $mpvExtract = Join-Path $tempRoot 'mpv-extract'
     Expand-Archive -Path $mpvZip -DestinationPath $mpvExtract -Force
@@ -463,6 +482,7 @@ try {
     ) -ForegroundColor DarkGray
 
     if ($installFfmpeg) {
+        Set-InstallBuildProgress 83 'Extracting FFmpeg Media Tools...'
         Write-Host '      Extracting FFmpeg Media Tools...' -ForegroundColor DarkCyan
         $ffmpegExtract = Join-Path $tempRoot 'ffmpeg-extract'
         Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
@@ -473,6 +493,7 @@ try {
         Copy-Item $ffprobeFound.FullName (Join-Path $ffmpegStage 'ffprobe.exe') -Force
     }
     if ($installDeno) {
+        Set-InstallBuildProgress 84 'Extracting Deno...'
         Write-Host '      Extracting Deno...' -ForegroundColor DarkCyan
         $denoExtract = Join-Path $tempRoot 'deno-extract'
         Expand-Archive -Path $denoZip -DestinationPath $denoExtract -Force
@@ -489,6 +510,7 @@ try {
     # spawning a PowerShell process for every FFmpeg / yt-dlp job.
     # ------------------------------------------------------------
 
+    Set-InstallBuildProgress 85 'Compiling process helper...'
     Write-Host '      Compiling low-priority process runner...' -ForegroundColor DarkCyan
     $prioritySource = Get-Content (Join-Path $appStage 'PriorityRun.cs') -Raw
     $priorityExe = Join-Path $appStage 'PriorityRun.exe'
@@ -502,6 +524,7 @@ try {
 
     if (-not (Test-Path $priorityExe)) { throw 'PriorityRun.exe failed to compile.' }
 
+    Set-InstallBuildProgress 86 'Compiling Smart Crop detector...'
     Write-Host '      Compiling smart artwork edge detector...' -ForegroundColor DarkCyan
     $detectorSource = Get-Content (Join-Path $appStage 'ArtworkEdgeDetector.cs') -Raw
     $detectorExe = Join-Path $appStage 'ArtworkEdgeDetector.exe'
@@ -517,6 +540,7 @@ try {
     if (-not (Test-Path $detectorExe)) { throw 'ArtworkEdgeDetector.exe failed to compile.' }
 
 
+    Set-InstallBuildProgress 87 'Compiling YOMI launcher...'
     Write-Host '      Compiling console-free YOMI GUI launcher...' -ForegroundColor DarkCyan
     $launcherSource = Get-Content (Join-Path $appStage 'YomiLauncher.cs') -Raw
     $launcherExe = Join-Path $appStage 'YomiLauncher.exe'
@@ -530,6 +554,7 @@ try {
 
     if (-not (Test-Path $launcherExe)) { throw 'YomiLauncher.exe failed to compile.' }
 
+    Set-InstallBuildProgress 88 'Compiling main YOMI controller...'
     Write-Host '      Compiling native YOMI controller...' -ForegroundColor DarkCyan
     function Resolve-Csc {
         foreach($candidate in @(
@@ -561,6 +586,7 @@ try {
     if($LASTEXITCODE -ne 0){throw ("YOMI controller compile failed:`r`n"+($controllerOutput -join "`r`n"))}
     if(-not(Test-Path $controllerExe)){throw 'YomiControllerWpf.exe failed to compile.'}
 
+    Set-InstallBuildProgress 91 'Compiling OBS server...'
     Write-Host '      Compiling OBS server host...' -ForegroundColor DarkCyan
     $obsSource=Join-Path $appStage 'YomiObsServerHost.cs'
     $obsExe=Join-Path $appStage 'YomiObsServer.exe'
@@ -572,6 +598,7 @@ try {
     # Source is useful for transparency but not needed at runtime.
     # Keep it in the installation so advanced users can inspect it.
 
+    Set-InstallBuildProgress 92 'Checking runtime scripts...'
     Write-Host '      Checking runtime scripts...' -ForegroundColor DarkCyan
 
     # Parse every PowerShell runtime file before anything is installed.
