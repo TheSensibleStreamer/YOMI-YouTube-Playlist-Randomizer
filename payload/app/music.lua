@@ -271,12 +271,20 @@ local function visualizer_fps()
 end
 
 function visualizer_render_dimensions()
-    local raw_w=tonumber(cfg.visualizer_internal_width) or 180
-    local raw_h=tonumber(cfg.visualizer_internal_height) or 36
-    -- Legacy tiny analysis rasters migrate automatically. Manual length controls
-    -- presentation aspect separately and no longer multiplies decode bandwidth.
-    local w=(raw_w>=300 and 340) or (raw_w>=220 and 260) or (raw_w>=130 and 180) or 96
-    local h=(raw_h>=56 and 64) or (raw_h>=42 and 48) or (raw_h>=30 and 36) or 24
+    local raw_w=tonumber(cfg.visualizer_internal_width) or 40
+    local raw_h=tonumber(cfg.visualizer_internal_height) or 10
+    local preset=tostring(cfg.visualizer_pixel_size or "")
+    if preset=="" then
+        -- Drifted builds stored much denser rasters for the same four labels.
+        if raw_w>=300 or raw_h>=56 then preset="Extra Fine"
+        elseif raw_w>=220 or raw_h>=42 then preset="Fine"
+        elseif raw_w>=130 or raw_h>=30 then preset="Chunky"
+        else preset="Extra Chunky" end
+    end
+    local w,h=40,10
+    if preset=="Chunky" then w,h=64,16
+    elseif preset=="Fine" then w,h=96,24
+    elseif preset=="Extra Fine" then w,h=180,36 end
     if w%2==1 then w=w+1 end
     if h%2==1 then h=h+1 end
     return w,h
@@ -285,7 +293,7 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r6110619-crisp-pixel-context",
+        "r6110620-restored-pixel-density",
         tostring(visualizer_fps()),
         tostring(w),tostring(h),
         tostring(cfg.visualizer_activity or "Active"),
@@ -822,7 +830,7 @@ function active_prefetch_ahead()
     return prefetch_ahead
 end
 
-function next_subset_transport_occurrence(base,step)
+function next_subset_transport_occurrence(base,step,include_known_bad)
     if not playback_subset_active or #playback_subset==0 then return nil end
     local direction=(tonumber(step) or 1)>=0 and 1 or -1
     local pending_slot=tonumber(playback_subset_position[math.floor(tonumber(transport_pending_target) or 0)]) or 0
@@ -835,7 +843,7 @@ function next_subset_transport_occurrence(base,step)
         slot=next_slot
         if slot>#playback_subset then slot=1 elseif slot<1 then slot=#playback_subset end
         local candidate=playback_subset[slot]
-        if candidate and not known_bad(candidate) then playback_subset_cursor=slot;return candidate end
+        if candidate and (include_known_bad or not known_bad(candidate)) then playback_subset_cursor=slot;return candidate end
     end
     return nil
 end
@@ -1455,8 +1463,11 @@ end
 
 local function permanent_error(raw)
     local s=tostring(raw or ""):lower()
-    return s:find("video unavailable",1,true) or s:find("private video",1,true) or s:find("has been removed",1,true)
-        or s:find("account associated with this video has been terminated",1,true) or s:find("copyright",1,true)
+    return s:find("private video",1,true)
+        or s:find("has been removed",1,true)
+        or s:find("account associated with this video has been terminated",1,true)
+        or s:find("no longer available due to a copyright",1,true)
+        or s:find("blocked in your country",1,true)
 end
 
 local audio_failures={}
@@ -2483,11 +2494,12 @@ end
 local function advance(step)
     local direction=(tonumber(step) or 1)>=0 and 1 or -1
     local base=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
-    local n=playback_subset_active and next_subset_transport_occurrence(base,direction) or next_occurrence(base,direction)
+    local n=playback_subset_active and next_subset_transport_occurrence(base,direction,true) or next_occurrence(base,direction,true)
     if not n then
         log("TRANSPORT boundary "..(direction>0 and "next" or "previous").." from track "..tostring(base))
         return
     end
+    if known_bad(n) then explicit_audio_retry(n,"transport") end
     desired_index=n
     transport_pending_target=n
     transport_pending_attempts=0
