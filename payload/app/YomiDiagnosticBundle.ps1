@@ -38,6 +38,13 @@ $summary = @(
     ""
 )
 $summary | Out-File (Join-Path $out "00-summary.txt") -Encoding utf8
+# Include just helper presence, not private content or cookies.
+$helperPath = Join-Path $env:ProgramFiles 'YOMI\app\YomiMusicEndpointResolver.ps1'
+$mapPath = Join-Path $env:LOCALAPPDATA 'YOMI\state\music-endpoint-map.json'
+('Music replacement helper present: ' + [bool](Test-Path -LiteralPath $helperPath -PathType Leaf)) |
+    Out-File (Join-Path $out "00-summary.txt") -Append -Encoding utf8
+('Verified music endpoint map present: ' + [bool](Test-Path -LiteralPath $mapPath -PathType Leaf)) |
+    Out-File (Join-Path $out "00-summary.txt") -Append -Encoding utf8
 
 # Broad discovery roots. We intentionally do NOT assume one canonical YOMI layout.
 $roots = @()
