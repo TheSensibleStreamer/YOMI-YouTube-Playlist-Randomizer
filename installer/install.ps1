@@ -295,14 +295,15 @@ function Get-CachedDownload {
         [string]$Label,
 
         [hashtable]$Headers = @{},
-        [int]$MaxCacheAgeHours = 0
+        [int]$MaxCacheAgeHours = 0,
+        [int64]$MinimumBytes = 1048576
     )
 
     $cachedItem = $null
     if (Test-Path -LiteralPath $CacheFile -PathType Leaf) {
         $cachedItem = Get-Item -LiteralPath $CacheFile -ErrorAction SilentlyContinue
     }
-    $healthyCache = ($null -ne $cachedItem -and $cachedItem.Length -gt 1048576)
+    $healthyCache = ($null -ne $cachedItem -and $cachedItem.Length -gt $MinimumBytes)
     $cacheFresh = $healthyCache
     if ($cacheFresh -and $MaxCacheAgeHours -gt 0) {
         $ageHours = ([DateTime]::UtcNow - $cachedItem.LastWriteTimeUtc).TotalHours
@@ -323,7 +324,7 @@ function Get-CachedDownload {
             -Label $Label `
             -Headers $Headers
         $downloaded = Get-Item -LiteralPath $tempCache -ErrorAction Stop
-        if ($downloaded.Length -le 1048576) {
+        if ($downloaded.Length -le $MinimumBytes) {
             throw "$Label download is unexpectedly small."
         }
         Move-Item -LiteralPath $tempCache -Destination $CacheFile -Force
@@ -456,6 +457,26 @@ try {
         Get-CachedDownload -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -CacheFile (Join-Path $downloadCache 'deno-current.zip') -OutFile $denoZip -Label 'Downloading Deno' -Headers $headers
     } else { Write-Host '      Deno: skipped by profile' -ForegroundColor DarkGray }
 
+    # A third-party, bounded on-demand fallback for videos where default
+    # yt-dlp clients fail. It does NOT run a persistent server or require
+    # cookies. Failure to fetch it cannot block installing ordinary YOMI.
+    $potExe = Join-Path $tempRoot 'bgutil-pot.exe'
+    $potPluginZip = Join-Path $tempRoot 'bgutil-ytdlp-pot-provider.zip'
+    $potDownloadsReady = $false
+    try {
+        Get-CachedDownload `
+            -Uri 'https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-pot-windows-x86_64.exe' `
+            -CacheFile (Join-Path $downloadCache 'bgutil-pot-rs-v0.8.1-windows.exe') `
+            -OutFile $potExe -Label 'Downloading optional YouTube PO token recovery' -Headers $headers
+        Get-CachedDownload `
+            -Uri 'https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip' `
+            -CacheFile (Join-Path $downloadCache 'bgutil-pot-rs-v0.8.1-plugin.zip') `
+            -OutFile $potPluginZip -Label 'Downloading optional PO token plugin' -Headers $headers -MinimumBytes 512
+        $potDownloadsReady = $true
+    } catch {
+        Write-Warning ('PO token recovery download is unavailable; standard YOMI playback remains available: '+$_.Exception.Message)
+    }
+
     # ------------------------------------------------------------
     # Build clean Program Files tree in a staging directory first.
     # ------------------------------------------------------------
@@ -471,8 +492,9 @@ try {
     $ffmpegStage = Join-Path $runtimeStage 'ffmpeg'
     $ytdlpStage = Join-Path $runtimeStage 'yt-dlp'
     $denoStage = Join-Path $runtimeStage 'deno'
+    $potStage = Join-Path $runtimeStage 'pot'
 
-    foreach ($dir in @($appStage,$assetsStage,$mpvStage,$ffmpegStage,$ytdlpStage,$denoStage)) {
+    foreach ($dir in @($appStage,$assetsStage,$mpvStage,$ffmpegStage,$ytdlpStage,$denoStage,$potStage)) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
 
@@ -522,6 +544,28 @@ try {
     }
 
     Copy-Item $ytdlpExe (Join-Path $ytdlpStage 'yt-dlp.exe') -Force
+
+    if ($potDownloadsReady) {
+        try {
+            $providerExtract = Join-Path $tempRoot 'bgutil-pot-plugin-extract'
+            Expand-Archive -LiteralPath $potPluginZip -DestinationPath $providerExtract -Force -ErrorAction Stop
+            # The release ZIP can wrap yt_dlp_plugins inside a package folder.
+            $pluginRoot = Get-ChildItem -LiteralPath $providerExtract -Directory -Recurse |
+                Where-Object { $_.Name -eq 'yt_dlp_plugins' -and
+                    (Test-Path -LiteralPath (Join-Path $_.FullName 'extractor') -PathType Container) } |
+                Select-Object -First 1
+            if (-not $pluginRoot) { throw 'Provider archive lacks yt_dlp_plugins/extractor.' }
+            $pluginInstall = Join-Path $ytdlpStage 'yt-dlp-plugins\bgutil-rs'
+            New-Item -ItemType Directory -Path $pluginInstall -Force | Out-Null
+            Copy-Item -LiteralPath $pluginRoot.FullName -Destination (Join-Path $pluginInstall 'yt_dlp_plugins') -Recurse -Force -ErrorAction Stop
+            Copy-Item -LiteralPath $potExe -Destination (Join-Path $potStage 'bgutil-pot.exe') -Force -ErrorAction Stop
+            Write-Host '      Optional on-demand PO token recovery installed.' -ForegroundColor Green
+        } catch {
+            Remove-Item -LiteralPath (Join-Path $potStage 'bgutil-pot.exe') -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath (Join-Path $ytdlpStage 'yt-dlp-plugins') -Force -Recurse -ErrorAction SilentlyContinue
+            Write-Warning ('PO token provider setup failed; standard playback remains available: '+$_.Exception.Message)
+        }
+    }
 
     # ------------------------------------------------------------
     # Compile the tiny process-priority runner.
