@@ -34,11 +34,12 @@ function Invoke-QualificationSelfTest([string]$Exe,[string]$WorkingDirectory,[in
 if(-not(Test-Path -LiteralPath $ContractPath -PathType Leaf)){throw "Capability contract missing: $ContractPath"}
 $contract=Get-Content -LiteralPath $ContractPath -Raw -Encoding UTF8|ConvertFrom-Json
 if([string](Prop $contract 'product') -notlike 'YOMI*'){throw 'Capability contract product identity is invalid.'}
-if([string](Prop $contract 'version') -ne '4.2.0.8'){throw 'Capability contract version mismatch.'}
+$expectedVersion=[string](Prop $contract 'version')
+if($expectedVersion -notmatch '^\d+\.\d+\.\d+$'){throw 'Capability contract version is missing or invalid.'}
 if([string](Prop $contract 'qualification') -ne 'DEV13.59'){throw 'Capability contract qualification identity mismatch.'}
 
 $versionPath=Join-Path $Root 'VERSION.txt'
-if(Test-Path -LiteralPath $versionPath){$v=(Get-Content -LiteralPath $versionPath -Raw).Trim();if($v -eq '4.2.0.8'){Pass 'IDENTITY.VERSION' $v}else{Fail 'IDENTITY.VERSION' ("expected 4.2.0.8, found "+$v)}}else{Fail 'IDENTITY.VERSION' 'VERSION.txt missing'}
+if(Test-Path -LiteralPath $versionPath){$v=(Get-Content -LiteralPath $versionPath -Raw).Trim();if($v -eq $expectedVersion){Pass 'IDENTITY.VERSION' $v}else{Fail 'IDENTITY.VERSION' ("expected "+$expectedVersion+", found "+$v)}}else{Fail 'IDENTITY.VERSION' 'VERSION.txt missing'}
 
 foreach($relObj in @($contract.required_files)){
     $rel=[string]$relObj
@@ -176,7 +177,7 @@ $failures=@($results|Where-Object{$_.status -eq 'FAIL'})
 $passes=@($results|Where-Object{$_.status -eq 'PASS'})
 $status=if($failures.Count -eq 0){'PASS'}else{'FAIL'}
 $report=[ordered]@{
-    schema=1;product='YOMI';version='4.2.0.8';qualification='DEV13.59';mode=$Mode;status=$status;
+    schema=1;product='YOMI';version=$expectedVersion;qualification='DEV13.59';mode=$Mode;status=$status;
     generated_utc=[DateTime]::UtcNow.ToString('o');root=$Root;pass_count=$passes.Count;failure_count=$failures.Count;
     capability_count=@($contract.capabilities).Count;results=$results.ToArray()
 }
