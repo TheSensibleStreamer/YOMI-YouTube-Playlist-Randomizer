@@ -17,7 +17,7 @@ This can leave more power for games and OBS, helping keep FPS steady and streams
 ## How does it work?
 
 1. Add a YouTube playlist in YOMI.
-2. Press **Listen** to play songs in random order.
+2. Press **Play** to start the music. YOMI plays the songs in random order.
 3. To show music on your stream, open **Settings > OBS > Quick Setup** in YOMI and follow the steps.
 
 ## Download
