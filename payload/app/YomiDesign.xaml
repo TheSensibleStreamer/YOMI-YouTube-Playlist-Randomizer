@@ -1241,10 +1241,15 @@
                             SnapsToDevicePixels="True">
                         <Grid>
                             <ContentPresenter x:Name="ItemContent"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
                                               Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                               RecognizesAccessKey="True"
+                                              TextElement.FontFamily="{TemplateBinding FontFamily}"
+                                              TextElement.FontStretch="{TemplateBinding FontStretch}"
+                                              TextElement.FontWeight="{TemplateBinding FontWeight}"
                                               TextElement.Foreground="{TemplateBinding Foreground}"/>
                         </Grid>
                     </Border>
@@ -1263,6 +1268,23 @@
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A font row always uses its own typeface, independently of the
+         current ComboBox value and mouse-wheel selection changes. -->
+    <Style x:Key="SettingsFontComboItem" TargetType="ComboBoxItem" BasedOn="{StaticResource SettingsComboItem}">
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <TextBlock Text="{Binding}"
+                               FontFamily="{Binding FontFamily, RelativeSource={RelativeSource AncestorType={x:Type ComboBoxItem}}}"
+                               FontStretch="{Binding FontStretch, RelativeSource={RelativeSource AncestorType={x:Type ComboBoxItem}}}"
+                               FontWeight="{Binding FontWeight, RelativeSource={RelativeSource AncestorType={x:Type ComboBoxItem}}}"
+                               FontSize="15"
+                               TextTrimming="CharacterEllipsis"/>
+                </DataTemplate>
             </Setter.Value>
         </Setter>
     </Style>
@@ -1381,8 +1403,11 @@
                         </Popup>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <!-- Show clearly when wheel input changes this dropdown. -->
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource AccentBorder}"/>
+                            <Setter TargetName="ComboBorder" Property="BorderBrush" Value="{DynamicResource TextPrimary}"/>
+                            <Setter TargetName="ComboBorder" Property="BorderThickness" Value="2"/>
+                            <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource SurfaceHover}"/>
                         </Trigger>
                         <Trigger Property="IsDropDownOpen" Value="True">
                             <Setter TargetName="ComboBorder" Property="Background" Value="{DynamicResource Surface}"/>
