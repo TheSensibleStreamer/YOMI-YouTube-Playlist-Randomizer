@@ -1455,7 +1455,7 @@ function run_ffmpeg_media(args,timeout_seconds,expected_path,callback)
 end
 
 local function ytdlp_common()
-    local a={"--no-playlist","--quiet","--no-warnings","--cache-dir",ytdlp_cache_dir,"--socket-timeout","20","--retries","2","--fragment-retries","2"}
+    local a={"--no-playlist","--quiet","--no-warnings","--cache-dir",ytdlp_cache_dir,"--socket-timeout","8","--retries","0","--fragment-retries","0","--extractor-retries","0"}
     if deno_available then
         table.insert(a,"--js-runtimes");table.insert(a,"deno:"..deno)
     end
@@ -1706,8 +1706,17 @@ local function audio_job(job)
     table.insert(a,"--output");table.insert(a,template)
     table.insert(a,music_attempt and music_url or urls[i])
     log("AUDIO START track "..i.." attempt "..attempt_number.."/"..max_attempts.." site="..(music_attempt and "youtube-music" or "youtube").." client="..client_route)
-    run_bounded(cache_priority,ytdlp,a,75,false,function(success,result,error_text,timed_out)
+    -- This is already one of several alternative extractor routes. A long wall
+    -- timeout per route makes genuinely unreachable tracks appear to freeze YOMI.
+    -- Current-user requests get a short bound; background cache gets more room.
+    local route_deadline=(desired_index==i) and 30 or 50
+    run_bounded(cache_priority,ytdlp,a,route_deadline,false,function(success,result,error_text,timed_out)
         local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
+        if not (success and tonumber(result.status or -1)==0) then
+            log("AUDIO EXTRACT FAIL track "..i.." attempt="..attempt_number.." site="..
+                (music_attempt and "youtube-music" or "youtube").." route="..client_route..
+                " "..media_error_summary(result,error_text,timed_out))
+        end
         local media=nil
         for _,name in ipairs(utils.readdir(audio_dir,"files") or {}) do
             if name:sub(1,#prefix)==prefix and not name:match("%.info%.json$") then
@@ -1824,6 +1833,12 @@ start_fast_stream=function(i)
     end
 
     local function attempt()
+        if shutting_down or desired_index~=i then
+            stream_resolving[i]=nil
+            stream_resolve_started[i]=nil
+            log("STREAM ABANDON track "..i.." because navigation target changed")
+            return
+        end
         local mode=routes[route_pos] or "no-js"
         local use_js=(mode=="js" or mode=="music-js")
         local timeout_seconds=use_js and 8 or 4
@@ -1835,6 +1850,12 @@ start_fast_stream=function(i)
         log("STREAM ROUTE track "..i.." "..mode.." timeout "..timeout_seconds.."s")
         run_bounded(cache_priority,ytdlp,a,timeout_seconds,true,function(success,result,error_text,timed_out)
             if not stream_resolving[i] then return end
+            if shutting_down or desired_index~=i then
+                stream_resolving[i]=nil
+                stream_resolve_started[i]=nil
+                log("STREAM ABANDON result track "..i.." because navigation target changed")
+                return
+            end
             local raw=tostring(result.stdout or "")
             local direct=raw:match("([^\r\n]+)") or ""
             direct=direct:match("^%s*(.-)%s*$") or ""
