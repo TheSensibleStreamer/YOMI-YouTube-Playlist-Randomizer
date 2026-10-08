@@ -1792,6 +1792,15 @@ start_fast_stream=function(i)
     i=math.floor(tonumber(i) or 0)
     if i<1 or i>#urls or known_bad(i) then return end
     if audio_ready(i) then play_index(i);return end
+    -- When a prefetched song already exhausted every extraction route,
+    -- beginning four more overlapping direct-stream probes is redundant.
+    -- A manual Play/Listen explicitly clears this marker, so user intent
+    -- always gets a fresh attempt. Normal auto-advance can move on promptly.
+    if audio_prefetch_backoff(i) then
+        log("STREAM PREFETCH EXHAUSTED track "..i.." skipping redundant direct-stream probes")
+        report_exhausted_audio(i,"Prefetch already exhausted the source; click Play to retry.")
+        return
+    end
     if stream_resolving[i] then return end
     stream_resolving[i]=true
     stream_resolve_started[i]=os.time()
