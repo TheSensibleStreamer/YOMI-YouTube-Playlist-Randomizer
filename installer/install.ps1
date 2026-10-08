@@ -294,35 +294,49 @@ function Get-CachedDownload {
         [Parameter(Mandatory=$true)]
         [string]$Label,
 
-        [hashtable]$Headers = @{}
+        [hashtable]$Headers = @{},
+        [int]$MaxCacheAgeHours = 0
     )
 
-    if (Test-Path $CacheFile) {
-        $item = Get-Item $CacheFile -ErrorAction SilentlyContinue
-
-        if ($item -and $item.Length -gt 1048576) {
-            Write-Host (
-                "      Using cached download: {0:N1} MB" -f ($item.Length / 1MB)
-            ) -ForegroundColor Green
-
-            Copy-Item $CacheFile $OutFile -Force
-            return
-        }
-
-        Remove-Item $CacheFile -Force -ErrorAction SilentlyContinue
+    $cachedItem = $null
+    if (Test-Path -LiteralPath $CacheFile -PathType Leaf) {
+        $cachedItem = Get-Item -LiteralPath $CacheFile -ErrorAction SilentlyContinue
+    }
+    $healthyCache = ($null -ne $cachedItem -and $cachedItem.Length -gt 1048576)
+    $cacheFresh = $healthyCache
+    if ($cacheFresh -and $MaxCacheAgeHours -gt 0) {
+        $ageHours = ([DateTime]::UtcNow - $cachedItem.LastWriteTimeUtc).TotalHours
+        $cacheFresh = ($ageHours -ge 0 -and $ageHours -le $MaxCacheAgeHours)
+    }
+    if ($cacheFresh) {
+        Write-Host ("      Using fresh cached download: {0:N1} MB" -f ($cachedItem.Length / 1MB)) -ForegroundColor Green
+        Copy-Item -LiteralPath $CacheFile -Destination $OutFile -Force
+        return
     }
 
     $tempCache = $CacheFile + '.downloading'
-    Remove-Item $tempCache -Force -ErrorAction SilentlyContinue
-
-    Download-FileWithProgress `
-        -Uri $Uri `
-        -OutFile $tempCache `
-        -Label $Label `
-        -Headers $Headers
-
-    Move-Item $tempCache $CacheFile -Force
-    Copy-Item $CacheFile $OutFile -Force
+    Remove-Item -LiteralPath $tempCache -Force -ErrorAction SilentlyContinue
+    try {
+        Download-FileWithProgress `
+            -Uri $Uri `
+            -OutFile $tempCache `
+            -Label $Label `
+            -Headers $Headers
+        $downloaded = Get-Item -LiteralPath $tempCache -ErrorAction Stop
+        if ($downloaded.Length -le 1048576) {
+            throw "$Label download is unexpectedly small."
+        }
+        Move-Item -LiteralPath $tempCache -Destination $CacheFile -Force
+        Copy-Item -LiteralPath $CacheFile -Destination $OutFile -Force
+    } catch {
+        Remove-Item -LiteralPath $tempCache -Force -ErrorAction SilentlyContinue
+        if ($healthyCache) {
+            Write-Warning ("Unable to refresh $Label; retaining the previous valid cached executable: " + $_.Exception.Message)
+            Copy-Item -LiteralPath $CacheFile -Destination $OutFile -Force
+        } else {
+            throw
+        }
+    }
 }
 
 try {
@@ -418,14 +432,19 @@ try {
         -Label 'Downloading mpv' `
         -Headers $headers
 
-    Set-InstallStage 4 8 'Downloading yt-dlp...'
+    # yt-dlp's stable build can lag behind fixes for YouTube player API changes.
+    # Nightly is yt-dlp's officially recommended channel for unresolved site failures.
+    # Refresh its binary at least daily instead of replaying the old executable on
+    # every YOMI update. Keep one known-good cache for network-outage recovery.
+    Set-InstallStage 4 8 'Downloading current yt-dlp nightly...'
     $ytdlpExe = Join-Path $tempRoot 'yt-dlp.exe'
     Get-CachedDownload `
-        -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' `
-        -CacheFile (Join-Path $downloadCache 'yt-dlp-current.exe') `
+        -Uri 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe' `
+        -CacheFile (Join-Path $downloadCache 'yt-dlp-nightly-current.exe') `
         -OutFile $ytdlpExe `
-        -Label 'Downloading yt-dlp' `
-        -Headers $headers
+        -Label 'Downloading yt-dlp nightly' `
+        -Headers $headers `
+        -MaxCacheAgeHours 24
 
     Set-InstallStage 5 8 'Downloading selected optional components...'
     $ffmpegZip = Join-Path $tempRoot 'ffmpeg.zip'
