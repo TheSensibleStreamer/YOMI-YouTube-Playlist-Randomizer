@@ -6605,6 +6605,45 @@ namespace Yomi.Desktop
             if(item!=null){ if(item.Foreground!=null) box.Foreground=item.Foreground; box.Effect=item.Effect; }
         }
 
+        // Display fonts stay in YOMI's private data folder, not the Windows font registry.
+        // Each name has a real local face for the Settings picker and the OBS overlay.
+        private static readonly KeyValuePair<string,string>[] ExtraOverlayFonts = new[]
+        {
+            new KeyValuePair<string,string>("Press Start 2P", "PressStart2P-Regular.ttf"),
+            new KeyValuePair<string,string>("Pixelify Sans", "PixelifySans-Variable.ttf"),
+            new KeyValuePair<string,string>("Audiowide", "Audiowide-Regular.ttf"),
+            new KeyValuePair<string,string>("Righteous", "Righteous-Regular.ttf"),
+            new KeyValuePair<string,string>("Black Ops One", "BlackOpsOne-Regular.ttf"),
+            new KeyValuePair<string,string>("Teko", "Teko-Variable.ttf"),
+            new KeyValuePair<string,string>("Barlow Condensed", "BarlowCondensed-Regular.ttf"),
+            new KeyValuePair<string,string>("IBM Plex Sans Condensed", "IBMPlexSansCondensed-Regular.ttf"),
+            new KeyValuePair<string,string>("UnifrakturCook", "UnifrakturCook-Bold.ttf"),
+            new KeyValuePair<string,string>("Great Vibes", "GreatVibes-Regular.ttf")
+        };
+
+        private string ExtraOverlayFontPath(string choice)
+        {
+            foreach (var pair in ExtraOverlayFonts)
+                if (String.Equals(pair.Key, choice, StringComparison.OrdinalIgnoreCase))
+                    return Path.Combine(_dataRoot, "fonts", pair.Value);
+            return null;
+        }
+
+        private FontFamily SettingsPreviewFont(string choice)
+        {
+            string path = ExtraOverlayFontPath(choice);
+            if (path != null && File.Exists(path))
+            {
+                try
+                {
+                    var directory = new Uri(Path.GetFullPath(Path.GetDirectoryName(path)) + Path.DirectorySeparatorChar, UriKind.Absolute);
+                    return new FontFamily(directory, "./#" + choice);
+                }
+                catch { }
+            }
+            return new FontFamily(PreviewFontFamilySource(choice));
+        }
+
         private static string PreviewFontFamilySource(string choice)
         {
             if (String.Equals(choice, "Bahnschrift Condensed", StringComparison.OrdinalIgnoreCase) ||
@@ -6625,7 +6664,7 @@ namespace Yomi.Desktop
             string choice = ComboText(_settingsTextFont, DefaultOverlayTextFont);
             try
             {
-                _settingsTextFont.FontFamily = new FontFamily(PreviewFontFamilySource(choice));
+                _settingsTextFont.FontFamily = SettingsPreviewFont(choice);
                 _settingsTextFont.FontStretch = PreviewFontStretch(choice);
             }
             catch
@@ -6647,6 +6686,7 @@ namespace Yomi.Desktop
             // filter deleted YOMI's own default from the picker on normal Windows installs.
             Func<string, bool> available = choice =>
                 installedSet.Contains(choice) ||
+                (ExtraOverlayFontPath(choice) != null && File.Exists(ExtraOverlayFontPath(choice))) ||
                 ((String.Equals(choice, "Bahnschrift Condensed", StringComparison.OrdinalIgnoreCase) ||
                   String.Equals(choice, "Bahnschrift SemiCondensed", StringComparison.OrdinalIgnoreCase)) && installedSet.Contains("Bahnschrift"));
 
@@ -6657,7 +6697,7 @@ namespace Yomi.Desktop
                 {
                     Content = choice,
                     Tag = choice,
-                    FontFamily = new FontFamily(PreviewFontFamilySource(choice)),
+                    FontFamily = SettingsPreviewFont(choice),
                     FontStretch = PreviewFontStretch(choice),
                     FontWeight = FontWeights.Normal
                 };
@@ -6673,7 +6713,7 @@ namespace Yomi.Desktop
                 "Barlow Condensed", "Oswald", "Franklin Gothic Medium", "Rockwell Condensed"
             })
             {
-                if (box.Items.Count >= 12) break;
+                if (box.Items.Count >= 8) break;
                 add(choice);
             }
 
@@ -6685,14 +6725,25 @@ namespace Yomi.Desktop
                 "Juice ITC", "Curlz MT", "Kristen ITC", "Segoe Script"
             })
             {
-                if (box.Items.Count - playfulBefore >= 7) break;
+                if (box.Items.Count - playfulBefore >= 5) break;
                 add(choice);
             }
+
+            // Two each: chunky pixels, retro display, bold, calm condensed, ornate.
+            // Each entry renders in its own font inside the open dropdown before selection.
+            foreach (string choice in new[]
+            {
+                "Press Start 2P", "Pixelify Sans",
+                "Audiowide", "Righteous",
+                "Black Ops One", "Teko",
+                "Barlow Condensed", "IBM Plex Sans Condensed",
+                "UnifrakturCook", "Great Vibes"
+            }) add(choice);
 
             // Pick up only a couple of useful compact fonts the user installed independently.
             foreach (string family in installed)
             {
-                if (box.Items.Count >= 18) break;
+                if (box.Items.Count >= 26) break;
                 if (family.IndexOf("Condensed", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     family.IndexOf("Narrow", StringComparison.OrdinalIgnoreCase) >= 0 ||
                     family.IndexOf("Compressed", StringComparison.OrdinalIgnoreCase) >= 0) add(family);
@@ -6886,7 +6937,21 @@ namespace Yomi.Desktop
         {
             ComboBox combo = sender as ComboBox;
             if (combo == null || _settingsPopulating || e.Delta == 0) return;
+            // The open dropdown owns its own wheel scrolling. Leave it alone.
             if (combo.IsDropDownOpen) return;
+            // A clicked/focused closed dropdown owns the wheel and changes its selected option.
+            // Simply hovering an unfocused dropdown must scroll the Settings page instead.
+            if (combo.IsKeyboardFocusWithin)
+            {
+                if (combo.Items.Count > 0)
+                {
+                    int current = combo.SelectedIndex < 0 ? 0 : combo.SelectedIndex;
+                    int step = e.Delta > 0 ? -1 : 1;
+                    combo.SelectedIndex = Math.Max(0, Math.Min(combo.Items.Count - 1, current + step));
+                }
+                e.Handled = true;
+                return;
+            }
             ScrollViewer page = FindVisualParent<ScrollViewer>(combo);
             if (page == null) return;
             e.Handled = true;
