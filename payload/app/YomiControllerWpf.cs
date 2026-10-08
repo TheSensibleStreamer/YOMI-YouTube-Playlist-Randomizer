@@ -21892,7 +21892,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             {
                 case "preparing": return "PREPARING";
                 case "starting": return "STARTING";
-                case "advancing": return "SKIPPING";
+                case "advancing": return "STARTING"; // Normal transition is not evidence of a skipped track.
                 case "complete": return "COMPLETE";
                 case "error": return "ATTENTION";
                 case "paused": return "PAUSED";
@@ -24850,7 +24850,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 if (ShouldShowPauseGlyph(true, true, true)) return SelfTestFail("SelfTestTransportFidelity assertion 3");
                 if (ShouldShowPauseGlyph(false, true, false)) return SelfTestFail("SelfTestTransportFidelity assertion 4");
                 if (ProductPlaybackPhase("preparing") != "PREPARING") return SelfTestFail("SelfTestTransportFidelity assertion 5");
-                if (ProductPlaybackPhase("advancing") != "SKIPPING") return SelfTestFail("SelfTestTransportFidelity assertion 6");
+                if (ProductPlaybackPhase("advancing") != "STARTING") return SelfTestFail("SelfTestTransportFidelity assertion 6");
                 if (ProductPlaybackPhase("complete") != "COMPLETE") return SelfTestFail("SelfTestTransportFidelity assertion 7");
                 if (ProductPlaybackPhase("error") != "ATTENTION") return SelfTestFail("SelfTestTransportFidelity assertion 8");
                 string idleSummary = BuildSystemActivitySummary(EmptyMap(), EmptyMap(), true, false, false);
