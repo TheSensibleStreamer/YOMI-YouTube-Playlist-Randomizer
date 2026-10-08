@@ -211,7 +211,7 @@ for required in [
         raise SystemExit("Controller full-artwork fallback gate missing: "+required)
 for required in [
     "ReadToEndAsync()",
-    "WaitForExit($limitMs)",
+    "function Finish-ProbeRoute(",
     "AVAILABLE_MUSIC",
     "EXTRACTOR_UNAVAILABLE",
     "'music'",
