@@ -1040,6 +1040,16 @@ public static class YomiShellIconRefresh {
         Set-ItemProperty -Path $commandKey -Name '(default)' -Value $command -Force
     } catch { Write-Host ('      Update package association skipped: '+$_.Exception.Message) -ForegroundColor DarkYellow }
 
+    # Optional, app-local OFL font pack. A failed font download must never fail YOMI installation.
+    # The player and OBS use the same private font files, without installing system fonts.
+    try {
+        $fontPackScript = Join-Path $installRoot 'app\YomiFontPack.ps1'
+        if (Test-Path -LiteralPath $fontPackScript -PathType Leaf) {
+            & $fontPackScript -DataRoot $dataRoot | Out-Host
+        }
+    }
+    catch { Write-Host ('      Optional font pack skipped: ' + $_.Exception.Message) -ForegroundColor DarkYellow }
+
     Set-InstallStage 8 8 'Final verification...'
 
     $required = @(
