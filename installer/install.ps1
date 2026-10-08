@@ -472,6 +472,16 @@ try {
             -Uri 'https://github.com/jim60105/bgutil-ytdlp-pot-provider-rs/releases/download/v0.8.1/bgutil-ytdlp-pot-provider-rs.zip' `
             -CacheFile (Join-Path $downloadCache 'bgutil-pot-rs-v0.8.1-plugin.zip') `
             -OutFile $potPluginZip -Label 'Downloading optional PO token plugin' -Headers $headers -MinimumBytes 512
+        # Pin immutable release artifacts to upstream's published asset SHA-256
+        # digests. A cached partial or altered binary is never installed.
+        $expectedPotExeSha = '25d6b05c79176aa792454c3d1727922ca47e56cf11cb1e866615d751819b14a0'
+        $expectedPotPluginSha = '99fd83b98fa93b193d6a3b69dc74410d76e7a2b889868c54d16121cac9060344'
+        if ((Get-FileHash -LiteralPath $potExe -Algorithm SHA256).Hash -ine $expectedPotExeSha) {
+            throw 'PO token CLI SHA-256 mismatch; refusing executable'
+        }
+        if ((Get-FileHash -LiteralPath $potPluginZip -Algorithm SHA256).Hash -ine $expectedPotPluginSha) {
+            throw 'PO token plugin SHA-256 mismatch; refusing plugin'
+        }
         $potDownloadsReady = $true
     } catch {
         Write-Warning ('PO token recovery download is unavailable; standard YOMI playback remains available: '+$_.Exception.Message)
