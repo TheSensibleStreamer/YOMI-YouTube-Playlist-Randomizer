@@ -125,6 +125,24 @@ try{
 }catch{Fail 'MUSIC.ENDPOINT_HELPER' $_.Exception.Message}
 
 try{
+    $fontScript=Join-Path $app 'YomiFontPack.ps1'
+    $wpfSource=Join-Path $app 'YomiControllerWpf.cs'
+    $obsSource=Join-Path $app 'YomiObsServerHost.cs'
+    if(-not(Test-Path -LiteralPath $fontScript) -or -not(Test-Path -LiteralPath $wpfSource) -or -not(Test-Path -LiteralPath $obsSource)){
+        Fail 'UI.FONT_AND_WHEEL' 'missing app font pack or controller/OBS sources'
+    }else{
+        $fontText=Get-Content -LiteralPath $fontScript -Raw -Encoding UTF8
+        $wpfText=Get-Content -LiteralPath $wpfSource -Raw -Encoding UTF8
+        $obsText=Get-Content -LiteralPath $obsSource -Raw -Encoding UTF8
+        $needed=@('Press Start 2P','Pixelify Sans','Audiowide','Righteous','Black Ops One','Teko','Barlow Condensed','IBM Plex Sans Condensed','UnifrakturCook','Great Vibes')
+        $missing=@($needed | Where-Object { -not $fontText.Contains($_) -or -not $wpfText.Contains($_) -or -not $obsText.Contains($_) })
+        if($missing.Count -ne 0 -or -not $wpfText.Contains('combo.IsKeyboardFocusWithin') -or -not $obsText.Contains('path.StartsWith("/fonts/"')){
+            Fail 'UI.FONT_AND_WHEEL' ('font previews, OBS font routes or focused wheel handling incomplete: ' + ($missing -join ','))
+        }else{Pass 'UI.FONT_AND_WHEEL' 'ten local font families, OBS font routes, and focus-only wheel choice'}
+    }
+}catch{Fail 'UI.FONT_AND_WHEEL' $_.Exception.Message}
+
+try{
     $exe=Join-Path $app 'YomiControllerWpf.exe'
     if(Test-Path -LiteralPath $exe){$probe=Invoke-QualificationSelfTest -Exe $exe -WorkingDirectory $app;if([int]$probe.exit -eq 0){Pass 'BUILD.WPF_SELF_TEST' 'exit 0'}elseif([string]::IsNullOrWhiteSpace([string]$probe.detail)){Fail 'BUILD.WPF_SELF_TEST' ('exit '+$probe.exit)}else{Fail 'BUILD.WPF_SELF_TEST' ('exit '+$probe.exit+' :: '+$probe.detail)}}else{Fail 'BUILD.WPF_SELF_TEST' 'controller executable missing'}
 }catch{Fail 'BUILD.WPF_SELF_TEST' $_.Exception.Message}
