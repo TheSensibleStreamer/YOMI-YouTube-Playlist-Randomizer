@@ -2,28 +2,24 @@
 
 **YouTube OBS Music Interface**
 
-A free, low-overhead Windows YouTube playlist randomizer and music player designed for OBS streamers.
+YOMI is a free Windows app for playing YouTube playlists in random order while you stream with OBS.
 
-## Why YOMI?
+It can show the song name, channel, picture, small video, and music bars on your stream.
 
-YOMI began as a replacement for playing YouTube music in a full browser window and capturing it in OBS, cropped almost entirely down to the song title. That setup could consume enough CPU and GPU resources to hurt game performance and interrupt a steady 60 FPS stream.
+## Why use YOMI?
 
-YOMI instead plays playlist audio through mpv and yt-dlp, without keeping a full YouTube player open. A single compact OBS Browser Source can show the song title, channel, artwork, optional small video, and visualizer. Lightweight playback and cached media can leave more resources for games and OBS, potentially improving frame rates and stream smoothness. Actual results depend on the system and settings.
+Playing YouTube in a web browser can slow down your game. YOMI uses a smaller music player instead. This can save computer power, help games run faster, and make streams smoother.
 
 ## Download
 
-[**DOWNLOAD YOMI FOR WINDOWS**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-Windows.zip)
+[**Download YOMI for Windows**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-Windows.zip)
 
-**Current version: 420.69.9024**
+**Version: 420.69.9024**
 
 ## Install
 
-1. Download the ZIP.
-2. Right-click it and choose **Extract All**.
-3. Open the extracted folder.
+1. Download the ZIP file.
+2. Right-click it. Choose **Extract All**.
+3. Open the new folder.
 4. Double-click **INSTALL YOMI.cmd**.
-5. Approve the Windows administrator prompt.
-
-Please extract the ZIP first so the installer can access all the files it needs.
-
-Once installation finishes, YOMI is ready to use.
+5. Click **Yes** if Windows asks for permission.
