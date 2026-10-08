@@ -9,16 +9,17 @@ param(
 # Anonymous resolution: original YouTube Music endpoint, then conservative official-song search.
 # No browser cookies, playlist writes, tokens, or credentials. Candidate must download before caching.
 $ErrorActionPreference = 'Stop'
+$script:FailureReasons = New-Object System.Collections.Generic.List[string]
 
 function Simple-Text([string]$Raw) {
     if(-not $Raw){return ''}
     $s = $Raw.ToLowerInvariant() -replace '[\u2010-\u2015]','-' -replace '&','and'
     $s = $s -replace '(?i)\s*\((official\s+(music\s+)?(audio|video)|lyrics?|visualizer|topic)\)\s*',' '
     $s = $s -replace '(?i)\s*\[(official\s+(music\s+)?(audio|video)|lyrics?|visualizer|topic)\]\s*',' '
-    return (($s -replace '[^a-z0-9 ]',' ' -replace '\s+',' ').Trim())
+    return (($s -replace '[^a-z0-9 ]',' ' -replace '\bov\b','of' -replace '\s+',' ').Trim())
 }
 function Fail-Reason([string]$Kind) {
-    Write-Output ('MUSIC_ENDPOINT_REASON=' + (($Kind -replace '[^a-zA-Z0-9_-]','').Substring(0,[Math]::Min(64,$Kind.Length))))
+    [void]$script:FailureReasons.Add([string]($Kind -replace '[^a-zA-Z0-9_-]',''))
 }
 function Try-Primary {
     try {
@@ -92,5 +93,8 @@ $candidate=Try-Search
 if($candidate -match '^[A-Za-z0-9_-]{11}$' -and $candidate -ne $VideoId){
     Write-Output ('MUSIC_ENDPOINT_ID=' + $candidate)
     exit 0
+}
+if($script:FailureReasons.Count -gt 0){
+    Write-Output ('MUSIC_ENDPOINT_REASON=' + [string]($script:FailureReasons[$script:FailureReasons.Count-1]))
 }
 exit 2
