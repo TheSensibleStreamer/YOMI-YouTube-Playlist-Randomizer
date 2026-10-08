@@ -6,11 +6,11 @@ YOMI is a free Windows app that plays YouTube playlists in random order. It is m
 
 ## What does it do?
 
-YOMI plays your music without keeping a full YouTube browser open. It can show the song name, channel, cover picture, small video, and moving music bars in OBS. You choose what to show.
+YOMI plays your music without keeping a full YouTube browser open. It can show the song name, channel, cover art, small video, and an audio spectrum visualizer in OBS. You choose what to show.
 
 ## Why use it?
 
-A web browser can use a lot of computer power, even when OBS shows only a small part of it. YOMI uses a smaller music player and saves songs so it does less work.
+A web browser can use a lot of computer power, even when OBS shows only a small part of it. YOMI uses lightweight audio playback instead of a full YouTube page. This can lower CPU and GPU use.
 
 This can leave more power for your game, help keep FPS steady, and make your stream smoother. Results depend on your PC.
 
