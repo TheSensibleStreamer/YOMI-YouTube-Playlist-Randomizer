@@ -140,5 +140,26 @@ jobs:
           )){if(-not $obsSource.Contains($need)){throw ('Missing shared-border/visualizer safeguard: '+$need)}}
           $music=Get-Content 'payload/app/music.lua' -Raw
           if(-not $music.Contains('MUSIC ENDPOINT REARM track ')){throw 'Manual failed-prefetch Music lookup cannot retry'}
+          foreach($needle in @(
+            "if(shareSeam){if(vertical)vid.style.marginTop=(-bp)+'px';else vid.style.marginLeft=(-bp)+'px';}",
+            'layoutMediaPair(false,vertical,bp,borderColor,radiusPx);',
+            'shareSeam?Math.max(radiusPx,bp*2+2):radiusPx'
+          )){if(-not $obsSource.Contains($needle)){throw ('Media border still doubles the seam or covers inner corners: '+$needle)}}
           Write-Host 'PASS: queue phase, four-corner clipping, visualizer width and Music retry regression checks'
           Write-Host 'PASS: independent popup typefaces, current selection, and visible wheel focus'
+
+  pixel-geometry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare browser pixel tests
+        shell: bash
+        run: |
+          python -m pip install --quiet playwright pillow
+          python -m playwright install --with-deps chromium
+      - name: Test real OBS overlay corner alpha and shared border thickness
+        shell: bash
+        run: python tests/obs-border-pixels.py
