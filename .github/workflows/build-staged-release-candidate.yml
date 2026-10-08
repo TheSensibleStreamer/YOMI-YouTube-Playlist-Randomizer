@@ -1,0 +1,53 @@
+name: Build unpublished YOMI 9027 candidate
+on:
+  push:
+    paths:
+      - "staging/release-candidate.trigger"
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Assemble sealed release candidate and verify ZIP file hashes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python tools/build_release_candidate.py --version 420.69.9027 --output dist/9027
+          if($LASTEXITCODE -ne 0){throw 'Candidate packaging failed'}
+      - name: Exercise updater package verification on actual candidate ZIP
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = (Resolve-Path 'dist/9027').Path
+          $metadata = Get-Content (Join-Path $root 'update.json') -Raw | ConvertFrom-Json
+          if($metadata.version -ne '420.69.9027'){throw 'Wrong release candidate identity'}
+          $zip = Join-Path $root $metadata.package_name
+          $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($hash -ne $metadata.sha256){throw 'Updater manifest ZIP hash mismatch'}
+          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9027-extracted'
+          $dryData = Join-Path $env:RUNNER_TEMP 'YOMI-9027-dryrun'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $extract -ExpectedVersion '420.69.9027' -ExpectedPackageHash $hash -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $dryData
+          if($LASTEXITCODE -ne 0){throw 'Updater ZIP verification rejected candidate'}
+          if(-not (Test-Path (Join-Path $extract 'installer/build-manifest.json'))){throw 'Expected extraction missing'}
+      - name: Qualify sealed candidate against current capability contract
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9027-extracted'
+          & (Join-Path $extract 'payload/app/release-qualification.ps1') -Root (Join-Path $extract 'payload') -Mode Sealed -NoReport
+          if($LASTEXITCODE -ne 0){throw 'Candidate failed sealed release qualification'}
+      - name: Upload candidate ZIP and proposed update manifest (NOT PUBLISHED)
+        uses: actions/upload-artifact@v4
+        with:
+          name: YOMI-420.69.9027-UNPUBLISHED-CANDIDATE
+          path: |
+            dist/9027/YOMI-v420.69.9027.zip
+            dist/9027/update.json
+          if-no-files-found: error
+          retention-days: 7
