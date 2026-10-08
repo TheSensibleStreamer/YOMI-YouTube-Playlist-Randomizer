@@ -21,8 +21,6 @@ $fonts = @(
 )
 $base = 'https://raw.githubusercontent.com/google/fonts/main/ofl/'
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
-$web = New-Object Net.WebClient
-$web.Headers['User-Agent'] = 'YOMI-font-pack/1.0'
 $added = 0
 $failed = 0
 function Test-YomiGitBlobSha([string]$File, [string]$Expected)
@@ -47,7 +45,7 @@ try {
         $temp = $destination + '.download'
         try {
             if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
-            $web.DownloadFile($download, $temp)
+            Invoke-WebRequest -Uri $download -OutFile $temp -UseBasicParsing -TimeoutSec 12 | Out-Null
             if (-not (Test-YomiGitBlobSha $temp $font.GitBlob)) { throw 'Font download failed integrity check.' }
             Move-Item -LiteralPath $temp -Destination $destination -Force
             $added++
@@ -60,10 +58,10 @@ try {
         # Keep the original license notice with each downloaded typeface.
         $license = Join-Path $fontsRoot ('OFL-' + $font.Directory + '.txt')
         if ((Test-Path -LiteralPath $destination -PathType Leaf) -and -not (Test-Path -LiteralPath $license)) {
-            try { $web.DownloadFile(($base + $font.Directory + '/OFL.txt'), $license) }
+            try { Invoke-WebRequest -Uri ($base + $font.Directory + '/OFL.txt') -OutFile $license -UseBasicParsing -TimeoutSec 12 | Out-Null }
             catch { Write-Warning ('Could not get the '+$font.Name+' font license.'); }
         }
     }
 }
-finally { $web.Dispose() }
+finally { }
 Write-Output ('YOMI font pack: '+$added+' added, '+$failed+' unavailable')
