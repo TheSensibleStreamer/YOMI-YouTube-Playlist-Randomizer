@@ -1473,7 +1473,7 @@ local function permanent_error(raw)
         or s:find("blocked in your country",1,true)
 end
 
-local function exhausted_unavailable_error(raw)
+function exhausted_unavailable_error(raw)
     local s=tostring(raw or ""):lower()
     return permanent_error(s) or s:find("video unavailable",1,true)
 end
