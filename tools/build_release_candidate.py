@@ -71,17 +71,34 @@ def create_candidate(version, output):
         assert runtime["version"] == ORIGINAL_VERSION
         runtime["version"] = version
         runtime["generated_utc"] = timestamp
-        listed = set()
+        # These binaries/HTML files are created by the Windows installer.
+        # Their historic hashes cannot validly seal a source-only ZIP.
+        generated_on_install = {
+            "app/ArtworkEdgeDetector.exe", "app/PriorityRun.exe",
+            "app/YomiControllerWpf.exe", "app/YomiLauncher.exe",
+            "runtime/mpv/mpv.exe", "runtime/yt-dlp/yt-dlp.exe",
+            "web/director.html", "web/overlay.html", "web/visualizer.html",
+        }
+        listed, actual_missing, sealed = set(), set(), []
         for entry in runtime["files"]:
             rel = entry["path"]
             file = package / "payload" / rel
             if not file.is_file():
-                raise RuntimeError(f"Missing sealed runtime file: {rel}")
+                actual_missing.add(rel)
+                continue
             entry["bytes"] = file.stat().st_size
             entry["sha256"] = sha256(file)
+            sealed.append(entry)
             listed.add(rel)
-        assert runtime["file_count"] == len(runtime["files"]) == len(listed)
+        if actual_missing != generated_on_install:
+            raise RuntimeError(
+                f"Unexpected source/runtime split: missing={sorted(actual_missing)}"
+            )
+        runtime["files"] = sealed
+        runtime["file_count"] = len(sealed)
+        assert len(sealed) == len(listed)
         json_write(runtime_path, runtime)
+        print(f"Installer-created runtime files excluded from package seal: {len(actual_missing)}")
 
         manifest_path = package / "installer" / "build-manifest.json"
         manifest = json_read(manifest_path)
