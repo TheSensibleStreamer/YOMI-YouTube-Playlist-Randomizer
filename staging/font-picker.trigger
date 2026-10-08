@@ -6,3 +6,4 @@ Use scoped videoAspect test injection inside the real OBS runtime closure.
 Expect shared Reflow seam at 16:9 or 4:3; Fixed 4:3 stays centered and separated.
 Parse-check version-aware release-qualification.ps1 before building v420.69.9027.
 Validate OBS with 135px actual browser height, configured 144px media, and square-pixel visualizer render.
+Validate revised Music search helper syntax, OBS fitted corners, and square-pixel visualization.
