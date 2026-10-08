@@ -21,12 +21,12 @@ def overlay_html():
     html = json.loads('"'+match.group(1)+'"') + json.loads('"'+match.group(2)+'"')
     assert html.count('tick();\n})();') == 1
     return html.replace('tick();\n})();',
-                        'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\ntick();\n})();')
+                        'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\nwindow.__yomiPixelTestRenderViz=renderVizFrame;\ntick();\n})();')
 
 async def check(page, border, corner, layout, with_video=True, video_aspect=16/9):
     config = {
         "app_mode": "Streamer / OBS", "overlay_width": 2560,
-        "overlay_height": 144, "canvas_width": 2560, "canvas_height": 144,
+        "overlay_height": 135, "canvas_width": 2560, "canvas_height": 144,
         "media_width": 256, "media_height": 144, "media_border_enabled": True,
         "media_border_color": "#252525", "media_border_px": border,
         "media_corner_style": corner, "media_aspect_layout": layout,
@@ -49,6 +49,17 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         document.getElementById('vidFrame').style.backgroundColor='blue';
     }""", [config,track])
     await page.wait_for_timeout(50)
+    pixel_info = await page.evaluate("""()=>{
+        Object.defineProperty(vizEl, "videoWidth", {configurable:true, value:40});
+        Object.defineProperty(vizEl, "videoHeight", {configurable:true, value:10});
+        window.__yomiPixelTestRenderViz();
+        let box=vizCanvas.getBoundingClientRect();
+        return {w:box.width,h:box.height,srcW:vizCanvas.width,srcH:vizCanvas.height};
+    }""")
+    assert pixel_info["srcW"] > 0 and pixel_info["srcH"] == 10, pixel_info
+    physical_pixel_x=pixel_info["w"]/pixel_info["srcW"]
+    physical_pixel_y=pixel_info["h"]/pixel_info["srcH"]
+    assert abs(physical_pixel_x/physical_pixel_y-1) < 0.06, (pixel_info,physical_pixel_x,physical_pixel_y)
     boxes = await page.evaluate("""()=>{
        function box(id){let r=document.getElementById(id).getBoundingClientRect();
          return {x:r.x,y:r.y,w:r.width,h:r.height};}
@@ -66,6 +77,8 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         y=round(a["y"]+a["h"]/2)
         seam=[image.getpixel((x,y)) for x in range(round(v["x"]),round(a["x"]+a["w"]))]
         assert len(seam)==border and all(px==(37,37,37,255) for px in seam), seam
+    for name in (["art","vid"] if with_video else ["art"]):
+        assert boxes[name]["h"] <= 135.1, ("Rounded border clipped by browser height",name,boxes[name])
     for radii in boxes['radii'][:2 if with_video else 1]:
         values=[float(v.removesuffix('px')) for v in radii]
         if corner == 'Square':
@@ -93,7 +106,7 @@ async def main():
     async with async_playwright() as p:
         browser=await p.chromium.launch(headless=True,executable_path=os.environ.get("YOMI_TEST_CHROMIUM") or None)
         try:
-            page=await browser.new_page(viewport={"width":1400,"height":144})
+            page=await browser.new_page(viewport={"width":1400,"height":135})
             await page.add_init_script("window.fetch=async()=>new Promise(()=>{});")
             errors=[]
             page.on("pageerror",lambda e:errors.append(str(e)))
