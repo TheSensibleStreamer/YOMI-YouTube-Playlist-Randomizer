@@ -1794,7 +1794,7 @@ local function audio_job(job)
             -- Only save short, recognized status words, never raw verbose
             -- output, cookies, attestation bytes or YouTube visitor data.
             local mweb_status=lower:match("mweb player response playability status:%s*([%w_%-]+)") or "not-logged"
-            local web_status=lower:match("web player response playability status:%s*([%w_%-]+)") or "not-logged"
+            local web_status=lower:match("[^%w_]web player response playability status:%s*([%w_%-]+)") or "not-logged"
             local ads_seen=lower:find("detected a ",1,true)~=nil and
                 lower:find(" ad ",1,true)~=nil
             local reject=lower:find("video unavailable",1,true)~=nil
