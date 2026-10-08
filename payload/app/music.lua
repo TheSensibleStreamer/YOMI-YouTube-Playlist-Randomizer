@@ -1738,7 +1738,7 @@ local function audio_job(job)
     local pot_attempt=pot_available and attempt_number==max_attempts
     local music_attempt=music_url and attempt_number>=4 and attempt_number<=5 and not pot_attempt
     local client_route="default"
-    if pot_attempt then client_route="mweb+web+pot"
+    if pot_attempt then client_route="mweb+pot"
     elseif attempt_number==2 then client_route="web_embedded,default"
     elseif attempt_number==3 then client_route="android,default"
     elseif attempt_number==4 then client_route="web_music,default"
@@ -1755,7 +1755,7 @@ local function audio_job(job)
         a=visible
         table.insert(a,"--verbose")
         table.insert(a,"--plugin-dirs");table.insert(a,pot_plugin_root)
-        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb,web")
+        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb")
         table.insert(a,"--extractor-args")
         table.insert(a,"youtubepot-bgutilcli:cli_path="..(pot_exe:gsub("\\","/")))
     elseif client_route~="default" then
