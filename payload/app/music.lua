@@ -1663,12 +1663,19 @@ local function audio_job(job)
     cleanup_prefix(audio_dir,prefix)
     local template=audio_dir.."\\track-"..i..".focused.%(ext)s"
     local a=ytdlp_common()
+    local attempt_number=(audio_failures[i] or 0)+1
+    local client_route="default"
+    if attempt_number==2 then client_route="web_embedded,default"
+    elseif attempt_number>=3 then client_route="android,default" end
+    if client_route~="default" then
+        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client="..client_route)
+    end
     table.insert(a,"--format");table.insert(a,audio_selector())
     table.insert(a,"--write-info-json")
     table.insert(a,"--no-part")
     table.insert(a,"--output");table.insert(a,template)
     table.insert(a,urls[i])
-    log("AUDIO START track "..i)
+    log("AUDIO START track "..i.." attempt "..attempt_number.." client="..client_route)
     run_bounded(cache_priority,ytdlp,a,75,false,function(success,result,error_text,timed_out)
         local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
         local media=nil
@@ -1709,7 +1716,8 @@ local function audio_job(job)
             log("AUDIO FAILED track "..i.." transient; holding requested occurrence")
             if desired_index==i then
                 requested_index=0
-                set_engine_status("error","Track "..i.." could not be prepared after retries. Press Play to retry or Next to skip.",i)
+                local summary=media_error_summary(result,error_text,timed_out)
+                set_engine_status("error","Track "..i.." could not be prepared after alternate YouTube routes. "..summary,i)
             end
         end
         job_done(job)
