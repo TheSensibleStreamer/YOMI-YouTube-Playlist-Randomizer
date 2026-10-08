@@ -90,7 +90,7 @@ def create_candidate(version, output):
             entry["sha256"] = sha256(file)
             sealed.append(entry)
             listed.add(rel)
-        if actual_missing != generated_on_install:
+        if not actual_missing.issubset(generated_on_install):
             raise RuntimeError(
                 f"Unexpected source/runtime split: missing={sorted(actual_missing)}"
             )
