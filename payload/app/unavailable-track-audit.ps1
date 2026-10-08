@@ -166,7 +166,8 @@ function Start-ProbeRoute([object[]]$ProbeRows,[string]$Route){
         }),(New-Object Text.UTF8Encoding($false)))
         $args=@('--batch-file',$batch,'--ignore-errors','--dump-json','--skip-download','--no-playlist','--quiet','--no-warnings','--socket-timeout','10','--retries','0','--fragment-retries','0','--extractor-retries','0','--cache-dir',$cacheDir)
         if(Test-Path -LiteralPath $deno -PathType Leaf){$args+=@('--js-runtimes',('deno:'+$deno))}
-        if($Route -ne 'default' -and $Route -ne 'music'){$args+=@('--extractor-args',('youtube:player_client='+$Route))}
+        if($Route -eq 'music'){$args+=@('--extractor-args','youtube:player_client=web_music,default')}
+        elseif($Route -ne 'default'){$args+=@('--extractor-args',('youtube:player_client='+$Route))}
         $psi=New-Object Diagnostics.ProcessStartInfo
         $psi.FileName=$yt
         $psi.WorkingDirectory=$script:DataRoot
@@ -250,16 +251,22 @@ function Finish-ProbeRoute($Handle){
                 $state[$id].routes+=($Route+':FAIL')
             }
         }
-        # Never silently call a batch 'inconclusive': preserve useful extractor
-        # diagnostics even when yt-dlp did not emit a per-video error or JSON.
-        $general=@($stderr -split "\r?\n"|Where-Object{$_ -match 'ERROR:|WARNING:|timeout|failed'}|Select-Object -Last 2) -join ' | '
-        if(-not $general){$general='No matched JSON output (extractor or network failure)'}
+        # Batch stderr can contain errors for OTHER YouTube IDs. Never attach those
+        # messages to an unrelated track and falsely mark its source unavailable.
+        $general=@($stderr -split "\r?\n"|Where-Object{
+            $_ -match 'ERROR:|WARNING:|timeout|failed' -and
+            $_ -notmatch '\[youtube\]\s+[A-Za-z0-9_-]{6,}\s*:'
+        }|Select-Object -Last 2) -join ' | '
+        if(-not $general){$general='No matched JSON or per-video diagnostic for this source'}
         if($general.Length -gt 500){$general=$general.Substring(0,500)+'...'}
         foreach($row in $ProbeRows){
             $key=if($row.youtube_id){$row.youtube_id}else{$row.url}
             if($state.ContainsKey($key) -and -not $state[$key].success){
-                $state[$key].reasons+=($Route+': '+$general)
-                $state[$key].routes+=($Route+':NO_METADATA')
+                $existing=@($state[$key].reasons|Where-Object{$_ -like ($Route+':*')})
+                if($existing.Count -eq 0){
+                    $state[$key].reasons+=($Route+': '+$general)
+                    $state[$key].routes+=($Route+':NO_METADATA')
+                }
             }
         }
     }finally{
