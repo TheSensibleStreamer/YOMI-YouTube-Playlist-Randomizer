@@ -58,6 +58,10 @@ foreach ($font in $fonts) {
             $failed++
             if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
             Write-Warning ('Could not prepare '+ $font.Name +': '+ $_.Exception.Message)
+            if ($failed -ge 2 -and $added -eq 0) {
+                Write-Warning 'Font downloads are unavailable. YOMI will continue using installed fonts.'
+                break
+            }
         }
         # Keep the original license notice with each downloaded typeface.
         $license = Join-Path $fontsRoot ('OFL-' + $font.Directory + '.txt')
