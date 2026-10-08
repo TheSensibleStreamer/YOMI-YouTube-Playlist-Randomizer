@@ -1978,6 +1978,7 @@ local function audio_job(job)
         if unplayable and music_endpoint_valid_id(origin) and not music_endpoint_override(i) then
             log("MUSIC ENDPOINT DECISION track "..i..
                 " checked="..tostring(music_endpoint_checked[origin]==true)..
+                " original="..origin..
                 " helper="..tostring(exists(install_root.."\\app\\YomiMusicEndpointResolver.ps1")))
         end
         -- Do not re-run six routes once Music reveals a new source ID.
@@ -2964,6 +2965,15 @@ function explicit_audio_retry(n,reason)
     local had_marker=exists(permanent) or exists(failed)
     os.remove(permanent);os.remove(failed)
     audio_failures[n]=nil;stream_failures[n]=nil
+    -- A failed background Music lookup must not disable recovery forever.
+    -- On explicit Play/Listen/Jump, allow one fresh lookup for this source.
+    -- The normal six extractor routes must not trigger repeated lookups.
+    local origin=youtube_id(urls[n])
+    if music_endpoint_valid_id(origin) and
+        music_endpoint_checked[origin] and not music_endpoint_override(n) then
+        music_endpoint_checked[origin]=nil
+        log("MUSIC ENDPOINT REARM track "..n.." reason="..tostring(reason or "manual"))
+    end
     stream_route_failures.js=0;stream_route_failures["no-js"]=0
     stream_route_degraded_until.js=0;stream_route_degraded_until["no-js"]=0
     if had_marker then log("AUDIO EXPLICIT RETRY track "..n.." reason="..tostring(reason or "manual")) end
