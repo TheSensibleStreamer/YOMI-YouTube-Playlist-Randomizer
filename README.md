@@ -2,13 +2,23 @@
 
 **YouTube OBS Music Interface**
 
-YOMI is a free Windows app for playing YouTube playlists in random order while you stream with OBS.
+YOMI is a free Windows app that plays YouTube playlists in random order. It is made for people who play games and stream with OBS. You can also use it just to listen.
 
-It can show the song name, channel, picture, small video, and music bars on your stream.
+## What does it do?
 
-## Why use YOMI?
+YOMI plays your music without keeping a full YouTube browser open. It can show the song name, channel, cover picture, small video, and moving music bars in OBS. You choose what to show.
 
-Playing YouTube in a web browser can slow down your game. YOMI uses a smaller music player instead. This can save computer power, help games run faster, and make streams smoother.
+## Why use it?
+
+A web browser can use a lot of computer power, even when OBS shows only a small part of it. YOMI uses a smaller music player and saves songs so it does less work.
+
+This can leave more power for your game, help keep FPS steady, and make your stream smoother. Results depend on your PC.
+
+## How does it work?
+
+1. Add a YouTube playlist in YOMI.
+2. Press **Listen** to play songs in random order.
+3. To show music on your stream, open **Settings > OBS > Quick Setup** in YOMI and follow the steps.
 
 ## Download
 
