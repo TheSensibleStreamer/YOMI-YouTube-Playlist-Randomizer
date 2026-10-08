@@ -20,4 +20,4 @@ A free, low-overhead, configurable Windows YouTube playlist randomizer and music
 
 Please extract the ZIP first so the installer can access all the files it needs.
 
-Once installation finishes, you're all set. Enjoy YOMI!
+Once installation finishes, YOMI is ready to use.
