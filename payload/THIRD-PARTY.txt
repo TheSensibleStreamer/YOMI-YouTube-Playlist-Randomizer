@@ -24,3 +24,11 @@ Windows runtime build source: Gyan FFmpeg Windows essentials build.
 YOMI is not affiliated with FFmpeg or the Windows build provider.
 
 See each upstream project for its applicable licenses and notices.
+
+YOMI optional font pack
+Ten fonts from the Google Fonts project: Press Start 2P, Pixelify Sans,
+Audiowide, Righteous, Black Ops One, Teko, Barlow Condensed,
+IBM Plex Sans Condensed, UnifrakturCook, and Great Vibes.
+Source: https://github.com/google/fonts
+License: SIL Open Font License 1.1 (see individual downloaded OFL notices).
+Font downloads stay in YOMI's app data folder. Nothing is installed into Windows Fonts.
