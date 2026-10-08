@@ -1513,6 +1513,23 @@ local request_bundle
 local play_index
 local start_fast_stream
 
+-- After an extraction failure, leave the song in the queue but do not hammer
+-- the same broken source through background prefetch every time the cache horizon
+-- moves. Manual transport/jump removes this backoff immediately.
+function audio_prefetch_backoff(i)
+    local marker=status_path(i,"audio.failed")
+    if not exists(marker) then return false end
+    local raw=read_all(marker) or ""
+    local source,stamp=raw:match("^extractor%-failed%-v2|(.-)|(%d+)$")
+    if not source or source~=source_identity(urls[i]) then
+        os.remove(marker)
+        return false
+    end
+    local age=os.time()-(tonumber(stamp) or 0)
+    if age<0 then return false end
+    return age<900
+end
+
 local function job_key(kind,i) return kind..":"..tostring(i) end
 
 local function enqueue(kind,i,priority)
@@ -2432,7 +2449,7 @@ request_bundle=function(i,priority)
     if known_bad(i) then return end
     local p=tonumber(priority) or 10
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
-    if not audio_ready(i) then enqueue("audio",i,p) end
+    if not audio_ready(i) and (p<=0 or not audio_prefetch_backoff(i)) then enqueue("audio",i,p) end
     local is_current=(i==playing_index or i==desired_index)
     if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
     local video_profile_current=video_profile_ready(i)
@@ -2554,6 +2571,7 @@ local function commit_pending_transport(serial)
     transport_pending_attempts=transport_pending_attempts+1
     desired_index=n;requested_index=0;work_generation=work_generation+1
     log("TRANSPORT COMMIT track "..n.." attempt "..transport_pending_attempts)
+    if exists(status_path(n,"audio.failed")) then explicit_audio_retry(n,"transport") end
     play_index(n)
 end
 
@@ -2768,6 +2786,7 @@ safe_register_script_message("yomi-playback-subset",function(raw,label)
             log("PLAYBACK SUBSET STOP outgoing audio; uncached target "..target.." is preparing")
         end
         mp.set_property_native("pause",false)
+        if exists(status_path(target,"audio.failed")) then explicit_audio_retry(target,"filtered-listen") end
         play_index(target)
     end
     replan_cache_horizon("playback-subset-on")
