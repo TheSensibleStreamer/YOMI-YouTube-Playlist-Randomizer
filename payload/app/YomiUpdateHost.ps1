@@ -78,7 +78,7 @@ try{
         $manifestText=[Text.Encoding]::UTF8.GetString($manifestBytes)
         $manifest=$manifestText|ConvertFrom-Json
         if([int]$manifest.schema -ne 1){throw 'Unsupported YOMI update manifest schema.'}
-        if([string]::IsNullOrWhiteSpace([string]$manifest.product) -or -not([string]$manifest.product).StartsWith('YOMI 420.69.9021 ',[StringComparison]::Ordinal)){throw 'Package product identity is not a supported YOMI 420.69.9021 update.'}
+        if([string]::IsNullOrWhiteSpace([string]$manifest.product) -or -not([string]$manifest.product).StartsWith('YOMI 420.69.9022 ',[StringComparison]::Ordinal)){throw 'Package product identity is not a supported YOMI 420.69.9022 update.'}
 
         $incomingRevision=Get-OptionalManifestText $manifest 'revision'
         if([string]::IsNullOrWhiteSpace($incomingRevision)){$incomingRevision=Get-RevisionToken ([string]$manifest.product)}
