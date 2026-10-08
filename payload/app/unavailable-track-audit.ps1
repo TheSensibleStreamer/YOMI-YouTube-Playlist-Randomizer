@@ -149,17 +149,23 @@ foreach($row in $rows){
 }
 $state=@{}
 foreach($key in $unique.Keys){
-    $state[$key]=[ordered]@{success=$false;title='';channel='';url='';reasons=@();routes=@()}
+    $state[$key]=[ordered]@{success=$false;method='';resolved_id='';title='';channel='';url='';reasons=@();routes=@()}
 }
 
 function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
     if($ProbeRows.Count -eq 0){return}
     $batch=Join-Path $env:TEMP ("yomi-unavailable-audit-"+[Guid]::NewGuid().ToString('N')+".txt")
     try{
-        [IO.File]::WriteAllLines($batch,@($ProbeRows|ForEach-Object{$_.url}),(New-Object Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllLines($batch,@($ProbeRows|ForEach-Object{
+            if($Route -eq 'music'){
+                $id=Text-Of $_.youtube_id
+                if(-not $id){$id=Get-YoutubeId $_.url}
+                if($id){'https://music.youtube.com/watch?v='+$id}else{$_.url}
+            }else{$_.url}
+        }),(New-Object Text.UTF8Encoding($false)))
         $args=@('--batch-file',$batch,'--ignore-errors','--dump-json','--skip-download','--no-playlist','--quiet','--no-warnings','--socket-timeout','10','--retries','0','--fragment-retries','0','--extractor-retries','0','--cache-dir',$cacheDir)
         if(Test-Path -LiteralPath $deno -PathType Leaf){$args+=@('--js-runtimes',('deno:'+$deno))}
-        if($Route -ne 'default'){$args+=@('--extractor-args',('youtube:player_client='+$Route))}
+        if($Route -ne 'default' -and $Route -ne 'music'){$args+=@('--extractor-args',('youtube:player_client='+$Route))}
         $psi=New-Object Diagnostics.ProcessStartInfo
         $psi.FileName=$yt
         $psi.WorkingDirectory=$script:DataRoot
@@ -171,9 +177,17 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
         $p=New-Object Diagnostics.Process
         $p.StartInfo=$psi
         [void]$p.Start()
-        $stdout=$p.StandardOutput.ReadToEnd()
-        $stderr=$p.StandardError.ReadToEnd()
-        $p.WaitForExit()
+        # Drain both pipes concurrently: large batches previously risked deadlocking.
+        $outTask=$p.StandardOutput.ReadToEndAsync()
+        $errTask=$p.StandardError.ReadToEndAsync()
+        $limitMs=[Math]::Min(240000,[Math]::Max(75000,$ProbeRows.Count*14000))
+        $timedOut=-not $p.WaitForExit($limitMs)
+        if($timedOut){try{$p.Kill()}catch{}}
+        try{$p.WaitForExit(10000)|Out-Null}catch{}
+        $stdout='';$stderr=''
+        try{if($outTask.Wait(10000)){$stdout=$outTask.Result}}catch{}
+        try{if($errTask.Wait(10000)){$stderr=$errTask.Result}}catch{}
+        if($timedOut){$stderr+=[Environment]::NewLine+'YOMI audit deadline exceeded for batch'}
 
         foreach($line in @($stdout -split "\r?\n")){
             if([string]::IsNullOrWhiteSpace($line)){continue}
@@ -181,14 +195,23 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
                 $j=$line|ConvertFrom-Json
                 $id=Text-Of $j.id
                 $url=Text-Of $j.webpage_url
+                $sourceUrl=Text-Of $j.original_url
                 $key=''
-                if($id -and $state.ContainsKey($id)){$key=$id}
-                else{
-                    $found=$ProbeRows|Where-Object{$_.url -eq $url}|Select-Object -First 1
+                $ids=@($id,(Get-YoutubeId $sourceUrl),(Get-YoutubeId $url))|Where-Object{$_}
+                foreach($candidate in $ids){
+                    if($state.ContainsKey($candidate)){$key=$candidate;break}
+                }
+                if(-not $key){
+                    $found=$ProbeRows|Where-Object{
+                        $_.url -eq $url -or $_.url -eq $sourceUrl -or
+                        ($_.youtube_id -and ($sourceUrl -like ('*v='+$_.youtube_id+'*')))
+                    }|Select-Object -First 1
                     if($found){$key=if($found.youtube_id){$found.youtube_id}else{$found.url}}
                 }
                 if($key -and $state.ContainsKey($key)){
                     $s=$state[$key];$s.success=$true;$s.routes+=($Route+':OK')
+                    $s.method=if($Route -eq 'music'){'YOUTUBE_MUSIC'}else{'YOUTUBE'}
+                    $s.resolved_id=$id
                     $s.title=Text-Of $j.title
                     if($j.channel){$s.channel=Text-Of $j.channel}
                     elseif($j.uploader){$s.channel=Text-Of $j.uploader}
@@ -208,15 +231,32 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
                 $state[$id].routes+=($Route+':FAIL')
             }
         }
+        # Never silently call a batch 'inconclusive': preserve useful extractor
+        # diagnostics even when yt-dlp did not emit a per-video error or JSON.
+        $general=@($stderr -split "\r?\n"|Where-Object{$_ -match 'ERROR:|WARNING:|timeout|failed'}|Select-Object -Last 2) -join ' | '
+        if(-not $general){$general='No matched JSON output (extractor or network failure)'}
+        if($general.Length -gt 500){$general=$general.Substring(0,500)+'...'}
+        foreach($row in $ProbeRows){
+            $key=if($row.youtube_id){$row.youtube_id}else{$row.url}
+            if($state.ContainsKey($key) -and -not $state[$key].success){
+                $state[$key].reasons+=($Route+': '+$general)
+                $state[$key].routes+=($Route+':NO_METADATA')
+            }
+        }
     }finally{Remove-Item -LiteralPath $batch -Force -ErrorAction SilentlyContinue}
 }
 
-$routes=@('default','web_embedded,default','android,default')
+$routes=@('default','web_embedded,default','android,default','music')
 foreach($route in $routes){
     $pending=@()
     foreach($key in $unique.Keys){if(-not $state[$key].success){$pending+=$unique[$key]}}
     if($pending.Count -eq 0){break}
-    Invoke-ProbeRoute -ProbeRows $pending -Route $route
+    # Bounded batches prevent one bad Topic video from wedging the full audit.
+    $chunkSize=12
+    for($offset=0;$offset -lt $pending.Count;$offset+=$chunkSize){
+        $last=[Math]::Min($pending.Count-1,$offset+$chunkSize-1)
+        Invoke-ProbeRoute -ProbeRows @($pending[$offset..$last]) -Route $route
+    }
 }
 
 $results=@()
@@ -226,33 +266,40 @@ foreach($row in $rows){
     $title=if($row.title){$row.title}else{$s.title}
     $channel=if($row.channel){$row.channel}else{$s.channel}
     $canonical=@($s.reasons|ForEach-Object{Canonical-Reason $_}|Where-Object{$_}|Select-Object -Unique)
-    $status=if($s.success){'AVAILABLE'}elseif($canonical.Count -gt 0){'UNAVAILABLE'}else{'INCONCLUSIVE'}
-    $reason=if($status -eq 'UNAVAILABLE'){$canonical -join '; '}elseif($status -eq 'INCONCLUSIVE'){($s.reasons -join ' | ')}else{'Available'}
+    # Extraction failures do not establish browser unavailability (e.g. Maize).
+    $status=if($s.success){if($s.method -eq 'YOUTUBE_MUSIC'){'AVAILABLE_MUSIC'}else{'AVAILABLE_YOUTUBE'}}
+        elseif($canonical.Count -gt 0){'EXTRACTOR_UNAVAILABLE'}else{'INCONCLUSIVE'}
+    $reason=if($s.success){$s.method}
+        elseif($canonical.Count -gt 0){($canonical -join '; ')+' | '+($s.reasons -join ' | ')}
+        else{($s.reasons -join ' | ')}
     $results += [pscustomobject]@{
         occurrence=$row.occurrence
         status=$status
         title=$title
         channel=$channel
         youtube_id=$row.youtube_id
+        resolved_id=$s.resolved_id
+        playback_method=$s.method
         reason=$reason
         url=$row.url
     }
 }
 
 $results|Sort-Object occurrence|Export-Csv -LiteralPath $csvPath -NoTypeInformation -Encoding UTF8
-$unavailable=@($results|Where-Object{$_.status -eq 'UNAVAILABLE'}|Sort-Object occurrence)
+$unavailable=@($results|Where-Object{$_.status -eq 'EXTRACTOR_UNAVAILABLE'}|Sort-Object occurrence)
 $inconclusive=@($results|Where-Object{$_.status -eq 'INCONCLUSIVE'}|Sort-Object occurrence)
-$available=@($results|Where-Object{$_.status -eq 'AVAILABLE'})
+$youtube=@($results|Where-Object{$_.status -eq 'AVAILABLE_YOUTUBE'})
+$music=@($results|Where-Object{$_.status -eq 'AVAILABLE_MUSIC'})
 
 $label=if($FilterLabel){"Filter: $FilterLabel"}else{'Filter: all tracks'}
 $out=New-Object Collections.Generic.List[string]
 $out.Add('YOMI UNAVAILABLE TRACK AUDIT')
 $out.Add($label)
 $out.Add('Scanned: '+$results.Count+' occurrences / '+$unique.Count+' unique sources')
-$out.Add('Unavailable: '+$unavailable.Count+' | Available: '+$available.Count+' | Inconclusive: '+$inconclusive.Count)
+$out.Add('YouTube available: '+$youtube.Count+' | YouTube Music available: '+$music.Count+' | Extractor unavailable: '+$unavailable.Count+' | Inconclusive: '+$inconclusive.Count)
 $out.Add('CSV: '+$csvPath)
 $out.Add('')
-$out.Add('UNAVAILABLE')
+$out.Add('EXTRACTOR UNAVAILABLE (browser playback not ruled out)')
 if($unavailable.Count -eq 0){$out.Add('(none)')}
 foreach($r in $unavailable){
     $name=if($r.title){$r.title}else{'(title unavailable)'}
