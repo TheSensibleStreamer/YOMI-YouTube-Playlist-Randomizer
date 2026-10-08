@@ -1775,13 +1775,16 @@ local function audio_job(job)
         local failure_detail=media_error_summary(result,error_text,timed_out)
         if pot_attempt then
             local lower=stderr:lower()
-            local plugins=lower:match("%[debug%]%s*extractor plugins:%s*([^\r\n]*)")
-            local providers=lower:match("%[debug%]%s*po token providers:%s*([^\r\n]*)")
-            local import_seen=lower:find("getpot_bgutil_cli",1,true)~=nil or
-                lower:find("bgutilcliptp",1,true)~=nil or
-                lower:find("bgutil:cli",1,true)~=nil
+            -- yt-dlp lists plugin directories at verbose level. The Rust
+            -- plugin registers a PO-token *provider*, not a YouTube extractor,
+            -- so absence from "Extractor Plugins" is not evidence of failure.
+            local plugin_paths=lower:match("%[debug%]%s*plugin directories:%s*([^\r\n]*)")
+            local debug_seen=lower:find("[debug]",1,true)~=nil
             local request_seen=lower:find("generating a",1,true)~=nil and
                 lower:find("po token",1,true)~=nil
+            local provider_cli_seen=lower:find("bgutil-pot version:",1,true)~=nil
+            local plugin_load_error=lower:find("error loading plugin",1,true)~=nil or
+                lower:find("error importing plugin",1,true)~=nil
             local reject=lower:find("video unavailable",1,true)~=nil
             local error_line=stderr:match("ERROR:%s*([^\r\n]+)") or
                 stderr:match("WARNING:%s*([^\r\n]+)") or
@@ -1789,10 +1792,11 @@ local function audio_job(job)
             -- Only emit boolean diagnostics, no token bytes, URLs, or raw
             -- debug output. An installed plugin is not proof of a minted token.
             log("PO PROVIDER TRACE track "..i..
-                " verbose="..tostring(plugins~=nil)..
-                " plugin_mentioned="..tostring(import_seen)..
+                " debug_seen="..tostring(debug_seen)..
+                " plugin_paths_listed="..tostring(plugin_paths~=nil)..
+                " provider_cli_verified="..tostring(provider_cli_seen)..
+                " provider_import_error="..tostring(plugin_load_error)..
                 " token_request_logged="..tostring(request_seen)..
-                " provider_list_seen="..tostring(providers~=nil)..
                 " youtube_unavailable="..tostring(reject)..
                 " status="..tostring(result.status or -1)..
                 " timeout="..tostring(timed_out==true))
