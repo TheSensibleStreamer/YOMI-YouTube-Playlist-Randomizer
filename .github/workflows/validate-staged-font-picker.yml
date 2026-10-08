@@ -130,4 +130,15 @@ jobs:
             if(-not $controllerText.Contains($needed)){throw ('Font selection / focused wheel mismatch: '+$needed)}
           }
           if(-not $markup.Contains('x:Name="SettingsTextFont"')){throw 'Font combo missing from Settings XAML'}
+          if(-not $controllerText.Contains('case "advancing": return "STARTING"')){throw 'Normal advancing phase must not display SKIPPING'}
+          $obsSource=Get-Content 'payload/app/YomiObsServerHost.cs' -Raw
+          foreach($need in @(
+            'artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;',
+            'artFrame.style.clipPath=mediaClip;vidFrame.style.clipPath=mediaClip;',
+            "viz.style.flex='0 0 0px';viz.style.width='0px';",
+            "mediaPairLine.setAttribute('stroke-linecap','round')"
+          )){if(-not $obsSource.Contains($need)){throw ('Missing shared-border/visualizer safeguard: '+$need)}}
+          $music=Get-Content 'payload/app/music.lua' -Raw
+          if(-not $music.Contains('MUSIC ENDPOINT REARM track ')){throw 'Manual failed-prefetch Music lookup cannot retry'}
+          Write-Host 'PASS: queue phase, four-corner clipping, visualizer width and Music retry regression checks'
           Write-Host 'PASS: independent popup typefaces, current selection, and visible wheel focus'
