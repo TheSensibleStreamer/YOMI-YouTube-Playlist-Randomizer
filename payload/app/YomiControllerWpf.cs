@@ -10799,6 +10799,8 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         {
             if (VideoPreparationEnabled()) return;
             StopVideoPreview(true);
+            _videoArtworkFallbackPath = "";
+            Interlocked.Increment(ref _videoArtworkFallbackGeneration);
             _lastVideoPath = ""; _lastVideoGeneration = "";
             _videoRequestedPath = ""; _videoRequestedGeneration = ""; _videoRequestedOccurrence = 0;
             _videoPresentedPath = ""; _videoPresentedGeneration = ""; _videoPresentedOccurrence = 0;
@@ -18447,6 +18449,8 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     _videoAuthoritativelyAbsent = true;
                     _videoRequestedPath = ""; _videoRequestedGeneration = ""; _videoRequestedOccurrence = 0;
                     _videoPresentedPath = ""; _videoPresentedGeneration = ""; _videoPresentedOccurrence = 0;
+                    _videoArtworkFallbackPath = "";
+                    Interlocked.Increment(ref _videoArtworkFallbackGeneration);
                     StopVideoPreview(true);
                     if (_videoPlaceholder != null) _videoPlaceholder.Visibility = Visibility.Collapsed;
                     ApplyMediaMode(false);
@@ -18561,8 +18565,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         private void BeginVideoArtworkFallback(int occurrence, string path)
         {
             if (_videoFrameHost == null || String.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
-            if (String.Equals(path, _videoArtworkFallbackPath, StringComparison.OrdinalIgnoreCase)) return;
-            _videoArtworkFallbackPath = path;
+            // The producer can replace the bytes at the same track-N.full path.
+            // File generation, not merely its name, determines presentation identity.
+            string identity = path + "|" + MediaFileGeneration(path);
+            if (String.Equals(identity, _videoArtworkFallbackPath, StringComparison.OrdinalIgnoreCase)) return;
+            _videoArtworkFallbackPath = identity;
             int generation = Interlocked.Increment(ref _videoArtworkFallbackGeneration);
             Thread worker = new Thread(delegate()
             {
