@@ -72,7 +72,7 @@ jobs:
           if($controller.Contains('combo.SelectedIndex = next')){throw 'Settings wheel can still mutate closed combo boxes'}
 
           $music=Get-Content (Join-Path $app 'music.lua') -Raw
-          foreach($required in @('next_subset_transport_occurrence(base,direction,false)','next_occurrence(base,direction,false)','if known_bad(i) then return end','AUDIO QUARANTINE track ','exhausted_unavailable_error','web_embedded,default','android,default')){
+          foreach($required in @('next_subset_transport_occurrence(base,direction,false)','next_occurrence(base,direction,false)','if known_bad(i) then return end','AUDIO QUARANTINE CLEARED track ','extractor-failed-v2|','web_embedded,default','android,default')){
             if(-not $music.Contains($required)){throw ('Playback quarantine repair missing: '+$required)}
           }
           foreach($forbidden in @('AUDIO PERMANENT RECHECK track ','next_occurrence(cursor,1,true)','next_subset_transport_occurrence(base,direction,true)')){
