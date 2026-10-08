@@ -1744,6 +1744,16 @@ local function audio_job(job)
     elseif attempt_number==4 then client_route="web_music,default"
     elseif attempt_number==5 then client_route="web_safari,default" end
     if pot_attempt then
+        -- Unlike ordinary playback, this one recovery route needs diagnostic
+        -- warnings so we can verify the plugin was loaded, whether PO token
+        -- generation was requested, and why YouTube rejected the response.
+        -- Do not persist the raw verbose output; it can contain request data.
+        local visible={}
+        for _,v in ipairs(a) do
+            if v~="--quiet" and v~="--no-warnings" then table.insert(visible,v) end
+        end
+        a=visible
+        table.insert(a,"--verbose")
         table.insert(a,"--plugin-dirs");table.insert(a,pot_plugin_root)
         table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb")
         table.insert(a,"--extractor-args")
@@ -1762,10 +1772,38 @@ local function audio_job(job)
     local route_deadline=pot_attempt and 70 or ((desired_index==i) and 30 or 50)
     run_bounded(cache_priority,ytdlp,a,route_deadline,false,function(success,result,error_text,timed_out)
         local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
+        local failure_detail=media_error_summary(result,error_text,timed_out)
+        if pot_attempt then
+            local lower=stderr:lower()
+            local plugins=lower:match("%[debug%]%s*extractor plugins:%s*([^\r\n]*)")
+            local providers=lower:match("%[debug%]%s*po token providers:%s*([^\r\n]*)")
+            local import_seen=lower:find("getpot_bgutil_cli",1,true)~=nil or
+                lower:find("bgutilcliptp",1,true)~=nil or
+                lower:find("bgutil:cli",1,true)~=nil
+            local request_seen=lower:find("generating a",1,true)~=nil and
+                lower:find("po token",1,true)~=nil
+            local reject=lower:find("video unavailable",1,true)~=nil
+            local error_line=stderr:match("ERROR:%s*([^\r\n]+)") or
+                stderr:match("WARNING:%s*([^\r\n]+)") or
+                (timed_out and "route timed out" or "no yt-dlp error line")
+            -- Only emit boolean diagnostics, no token bytes, URLs, or raw
+            -- debug output. An installed plugin is not proof of a minted token.
+            log("PO PROVIDER TRACE track "..i..
+                " verbose="..tostring(plugins~=nil)..
+                " plugin_mentioned="..tostring(import_seen)..
+                " token_request_logged="..tostring(request_seen)..
+                " provider_list_seen="..tostring(providers~=nil)..
+                " youtube_unavailable="..tostring(reject)..
+                " status="..tostring(result.status or -1)..
+                " timeout="..tostring(timed_out==true))
+            error_line=error_line:gsub("[\r\n\t]+"," "):sub(1,230)
+            failure_detail="status="..tostring(result.status or -1)..
+                " timeout="..tostring(timed_out==true).." stderr="..error_line
+        end
         if not (success and tonumber(result.status or -1)==0) then
             log("AUDIO EXTRACT FAIL track "..i.." attempt="..attempt_number.." site="..
                 (pot_attempt and "po-token-mweb" or (music_attempt and "youtube-music" or "youtube")).." route="..client_route..
-                " "..media_error_summary(result,error_text,timed_out))
+                " "..failure_detail)
         end
         local media=nil
         for _,name in ipairs(utils.readdir(audio_dir,"files") or {}) do
@@ -1806,9 +1844,9 @@ local function audio_job(job)
             os.remove(status_path(i,"audio.permanent"))
             write_all(status_path(i,"audio.failed"),"extractor-failed-v2|"..source_identity(urls[i]).."|"..tostring(os.time()))
             log("AUDIO EXTRACTION EXHAUSTED track "..i.." after "..max_attempts..
-                " routes; source remains retryable "..media_error_summary(result,error_text,timed_out))
+                " routes; source remains retryable "..failure_detail)
             -- Reuse the same terminal state for download and stream failures.
-            report_exhausted_audio(i,media_error_summary(result,error_text,timed_out))
+            report_exhausted_audio(i,failure_detail)
         end
         job_done(job)
     end)
