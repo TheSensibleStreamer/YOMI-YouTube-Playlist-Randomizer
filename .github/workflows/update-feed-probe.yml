@@ -1,0 +1,36 @@
+name: Probe live YOMI update feed
+on:
+  push:
+    paths:
+      - "staging/update-feed-probe.trigger"
+permissions:
+  contents: read
+jobs:
+  feed:
+    runs-on: windows-latest
+    steps:
+      - name: Test independent update-feed routes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $owner='TheSensibleStreamer'
+          $repo='YOMI-YouTube-Playlist-Randomizer'
+          $stamp=[DateTime]::UtcNow.Ticks
+          $urls=@(
+            "https://raw.githubusercontent.com/$owner/$repo/main/update.json",
+            "https://raw.githubusercontent.com/$owner/$repo/main/update.json?yomi_manifest=$stamp",
+            "https://api.github.com/repos/$owner/$repo/contents/update.json?ref=main",
+            "https://github.com/$owner/$repo/raw/refs/heads/main/update.json?feedprobe=$stamp"
+          )
+          foreach($url in $urls){
+            try {
+              $headers=@{'Cache-Control'='no-cache, no-store, max-age=0';'Pragma'='no-cache';'User-Agent'='YOMI-420.69.9027-Updater'}
+              $r=Invoke-WebRequest -Uri $url -Headers $headers -MaximumRedirection 5 -TimeoutSec 20
+              $data=($r.Content | ConvertFrom-Json)
+              if($data.content){$data=([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(($data.content -replace '\\s',''))) | ConvertFrom-Json)}
+              Write-Host "FEED_VERSION=$($data.version) HTTP=$($r.StatusCode) SRC=$([uri]$url).Host"
+              Write-Host "RESPONSE_HEADERS: Cache-Control=$($r.Headers['Cache-Control']) Age=$($r.Headers['Age']) X-Cache=$($r.Headers['X-Cache'])"
+            }catch{
+              Write-Host "FEED_ERROR src=$([uri]$url).Host error=$($_.Exception.Message)"
+            }
+          }
