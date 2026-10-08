@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "product": "YOMI - YouTube OBS Music Interface",
-  "version": "420.69.9014",
+  "version": "420.69.9015",
   "qualification": "DEV13.59",
   "purpose": "Fail closed if cumulative YOMI loses a required behavior-bearing capability, release invariant, or DEV13.59 persistent library-memory surface.",
   "required_patch_ids": [
