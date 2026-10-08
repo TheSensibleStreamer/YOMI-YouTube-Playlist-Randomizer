@@ -477,6 +477,12 @@ function youtube_id(raw)
         or ""
 end
 
+function youtube_music_url(i)
+    local id=youtube_id(urls[i])
+    if id=="" then return nil end
+    return "https://music.youtube.com/watch?v="..id
+end
+
 function source_identity(raw)
     local u=tostring(raw or ""):match("^%s*(.-)%s*$") or ""
     local id=youtube_id(u)
@@ -589,6 +595,17 @@ function artwork_path(i)
         if exists(p) and fsize(p)>0 then return p end
     end
     return nil
+end
+
+function full_artwork_path(i)
+    if ensure_position_binding then ensure_position_binding(i) end
+    for _,ext in ipairs({"jpg","jpeg","png","webp"}) do
+        local p=artwork_dir .. "\\track-" .. i .. ".full." .. ext
+        if exists(p) and fsize(p)>0 then return p end
+    end
+    -- Older cached thumbnails predate the full-size companion. Reuse the safe,
+    -- validated existing image instead of showing an empty video cell.
+    return artwork_path(i)
 end
 
 function hydrate_supporting_objects(i)
@@ -1176,6 +1193,7 @@ local function state_for(i,semantic_only)
         -- Optional presentation media is published only after the producer-side decode contract passes.
         -- Do not leak a merely-existing legacy/processing file into WPF or OBS.
         artwork=optional_validation_ready("art",i) and (artwork_path(i) or "") or "",
+        full_artwork=optional_validation_ready("art",i) and (full_artwork_path(i) or "") or "",
         video=(configured_video or controller_want_video) and optional_validation_ready("video",i) and video_path(i) or "",
         visualizer=optional_validation_ready("viz",i) and viz_path(i) or "",
         audio=audio_ready(i) and audio_path(i) or "",
@@ -1669,9 +1687,12 @@ local function audio_job(job)
     local template=audio_dir.."\\track-"..i..".focused.%(ext)s"
     local a=ytdlp_common()
     local attempt_number=(audio_failures[i] or 0)+1
+    local music_url=youtube_music_url(i)
+    local max_attempts=music_url and 5 or 3
+    local music_attempt=music_url and attempt_number>=4
     local client_route="default"
-    if attempt_number==2 then client_route="web_embedded,default"
-    elseif attempt_number>=3 then client_route="android,default" end
+    if attempt_number==2 or attempt_number==5 then client_route="web_embedded,default"
+    elseif attempt_number==3 then client_route="android,default" end
     if client_route~="default" then
         table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client="..client_route)
     end
@@ -1679,8 +1700,8 @@ local function audio_job(job)
     table.insert(a,"--write-info-json")
     table.insert(a,"--no-part")
     table.insert(a,"--output");table.insert(a,template)
-    table.insert(a,urls[i])
-    log("AUDIO START track "..i.." attempt "..attempt_number.." client="..client_route)
+    table.insert(a,music_attempt and music_url or urls[i])
+    log("AUDIO START track "..i.." attempt "..attempt_number.."/"..max_attempts.." site="..(music_attempt and "youtube-music" or "youtube").." client="..client_route)
     run_bounded(cache_priority,ytdlp,a,75,false,function(success,result,error_text,timed_out)
         local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
         local media=nil
@@ -1706,16 +1727,15 @@ local function audio_job(job)
         end
         cleanup_prefix(audio_dir,prefix)
         audio_failures[i]=(audio_failures[i] or 0)+1
-        if permanent_error(stderr) then
-            write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
-            log("AUDIO PERMANENT track "..i)
-            if desired_index==i then
-                local n=next_occurrence(i,1)
-                if n then desired_index=n;requested_index=0;safe_timeout(0.05,function() play_index(n) end) end
-            end
-        elseif audio_failures[i]<3 then
-            log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1))
-            safe_timeout(1.0,function() enqueue("audio",i,job.priority);pump() end)
+        -- An unavailable/private normal YouTube result is not conclusive for a
+        -- Topic song. Finish the Music-route checks BEFORE writing audio.permanent.
+        if audio_failures[i]<max_attempts then
+            log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1).." next="..((music_url and audio_failures[i]>=3) and "youtube-music" or "youtube"))
+            safe_timeout(0.15,function()
+                if not shutting_down and (desired_index==i or optional_should_retain(i,cache_plan_anchor())) then
+                    enqueue("audio",i,job.priority);pump()
+                end
+            end)
         else
             if exhausted_unavailable_error(stderr) then
                 write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
@@ -1760,6 +1780,11 @@ start_fast_stream=function(i)
     log("STREAM RESOLVE track "..i)
 
     local routes=stream_route_order()
+    local music_url=youtube_music_url(i)
+    if music_url then
+        table.insert(routes,"music-no-js")
+        if deno_available then table.insert(routes,"music-js") end
+    end
     local route_pos=1
     local stderr_parts={}
     local timed_out_any=false
@@ -1768,46 +1793,28 @@ start_fast_stream=function(i)
         stream_resolve_started[i]=nil
         stream_failures[i]=(stream_failures[i] or 0)+1
         local stderr=table.concat(stderr_parts," ")
-        local permanent=permanent_error(stderr)
-        if permanent then
-            write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
-            stream_consecutive_failures=0
-            log("STREAM PERMANENT track "..i.."; advancing")
-        else
-            stream_consecutive_failures=stream_consecutive_failures+1
-            -- A bounded direct-stream miss means only "not instant", not "unplayable". Keep the
-            -- requested occurrence authoritative and let the durable audio job finish it.
-            log("STREAM RESOLVE FAIL track "..i..(timed_out_any and " timeout" or "").."; waiting for durable cache")
-            requested_index=0
-            enqueue("audio",i,0);pump()
-        end
+        stream_consecutive_failures=stream_consecutive_failures+1
+        -- A direct-stream extraction failure, even a private/unavailable response,
+        -- is NOT proof Music or the durable downloader cannot play the source.
+        log("STREAM RESOLVE FAIL track "..i..(timed_out_any and " timeout" or "").."; trying bounded durable YouTube/Music routes")
+        requested_index=0
+        enqueue("audio",i,0);pump()
         if desired_index~=i then return end
         if not startup_first_sound then
-            write_startup_flight("stream_resolve_failed",i,permanent and "Track is unavailable; advancing." or "Direct stream missed the fast-start window; waiting for durable cache.",false,false)
+            write_startup_flight("stream_resolve_failed",i,"Direct routes exhausted; checking durable YouTube and YouTube Music extraction.",false,false)
         end
-        if permanent then
-            local n=next_occurrence(i,1)
-            if n and n~=i then
-                desired_index=n;requested_index=0
-                set_engine_status("preparing","Track "..i.." is unavailable; trying track "..n.."...",n)
-                safe_timeout(0.08,function() if desired_index==n then play_index(n) end end)
-            else
-                set_engine_status("error","Track "..i.." is unavailable.",i)
-            end
-        else
-            set_engine_status("preparing","Preparing track "..i.." from durable cache...",i)
-            write_queue_runtime()
-        end
+        set_engine_status("preparing","Preparing track "..i.." through alternate YouTube routes...",i)
+        write_queue_runtime()
     end
 
     local function attempt()
         local mode=routes[route_pos] or "no-js"
-        local use_js=(mode=="js")
+        local use_js=(mode=="js" or mode=="music-js")
         local timeout_seconds=use_js and 8 or 4
         local a=ytdlp_fast_common(use_js)
         table.insert(a,"--format");table.insert(a,audio_selector())
         table.insert(a,"--get-url")
-        table.insert(a,urls[i])
+        table.insert(a,(mode:sub(1,6)=="music-" and music_url) or urls[i])
         if not startup_first_sound then write_startup_flight("stream_route",i,"Trying "..mode.." direct-stream resolver ("..timeout_seconds.."s ceiling).",false,false) end
         log("STREAM ROUTE track "..i.." "..mode.." timeout "..timeout_seconds.."s")
         run_bounded(cache_priority,ytdlp,a,timeout_seconds,true,function(success,result,error_text,timed_out)
@@ -1879,8 +1886,9 @@ local function art_job(job)
     local a=ytdlp_common()
     table.insert(a,"--skip-download");table.insert(a,"--write-thumbnail")
     table.insert(a,"--output");table.insert(a,artwork_dir.."\\"..prefix)
-    table.insert(a,urls[i])
-    log("ART START track "..i.." smart_crop="..tostring(cfg.smart_artwork_crop~=false))
+    local music_url=youtube_music_url(i)
+    table.insert(a,(job.music_fallback and music_url) or urls[i])
+    log("ART START track "..i.." site="..(job.music_fallback and "youtube-music" or "youtube").." smart_crop="..tostring(cfg.smart_artwork_crop~=false))
 
     run_bounded(cache_priority,ytdlp,a,45,false,function(success,result,error_text,timed_out)
         local found=nil
@@ -1894,11 +1902,29 @@ local function art_job(job)
             local summary=media_error_summary(result,error_text,timed_out)
             local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
             cleanup_prefix(artwork_dir,prefix)
+            if not job.music_fallback and music_url then
+                job.music_fallback=true
+                log("ART FALLBACK track "..i.." reason="..summary)
+                safe_timeout(0.05,function() art_job(job) end)
+                return
+            end
             mark_optional_failure("art",i,permanent and "permanent-source" or "download")
             log("ART OPTIONAL FAIL track "..i.." "..summary)
             job_done(job);return
         end
 
+        -- Preserve the source's FULL image independently of the smart-cropped left
+        -- thumbnail. The right Video cell can display this when there is no video.
+        local ext=(tostring(found):match("%.([%w]+)$") or ""):lower()
+        if ext=="jpg" or ext=="jpeg" or ext=="png" or ext=="webp" then
+            local full=artwork_dir.."\\track-"..i..".full."..ext
+            local copied=copy_file_atomic(found,full)
+            if copied then
+                for _,other in ipairs({"jpg","jpeg","png","webp"}) do
+                    if other~=ext then os.remove(artwork_dir.."\\track-"..i..".full."..other) end
+                end
+            end
+        end
         local smart=(cfg.smart_artwork_crop~=false)
         if not smart or not ffmpeg_available then
             if not promote_art_source_pass(i,found) then mark_optional_failure("art",i,"source-pass") end

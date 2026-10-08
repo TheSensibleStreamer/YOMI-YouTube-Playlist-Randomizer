@@ -1470,6 +1470,8 @@ namespace Yomi.Desktop
         private MediaElement _visualizerHost;
         private Image _videoFrameHost;
         private Image _videoBridgeHost;
+        private string _videoArtworkFallbackPath = "";
+        private int _videoArtworkFallbackGeneration;
         private Image _visualizerFrameHost;
         private TextBlock _visualizerWaitingText;
         private Border _visualizerWaitingOverlay;
@@ -18202,6 +18204,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 Generation = Interlocked.Increment(ref _mediaResolveGeneration),
                 Occurrence = _currentOccurrence,
                 ArtworkReference = GetString(current, "artwork", ""),
+                FullArtworkReference = GetString(current, "full_artwork", ""),
                 VideoReference = GetString(current, "video", ""),
                 VisualizerReference = GetString(current, "visualizer", ""),
                 SourceKey = meta != null ? (meta.SourceKey ?? "") : ""
@@ -18230,6 +18233,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     }
                     if (request == null) break;
                     request.ArtworkPath = ResolveMediaSnapshot(request.ArtworkReference, "artwork", request.Occurrence, request.SourceKey);
+                    request.FullArtworkPath = ResolveMediaSnapshot(request.FullArtworkReference, "artwork", request.Occurrence, request.SourceKey);
                     request.VideoPath = ResolveMediaSnapshot(request.VideoReference, "video", request.Occurrence, request.SourceKey);
                     request.VisualizerPath = ResolveMediaSnapshot(request.VisualizerReference, "visualizer", request.Occurrence, request.SourceKey);
                     request.ArtworkGeneration = MediaFileGeneration(request.ArtworkPath);
@@ -18242,7 +18246,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                         {
                             if (_disposed || request.Generation != _mediaResolveGeneration || request.Occurrence != _currentOccurrence) return;
                             _previewFfmpegPath = request.PreviewFfmpegPath ?? "";
-                            ApplyResolvedMedia(request.Occurrence, request.ArtworkPath, request.VideoPath, request.VisualizerPath, request.ArtworkGeneration, request.VideoGeneration, request.VisualizerGeneration);
+                            ApplyResolvedMedia(request.Occurrence, request.ArtworkPath, request.FullArtworkPath, request.VideoPath, request.VisualizerPath, request.ArtworkGeneration, request.VideoGeneration, request.VisualizerGeneration);
                         });
                     }
                     catch { }
@@ -18380,7 +18384,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             return true;
         }
 
-        private void ApplyResolvedMedia(int occurrence, string art, string video, string viz, string artGeneration, string videoGeneration, string vizGeneration)
+        private void ApplyResolvedMedia(int occurrence, string art, string fullArt, string video, string viz, string artGeneration, string videoGeneration, string vizGeneration)
         {
             if (occurrence != _currentOccurrence) return;
             UpdateMediaStateOverlay(art, video);
@@ -18407,6 +18411,8 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _videoRequestedGeneration = "";
                 _videoRequestedOccurrence = occurrence;
                 _videoAuthoritativelyAbsent = false;
+                _videoArtworkFallbackPath = "";
+                Interlocked.Increment(ref _videoArtworkFallbackGeneration);
             }
 
             if (_mediaMode == MediaMode.Artwork || _mediaMode == MediaMode.Both)
@@ -18447,6 +18453,16 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 }
                 else if (String.IsNullOrWhiteSpace(video))
                 {
+                    // A Topic track with audio and artwork but no available video should
+                    // present uncropped source artwork in the right-hand Video cell.
+                    if (!String.IsNullOrWhiteSpace(fullArt))
+                    {
+                        _lastVideoPath = ""; _lastVideoGeneration = "";
+                        BeginVideoArtworkFallback(occurrence, fullArt);
+                        ApplyMediaMode(false);
+                    }
+                    else
+                    {
                     _lastVideoPath = ""; _lastVideoGeneration = "";
                     bool absent = !VideoPreparationEnabled() || VideoIsAuthoritativelyAbsent(occurrence);
                     if (absent)
@@ -18471,9 +18487,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                         if (_videoPlaceholderText != null) _videoPlaceholderText.Text = "";
                         ApplyMediaMode(false);
                     }
+                    }
                 }
                 else if (!String.Equals(video, _lastVideoPath, StringComparison.OrdinalIgnoreCase) || !String.Equals(videoGeneration ?? "", _lastVideoGeneration ?? "", StringComparison.Ordinal))
                 {
+                    _videoArtworkFallbackPath = "";
+                    Interlocked.Increment(ref _videoArtworkFallbackGeneration);
                     CaptureCurrentVideoBridge();
                     StopVideoPreview(false);
                     _lastVideoPath = video; _lastVideoGeneration = videoGeneration ?? "";
@@ -18537,6 +18556,44 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 else _visualizerWaitingOverlay.Visibility = Visibility.Collapsed;
             }
             else { StopVisualizerPreview(); _lastVizGeneration = ""; _visualizerWaitingOverlay.Visibility = Visibility.Collapsed; }
+        }
+
+        private void BeginVideoArtworkFallback(int occurrence, string path)
+        {
+            if (_videoFrameHost == null || String.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+            if (String.Equals(path, _videoArtworkFallbackPath, StringComparison.OrdinalIgnoreCase)) return;
+            _videoArtworkFallbackPath = path;
+            int generation = Interlocked.Increment(ref _videoArtworkFallbackGeneration);
+            Thread worker = new Thread(delegate()
+            {
+                string failure;
+                BitmapSource bitmap = DecodeArtworkBitmap(path, out failure);
+                TryBeginInvokeUi(DispatcherPriority.Render, delegate
+                {
+                    if (_disposed || generation != _videoArtworkFallbackGeneration ||
+                        occurrence != _currentOccurrence || !VideoPreparationEnabled() ||
+                        !String.IsNullOrWhiteSpace(_lastVideoPath)) return;
+                    if (bitmap == null)
+                    {
+                        _videoArtworkFallbackPath = "";
+                        return;
+                    }
+                    StopVideoPreview(true);
+                    _videoFrameHost.Source = bitmap;
+                    _videoFrameHost.Visibility = Visibility.Visible;
+                    _videoAuthoritativelyAbsent = false;
+                    _videoPresentedAspect = 16.0 / 9.0;
+                    _videoPreviewBackend = "artwork-fallback";
+                    _videoPreviewReady = true;
+                    if (_videoPlaceholder != null) _videoPlaceholder.Visibility = Visibility.Collapsed;
+                    ApplyMediaMode(false);
+                    ClearVideoBridge();
+                });
+            });
+            worker.IsBackground = true;
+            worker.Name = "YOMI Full Artwork Fallback";
+            try { worker.SetApartmentState(ApartmentState.STA); } catch { }
+            worker.Start();
         }
 
         private bool VideoIsAuthoritativelyAbsent(int occurrence)
@@ -28025,9 +28082,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         public int Occurrence;
         public string SourceKey = "";
         public string ArtworkReference = "";
+        public string FullArtworkReference = "";
         public string VideoReference = "";
         public string VisualizerReference = "";
         public string ArtworkPath = "";
+        public string FullArtworkPath = "";
         public string VideoPath = "";
         public string VisualizerPath = "";
         public string ArtworkGeneration = "";
