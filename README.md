@@ -10,9 +10,9 @@ YOMI plays your music without keeping a full YouTube browser open. It can show t
 
 ## Why use it?
 
-A web browser can use a lot of computer power, even when OBS shows only a small part of it. YOMI uses lightweight audio playback instead of a full YouTube page. This can lower CPU and GPU use.
+A full YouTube browser can use more computer power than you need just to play music. YOMI uses a smaller player instead.
 
-This can leave more power for your game, help keep FPS steady, and make your stream smoother. Results depend on your PC.
+This can leave more power for games and OBS, helping keep FPS steady and streams smooth. Results depend on your PC.
 
 ## How does it work?
 
