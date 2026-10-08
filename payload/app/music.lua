@@ -1195,7 +1195,7 @@ local function state_for(i,semantic_only)
         -- Optional presentation media is published only after the producer-side decode contract passes.
         -- Do not leak a merely-existing legacy/processing file into WPF or OBS.
         artwork=optional_validation_ready("art",i) and (artwork_path(i) or "") or "",
-        full_artwork=optional_validation_ready("art",i) and (full_artwork_path(i) or "") or "",
+        full_artwork=(configured_video or controller_want_video) and optional_validation_ready("art",i) and (full_artwork_path(i) or "") or "",
         video=(configured_video or controller_want_video) and optional_validation_ready("video",i) and video_path(i) or "",
         visualizer=optional_validation_ready("viz",i) and viz_path(i) or "",
         audio=audio_ready(i) and audio_path(i) or "",
