@@ -1677,6 +1677,25 @@ local function cleanup_prefix(dir,prefix)
     end
 end
 
+-- One terminal route shared by full-download and direct-stream exhaustion.
+-- Do not permanently block sources from future explicit user retries.
+function report_exhausted_audio(i,summary)
+    if desired_index~=i or playing_index==i then return end
+    requested_index=0
+    transient_skip_streak=transient_skip_streak+1
+    local n=next_occurrence(i,1)
+    if n and n~=i and transient_skip_streak<=8 then
+        desired_index=n
+        set_engine_status("advancing","Could not extract track "..i.."; trying track "..n.."...",n)
+        log("AUDIO FAIL-FORWARD track "..i.." next="..n.." streak="..transient_skip_streak)
+        write_queue_runtime()
+        safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
+    else
+        set_engine_status("error","Track "..i.." could not be extracted. Press Play to retry or select another track. "..tostring(summary or ""),i)
+        write_queue_runtime()
+    end
+end
+
 local function audio_job(job)
     local i=job.i
     if audio_ready(i) then job_done(job);return end
@@ -1687,6 +1706,15 @@ local function audio_job(job)
     local attempt_number=(audio_failures[i] or 0)+1
     local music_url=youtube_music_url(i)
     local max_attempts=music_url and 5 or 3
+    if attempt_number>max_attempts then
+        -- Direct-stream resolution can finish after background download has
+        -- exhausted every route. Do not create a new redundant attempt.
+        log("AUDIO BUDGET EXHAUSTED track "..i.." attempted="..(attempt_number-1)..
+            "/"..max_attempts.."; suppressing duplicate extractor invocation")
+        report_exhausted_audio(i,"All configured extraction routes were already attempted.")
+        job_done(job)
+        return
+    end
     local music_attempt=music_url and attempt_number>=4
     local client_route="default"
     if attempt_number==2 then client_route="web_embedded,default"
@@ -1753,23 +1781,8 @@ local function audio_job(job)
             write_all(status_path(i,"audio.failed"),"extractor-failed-v2|"..source_identity(urls[i]).."|"..tostring(os.time()))
             log("AUDIO EXTRACTION EXHAUSTED track "..i.." after "..max_attempts..
                 " routes; source remains retryable "..media_error_summary(result,error_text,timed_out))
-            -- A failed cache download may coexist with a successfully playing direct
-            -- stream; only skip when the requested occurrence is NOT already audible.
-            if desired_index==i and playing_index~=i then
-                requested_index=0
-                transient_skip_streak=transient_skip_streak+1
-                local n=next_occurrence(i,1)
-                if n and n~=i and transient_skip_streak<=8 then
-                    desired_index=n
-                    set_engine_status("advancing","Could not extract track "..i.."; trying track "..n.."...",n)
-                    log("AUDIO FAIL-FORWARD track "..i.." next="..n.." streak="..transient_skip_streak)
-                    write_queue_runtime()
-                    safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
-                else
-                    local summary=media_error_summary(result,error_text,timed_out)
-                    set_engine_status("error","Track "..i.." could not be extracted. Press Play to retry or select another track. "..summary,i)
-                end
-            end
+            -- Reuse the same terminal state for download and stream failures.
+            report_exhausted_audio(i,media_error_summary(result,error_text,timed_out))
         end
         job_done(job)
     end)
@@ -1805,6 +1818,11 @@ start_fast_stream=function(i)
         -- is NOT proof Music or the durable downloader cannot play the source.
         log("STREAM RESOLVE FAIL track "..i..(timed_out_any and " timeout" or "").."; trying bounded durable YouTube/Music routes")
         requested_index=0
+        if audio_prefetch_backoff(i) or (audio_failures[i] or 0)>=(music_url and 5 or 3) then
+            log("STREAM CACHE FALLBACK SKIPPED track "..i.." because its full-download routes already failed")
+            report_exhausted_audio(i,"All full-download routes failed earlier; explicit Play or Listen retries.")
+            return
+        end
         enqueue("audio",i,0);pump()
         if desired_index~=i then return end
         if not startup_first_sound then
@@ -2449,7 +2467,7 @@ request_bundle=function(i,priority)
     if known_bad(i) then return end
     local p=tonumber(priority) or 10
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
-    if not audio_ready(i) and (p<=0 or not audio_prefetch_backoff(i)) then enqueue("audio",i,p) end
+    if not audio_ready(i) and not audio_prefetch_backoff(i) then enqueue("audio",i,p) end
     local is_current=(i==playing_index or i==desired_index)
     if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
     local video_profile_current=video_profile_ready(i)
