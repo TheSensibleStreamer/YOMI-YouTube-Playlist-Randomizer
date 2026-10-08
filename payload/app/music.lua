@@ -1681,6 +1681,14 @@ end
 -- Do not permanently block sources from future explicit user retries.
 function report_exhausted_audio(i,summary)
     if desired_index~=i or playing_index==i then return end
+    -- The originally requested transport still owns target i until file-loaded.
+    -- If it fails extraction, retaining that target causes file-loaded on the
+    -- fail-forward song to supersede back to the FAILED song, automatically
+    -- restarting all five yt-dlp routes. Explicit user commands may retry.
+    if transport_pending_target==i and cancel_pending_transport then
+        cancel_pending_transport()
+        log("TRANSPORT FAILED ACK-CLEAR track "..i.." reason=extractor-exhausted")
+    end
     requested_index=0
     transient_skip_streak=transient_skip_streak+1
     local n=next_occurrence(i,1)
@@ -1953,7 +1961,8 @@ local function art_job(job)
         end
         if not (success and tonumber(result.status or 0)==0 and found) then
             local summary=media_error_summary(result,error_text,timed_out)
-            local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
+            -- Removed permanent_error in the retryable-source change.
+            -- Artwork errors are optional and never condemn the audio source.
             cleanup_prefix(artwork_dir,prefix)
             if not job.music_fallback and music_url then
                 job.music_fallback=true
@@ -1961,7 +1970,7 @@ local function art_job(job)
                 safe_timeout(0.05,function() art_job(job) end)
                 return
             end
-            mark_optional_failure("art",i,permanent and "permanent-source" or "download")
+            mark_optional_failure("art",i,"download")
             log("ART OPTIONAL FAIL track "..i.." "..summary)
             job_done(job);return
         end
@@ -2245,14 +2254,10 @@ local function video_job(job)
                 end
             end
             local summary=media_error_summary(result,error_text,timed_out)
-            local permanent=permanent_error(tostring(result.stderr or "").." "..tostring(error_text or ""))
+            -- No extractor error can permanently condemn an optional video.
+            -- Exhaust only the finite format list, then mark a cooldown.
             log("VIDEO ROUTE FAIL track "..i.." route "..route.." "..summary)
             os.remove(temp);os.remove(normalized)
-            if permanent then
-                mark_optional_failure("video",i,"permanent-source")
-                log("VIDEO PERMANENT SOURCE track "..i.." route "..route)
-                job_done(job);return
-            end
             route=route+1
             if route<=#formats and (configured_video or controller_want_video) then safe_timeout(0.2,attempt)
             else if (configured_video or controller_want_video) then mark_optional_failure("video",i,"routes");log("VIDEO OPTIONAL FAIL track "..i) end;job_done(job) end
