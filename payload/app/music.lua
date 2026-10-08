@@ -626,28 +626,17 @@ function audio_ready(i)
 end
 
 function known_bad(i)
+    -- No yt-dlp error is sufficient to establish permanent browser unavailability.
+    -- The extractor can report Video unavailable for an ordinary public Topic video
+    -- (confirmed for Maize). A historic quarantine must never silently remove a
+    -- track from transport or prefetch. Explicit attempts remain fully retryable.
     if ensure_position_binding then ensure_position_binding(i) end
     local marker=status_path(i,"audio.permanent")
-    if not exists(marker) then return false end
-    -- A durable, decode-valid audio object outranks any stale failure marker.
-    if audio_ready(i) then
+    if exists(marker) then
         os.remove(marker)
-        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason=audio-ready")
-        return false
+        log("AUDIO QUARANTINE CLEARED track "..i.." reason=extractor-is-not-browser-authority")
     end
-    -- Permanent availability belongs to a SOURCE, never forever to a numeric Queue position.
-    -- Legacy builds wrote a one-byte '1' marker; that has no source identity and therefore cannot
-    -- safely condemn a still-valid track after playlist/cache evolution. Migrate it by retrying.
-    local raw=(read_all(marker) or ""):match("^%s*(.-)%s*$") or ""
-    -- Quarantines made by older YouTube-only releases were never checked through
-    -- YouTube Music. Re-probe them lazily on first access instead of skipping them.
-    local current="youtube-music-checked-v1|"..source_identity(urls[i])
-    if raw=="" or raw=="1" or raw~=current then
-        os.remove(marker)
-        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason="..(raw=="1" and "legacy-unscoped" or "new-fallback-or-source-mismatch"))
-        return false
-    end
-    return true
+    return false
 end
 
 local pool_current=load_json(pool_file) or {}
@@ -1484,19 +1473,8 @@ local function audio_selector()
     return cap and ("bestaudio[abr<="..cap.."]/bestaudio/best") or "bestaudio/best"
 end
 
-local function permanent_error(raw)
-    local s=tostring(raw or ""):lower()
-    return s:find("private video",1,true)
-        or s:find("has been removed",1,true)
-        or s:find("account associated with this video has been terminated",1,true)
-        or s:find("no longer available due to a copyright",1,true)
-        or s:find("blocked in your country",1,true)
-end
-
-function exhausted_unavailable_error(raw)
-    local s=tostring(raw or ""):lower()
-    return permanent_error(s) or s:find("video unavailable",1,true)
-end
+-- No extractor error text is promoted to a permanent availability verdict.
+-- Browser playback can succeed when several independent yt-dlp clients fail.
 
 local audio_failures={}
 -- Bound failure-forward so an entire offline playlist cannot spin forever.
@@ -1530,7 +1508,6 @@ function stream_route_order()
 end
 local playing_from_cache=true
 -- Intentionally global: music.lua already sits at LuaJIT's top-level local-variable ceiling.
-permanent_reprobe_attempted={}
 local pump
 local request_bundle
 local play_index
@@ -1752,42 +1729,28 @@ local function audio_job(job)
                 end
             end)
         else
-            if exhausted_unavailable_error(stderr) then
-                write_all(status_path(i,"audio.permanent"),"youtube-music-checked-v1|"..source_identity(urls[i]))
-                os.remove(status_path(i,"audio.failed"))
-                permanent_reprobe_attempted[i]=true
-                log("AUDIO QUARANTINE track "..i.." after alternate routes agreed unavailable")
-                if desired_index==i then
-                    requested_index=0
-                    local n=next_occurrence(i,1)
-                    if n and n~=i then
-                        desired_index=n
-                        set_engine_status("advancing","Skipping unavailable track "..i.."; moving to track "..n.."...",n)
-                        write_queue_runtime()
-                        safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
-                    else
-                        set_engine_status("error","Track "..i.." is unavailable and no playable next track was found.",i)
-                    end
-                end
-            else
-                write_all(status_path(i,"audio.failed"),"1")
-                log("AUDIO FAILED track "..i.." transient after bounded YouTube/Music routes")
-                -- A failed cache download may coexist with a successfully playing direct
-                -- stream; only skip when the requested occurrence is NOT already audible.
-                if desired_index==i and playing_index~=i then
-                    requested_index=0
-                    transient_skip_streak=transient_skip_streak+1
-                    local n=next_occurrence(i,1)
-                    if n and n~=i and transient_skip_streak<=8 then
-                        desired_index=n
-                        set_engine_status("advancing","Track "..i.." failed; trying track "..n.."...",n)
-                        log("AUDIO FAIL-FORWARD track "..i.." next="..n.." streak="..transient_skip_streak)
-                        write_queue_runtime()
-                        safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
-                    else
-                        local summary=media_error_summary(result,error_text,timed_out)
-                        set_engine_status("error","Playback stopped after repeated extraction failures. Press Play to retry or select a track. "..summary,i)
-                    end
+            -- yt-dlp can reject a publicly playable source. After the bounded
+            -- routes fail, record a retryable extraction failure, not UNAVAILABLE.
+            -- Queue order remains intact and explicit Play/Listen can retry.
+            os.remove(status_path(i,"audio.permanent"))
+            write_all(status_path(i,"audio.failed"),"extractor-failed-v2|"..source_identity(urls[i]).."|"..tostring(os.time()))
+            log("AUDIO EXTRACTION EXHAUSTED track "..i.." after "..max_attempts..
+                " routes; source remains retryable "..media_error_summary(result,error_text,timed_out))
+            -- A failed cache download may coexist with a successfully playing direct
+            -- stream; only skip when the requested occurrence is NOT already audible.
+            if desired_index==i and playing_index~=i then
+                requested_index=0
+                transient_skip_streak=transient_skip_streak+1
+                local n=next_occurrence(i,1)
+                if n and n~=i and transient_skip_streak<=8 then
+                    desired_index=n
+                    set_engine_status("advancing","Could not extract track "..i.."; trying track "..n.."...",n)
+                    log("AUDIO FAIL-FORWARD track "..i.." next="..n.." streak="..transient_skip_streak)
+                    write_queue_runtime()
+                    safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
+                else
+                    local summary=media_error_summary(result,error_text,timed_out)
+                    set_engine_status("error","Track "..i.." could not be extracted. Press Play to retry or select another track. "..summary,i)
                 end
             end
         end
@@ -2733,6 +2696,8 @@ function explicit_audio_retry(n,reason)
     local had_marker=exists(permanent) or exists(failed)
     os.remove(permanent);os.remove(failed)
     audio_failures[n]=nil;stream_failures[n]=nil
+    stream_route_failures.js=0;stream_route_failures["no-js"]=0
+    stream_route_degraded_until.js=0;stream_route_degraded_until["no-js"]=0
     if had_marker then log("AUDIO EXPLICIT RETRY track "..n.." reason="..tostring(reason or "manual")) end
 end
 
