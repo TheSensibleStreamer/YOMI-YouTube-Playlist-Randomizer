@@ -369,7 +369,7 @@ function artwork_profile()
     local smart=(cfg.smart_artwork_crop~=false) and "1" or "0"
     local w=math.max(20,math.floor(tonumber(cfg.media_width) or 160))
     local h=math.max(20,math.floor(tonumber(cfg.media_height) or 90))
-    return "r6110615-crop-restored1|smart="..smart.."|box="..w.."x"..h
+    return "r6110615-crop-restored2-full-art1|smart="..smart.."|box="..w.."x"..h
 end
 function artwork_profile_ready(i)
     if not optional_validation_ready("art",i) then return false end
