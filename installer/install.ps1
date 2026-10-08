@@ -1070,6 +1070,7 @@ public static class YomiShellIconRefresh {
         (Join-Path $installRoot 'app\YomiLauncher.exe'),
         (Join-Path $installRoot 'VERSION.txt'),
         (Join-Path $installRoot 'app\music.lua'),
+        (Join-Path $installRoot 'app\YomiMusicEndpointResolver.ps1'),
         (Join-Path $installRoot 'app\server.ps1'),
         (Join-Path $installRoot 'app\controller.ps1'),
         (Join-Path $installRoot 'app\shuffle.ps1'),
