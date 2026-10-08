@@ -39,6 +39,11 @@ try {
     foreach ($font in $fonts) {
         $destination = Join-Path $fontsRoot $font.File
         if ((Test-Path -LiteralPath $destination -PathType Leaf) -and (Test-YomiGitBlobSha $destination $font.GitBlob)) {
+            $license = Join-Path $fontsRoot ('OFL-' + $font.Directory + '.txt')
+            if (-not (Test-Path -LiteralPath $license)) {
+                try { Invoke-WebRequest -Uri ($base + $font.Directory + '/OFL.txt') -OutFile $license -UseBasicParsing -TimeoutSec 12 | Out-Null }
+                catch { Write-Warning ('Could not get the '+$font.Name+' font license.') }
+            }
             continue
         }
         $download = $base + $font.Directory + '/' + [uri]::EscapeDataString($font.Source)
@@ -63,5 +68,4 @@ try {
         }
     }
 }
-finally { }
 Write-Output ('YOMI font pack: '+$added+' added, '+$failed+' unavailable')
