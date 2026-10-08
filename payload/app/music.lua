@@ -1774,9 +1774,12 @@ function try_music_endpoint_replacement(i,callback)
         return
     end
     music_endpoint_checked[origin]=true
-    log("MUSIC ENDPOINT LOOKUP track "..i)
+    local identity=meta_for(i)
+    log("MUSIC ENDPOINT LOOKUP track "..i.." title="..tostring(identity.title or ""))
     run_bounded(cache_priority,"powershell.exe",
-        {"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",helper,"-VideoId",origin},
+        {"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",helper,
+         "-VideoId",origin,"-Title",tostring(identity.title or ""),
+         "-Channel",tostring(identity.channel or ""),"-Duration",tostring(math.floor(tonumber(identity.duration) or 0))},
         22,false,function(ok,result,error_text,timed_out)
             local code=tonumber((result or {}).status or -1) or -1
             local output=tostring((result or {}).stdout or "")
@@ -1786,8 +1789,9 @@ function try_music_endpoint_replacement(i,callback)
                 log("MUSIC ENDPOINT CANDIDATE track "..i.." replacement="..candidate)
                 callback(true)
             else
+                local reason=output:match("MUSIC_ENDPOINT_REASON=([%w_%-]+)") or "no-helper-detail"
                 log("MUSIC ENDPOINT NO REPLACEMENT track "..i.." status="..code..
-                    " timeout="..tostring(timed_out==true))
+                    " reason="..reason.." timeout="..tostring(timed_out==true))
                 callback(false)
             end
         end)
