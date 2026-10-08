@@ -1499,6 +1499,8 @@ function exhausted_unavailable_error(raw)
 end
 
 local audio_failures={}
+-- Bound failure-forward so an entire offline playlist cannot spin forever.
+transient_skip_streak=0
 local stream_resolving={}
 stream_resolve_started={}
 local stream_failures={}
@@ -1758,11 +1760,23 @@ local function audio_job(job)
                 end
             else
                 write_all(status_path(i,"audio.failed"),"1")
-                log("AUDIO FAILED track "..i.." transient; holding requested occurrence")
-                if desired_index==i then
+                log("AUDIO FAILED track "..i.." transient after bounded YouTube/Music routes")
+                -- A failed cache download may coexist with a successfully playing direct
+                -- stream; only skip when the requested occurrence is NOT already audible.
+                if desired_index==i and playing_index~=i then
                     requested_index=0
-                    local summary=media_error_summary(result,error_text,timed_out)
-                    set_engine_status("error","Track "..i.." could not be prepared after alternate YouTube routes. "..summary,i)
+                    transient_skip_streak=transient_skip_streak+1
+                    local n=next_occurrence(i,1)
+                    if n and n~=i and transient_skip_streak<=8 then
+                        desired_index=n
+                        set_engine_status("advancing","Track "..i.." failed; trying track "..n.."...",n)
+                        log("AUDIO FAIL-FORWARD track "..i.." next="..n.." streak="..transient_skip_streak)
+                        write_queue_runtime()
+                        safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
+                    else
+                        local summary=media_error_summary(result,error_text,timed_out)
+                        set_engine_status("error","Playback stopped after repeated extraction failures. Press Play to retry or select a track. "..summary,i)
+                    end
                 end
             end
         end
@@ -3066,6 +3080,7 @@ safe_register_event("playback-restart",function()
         end
         loaded_waiting_for_restart=0
         playing_index=i
+        transient_skip_streak=0
         sync_playback_subset_cursor(i)
         local m=meta_for(i)
         set_engine_status("playing","Playing: "..m.title,i)
