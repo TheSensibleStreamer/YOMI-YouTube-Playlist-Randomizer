@@ -105,6 +105,26 @@ try{
 }catch{Fail 'BUILD.POWERSHELL_PARSE' $_.Exception.Message}
 
 try{
+    $helper=Join-Path $app 'YomiMusicEndpointResolver.ps1'
+    $luaPath=Join-Path $app 'music.lua'
+    if(-not(Test-Path -LiteralPath $helper -PathType Leaf)){
+        Fail 'MUSIC.ENDPOINT_HELPER' 'replacement resolver missing from release payload'
+    }elseif(-not(Test-Path -LiteralPath $luaPath -PathType Leaf)){
+        Fail 'MUSIC.ENDPOINT_HELPER' 'playback engine missing from release payload'
+    }else{
+        $luaSource=Get-Content -LiteralPath $luaPath -Raw -Encoding UTF8
+        $helperSource=Get-Content -LiteralPath $helper -Raw -Encoding UTF8
+        $needed=@('try_music_endpoint_replacement','MUSIC ENDPOINT VERIFIED','music_media_url(i)','music_resolved_music_url(i)')
+        $missing=@($needed | Where-Object { -not $luaSource.Contains($_) })
+        if($missing.Count -gt 0 -or -not $helperSource.Contains('INITIAL_ENDPOINT')){
+            Fail 'MUSIC.ENDPOINT_HELPER' ('incomplete resolver integration: '+($missing -join ','))
+        }else{
+            Pass 'MUSIC.ENDPOINT_HELPER' 'on-failure source mapping and anonymous helper are present'
+        }
+    }
+}catch{Fail 'MUSIC.ENDPOINT_HELPER' $_.Exception.Message}
+
+try{
     $exe=Join-Path $app 'YomiControllerWpf.exe'
     if(Test-Path -LiteralPath $exe){$probe=Invoke-QualificationSelfTest -Exe $exe -WorkingDirectory $app;if([int]$probe.exit -eq 0){Pass 'BUILD.WPF_SELF_TEST' 'exit 0'}elseif([string]::IsNullOrWhiteSpace([string]$probe.detail)){Fail 'BUILD.WPF_SELF_TEST' ('exit '+$probe.exit)}else{Fail 'BUILD.WPF_SELF_TEST' ('exit '+$probe.exit+' :: '+$probe.detail)}}else{Fail 'BUILD.WPF_SELF_TEST' 'controller executable missing'}
 }catch{Fail 'BUILD.WPF_SELF_TEST' $_.Exception.Message}
