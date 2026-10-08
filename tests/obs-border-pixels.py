@@ -23,7 +23,7 @@ def overlay_html():
     return html.replace('tick();\n})();',
                         'window.__yomiPixelTestApply=apply;\ntick();\n})();')
 
-async def check(page, border, corner, layout, with_video=True):
+async def check(page, border, corner, layout, with_video=True, video_aspect=16/9):
     config = {
         "app_mode": "Streamer / OBS", "overlay_width": 2560,
         "overlay_height": 144, "canvas_width": 2560, "canvas_height": 144,
@@ -40,6 +40,7 @@ async def check(page, border, corner, layout, with_video=True):
         "channel": "Music - Topic", "artwork": "unavailable",
         "full_artwork": "unavailable", "visualizer": "unavailable"
     }
+    await page.evaluate("ratio => { videoAspect=ratio; }", video_aspect)
     await page.evaluate("""([config,track])=>{
         window.__yomiPixelTestApply(config,track,{});
         document.getElementById('artFrame').style.backgroundColor='red';
@@ -50,17 +51,32 @@ async def check(page, border, corner, layout, with_video=True):
        function box(id){let r=document.getElementById(id).getBoundingClientRect();
          return {x:r.x,y:r.y,w:r.width,h:r.height};}
        return {art:box('artFrame'),vid:box('vidFrame'),
+               artModule:box('art'),vidModule:box('vid'),
+               radii:['artFrame','vidFrame'].map(id=>{let st=getComputedStyle(document.getElementById(id));return [st.borderTopLeftRadius,st.borderTopRightRadius,st.borderBottomLeftRadius,st.borderBottomRightRadius];}),
                text:box('text'),viz:box('viz'),
                svg:getComputedStyle(document.getElementById('mediaPairSvg')).display};
     }""")
     image = Image.open(io.BytesIO(await page.screenshot(omit_background=True))).convert("RGBA")
-    if with_video and layout == "Reflow":
+    if with_video and layout == "Reflow" and abs(video_aspect - 16/9)<0.025:
         a,v=boxes["art"],boxes["vid"]
         assert round(a["x"]+a["w"]-v["x"]) == border, (border,boxes)
         assert boxes["svg"]=="none", "Shared SVG hides transparent inner corners"
         y=round(a["y"]+a["h"]/2)
         seam=[image.getpixel((x,y)) for x in range(round(v["x"]),round(a["x"]+a["w"]))]
         assert len(seam)==border and all(px==(37,37,37,255) for px in seam), seam
+    for radii in boxes['radii'][:2 if with_video else 1]:
+        values=[float(v.removesuffix('px')) for v in radii]
+        if corner == 'Square':
+            assert all(v == 0 for v in values), (corner,values,boxes)
+        else:
+            assert all(v >= 6.4 for v in values), (border,corner,layout,values,boxes)
+    if with_video and video_aspect < 1.4:
+        assert boxes['vid']['w'] < boxes['art']['w'], boxes
+        assert boxes['vid']['x'] >= boxes['art']['x'] + boxes['art']['w'] - 1, boxes
+        if layout == 'Fixed':
+            assert abs(boxes['vidModule']['w']-boxes['artModule']['w']) < 1, boxes
+        else:
+            assert abs(boxes['vidModule']['w']-boxes['vid']['w']) < 1, boxes
     if corner != "Square":
         for name in (["art","vid"] if with_video else ["art"]):
             a=boxes[name]
@@ -69,7 +85,7 @@ async def check(page, border, corner, layout, with_video=True):
                     assert image.getpixel((x,y))[3]==0, (border,corner,layout,name,(x,y),image.getpixel((x,y)))
     if with_video:
         assert boxes["viz"]["w"]>=boxes["text"]["w"]-2, boxes
-    print(f"PASS {border}px {corner} {layout} video={with_video}, text={boxes['text']['w']:.0f}px viz={boxes['viz']['w']:.0f}px")
+    print(f"PASS {border}px {corner} {layout} video={with_video}, video_ratio={video_aspect:.3f}, text={boxes['text']['w']:.0f}px viz={boxes['viz']['w']:.0f}px")
 
 async def main():
     async with async_playwright() as p:
@@ -83,7 +99,9 @@ async def main():
             await page.wait_for_function("window.__yomiPixelTestApply != null")
             for args in [(2,"Soft","Reflow",True),(4,"Soft","Reflow",True),
                          (8,"Soft","Reflow",True),(2,"Rounded","Reflow",True),
-                         (2,"Soft","Fixed",True),(2,"Soft","Reflow",False)]:
+                         (2,"Soft","Fixed",True),(2,"Soft","Reflow",False),
+                         (2,"Square","Reflow",True),(2,"Soft","Reflow",True,4/3),
+                         (2,"Rounded","Fixed",True,4/3)]:
                 await check(page,*args)
             assert not errors,errors
         finally:
