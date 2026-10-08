@@ -489,6 +489,36 @@ function youtube_music_url(i)
     return "https://music.youtube.com/watch?v="..id
 end
 
+-- Replacement videos are a playback resolution, NEVER a playlist mutation.
+-- The original source ID still owns queue identity and durable audio cache keys.
+music_endpoint_map_path=state_root .. "\\music-endpoint-map.json"
+music_endpoint_map=load_json(music_endpoint_map_path) or {}
+music_endpoint_candidates={}
+music_endpoint_checked={}
+function music_endpoint_valid_id(id)
+    return type(id)=="string" and #id==11 and id:match("^[%w_%-]+$")~=nil
+end
+function music_endpoint_override(i)
+    local origin=youtube_id(urls[i])
+    if not music_endpoint_valid_id(origin) then return nil end
+    local pending=music_endpoint_candidates[origin]
+    if music_endpoint_valid_id(pending) and pending~=origin then return pending end
+    local recorded=music_endpoint_map[origin]
+    if type(recorded)=="table" and music_endpoint_valid_id(recorded.id)
+        and recorded.id~=origin and (tonumber(recorded.expires) or 0)>os.time() then
+        return recorded.id
+    end
+    return nil
+end
+function music_media_url(i)
+    local replacement=music_endpoint_override(i)
+    return replacement and ("https://music.youtube.com/watch?v="..replacement) or urls[i]
+end
+function music_resolved_music_url(i)
+    local replacement=music_endpoint_override(i)
+    return replacement and ("https://music.youtube.com/watch?v="..replacement) or youtube_music_url(i)
+end
+
 function source_identity(raw)
     local u=tostring(raw or ""):match("^%s*(.-)%s*$") or ""
     local id=youtube_id(u)
@@ -1716,6 +1746,35 @@ function report_exhausted_audio(i,summary)
     end
 end
 
+-- One anonymous, on-demand HTML request after an unavailable extractor response.
+-- Successful candidates are persisted ONLY after real audio has been downloaded.
+function try_music_endpoint_replacement(i,callback)
+    local origin=youtube_id(urls[i])
+    local helper=install_root.."\\app\\YomiMusicEndpointResolver.ps1"
+    if not music_endpoint_valid_id(origin) or music_endpoint_checked[origin] or not exists(helper) then
+        callback(false)
+        return
+    end
+    music_endpoint_checked[origin]=true
+    log("MUSIC ENDPOINT LOOKUP track "..i)
+    run_bounded(cache_priority,"powershell.exe",
+        {"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",helper,"-VideoId",origin},
+        22,false,function(ok,result,error_text,timed_out)
+            local code=tonumber((result or {}).status or -1) or -1
+            local output=tostring((result or {}).stdout or "")
+            local candidate=output:match("MUSIC_ENDPOINT_ID=([%w_%-]+)")
+            if ok and code==0 and music_endpoint_valid_id(candidate) and candidate~=origin then
+                music_endpoint_candidates[origin]=candidate
+                log("MUSIC ENDPOINT CANDIDATE track "..i.." replacement="..candidate)
+                callback(true)
+            else
+                log("MUSIC ENDPOINT NO REPLACEMENT track "..i.." status="..code..
+                    " timeout="..tostring(timed_out==true))
+                callback(false)
+            end
+        end)
+end
+
 local function audio_job(job)
     local i=job.i
     if audio_ready(i) then job_done(job);return end
@@ -1724,7 +1783,7 @@ local function audio_job(job)
     local template=audio_dir.."\\track-"..i..".focused.%(ext)s"
     local a=ytdlp_common()
     local attempt_number=(audio_failures[i] or 0)+1
-    local music_url=youtube_music_url(i)
+    local music_url=music_resolved_music_url(i)
     local max_attempts=audio_attempt_limit(i)
     if attempt_number>max_attempts then
         -- Direct-stream resolution can finish after background download has
@@ -1765,7 +1824,7 @@ local function audio_job(job)
     table.insert(a,"--write-info-json")
     table.insert(a,"--no-part")
     table.insert(a,"--output");table.insert(a,template)
-    table.insert(a,music_attempt and music_url or urls[i])
+    table.insert(a,music_endpoint_override(i) and music_media_url(i) or (music_attempt and music_url or urls[i]))
     log("AUDIO START track "..i.." attempt "..attempt_number.."/"..max_attempts.." site="..(pot_attempt and "po-token-mweb" or (music_attempt and "youtube-music" or "youtube")).." client="..client_route)
     -- The one-time CLI uses short-lived browser attestation, not a server.
     -- Bound it too; all other yt-dlp route deadlines remain unchanged.
@@ -1853,34 +1912,82 @@ local function audio_job(job)
             if exists(meta_path(i)) then promote_object(meta_path(i),meta_object_path(i)) end
             if exists(gain_path(i)) then promote_object(gain_path(i),gain_object_path(i)) end
             audio_failures[i]=nil
+            -- A valid downloaded recording confirms that Music's replacement
+            -- actually resolves, so cache that mapping for future launches.
+            local origin=youtube_id(urls[i])
+            local verified=music_endpoint_candidates[origin]
+            if music_endpoint_valid_id(verified) then
+                music_endpoint_map[origin]={id=verified,expires=os.time()+14*86400}
+                music_endpoint_candidates[origin]=nil
+                write_json(music_endpoint_map_path,music_endpoint_map)
+                log("MUSIC ENDPOINT VERIFIED track "..i.." replacement="..verified)
+            end
             os.remove(status_path(i,"audio.failed"));os.remove(status_path(i,"audio.permanent"))
             log("AUDIO READY track "..i)
             job_done(job)
             return
         end
-        cleanup_prefix(audio_dir,prefix)
-        audio_failures[i]=(audio_failures[i] or 0)+1
-        -- An unavailable/private normal YouTube result is not conclusive for a
-        -- Topic song. Finish the Music-route checks BEFORE writing audio.permanent.
-        if audio_failures[i]<max_attempts then
-            log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1).." next="..((music_url and audio_failures[i]>=3) and "youtube-music" or "youtube"))
-            safe_timeout(0.15,function()
-                if not shutting_down and (desired_index==i or optional_should_retain(i,cache_plan_anchor())) then
-                    enqueue("audio",i,job.priority);pump()
+        local function conclude_audio_failure()
+            cleanup_prefix(audio_dir,prefix)
+            audio_failures[i]=(audio_failures[i] or 0)+1
+            -- An unavailable/private normal YouTube result is not conclusive for a
+            -- Topic song. Finish the Music-route checks BEFORE writing audio.permanent.
+            if audio_failures[i]<max_attempts then
+                log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1).." next="..((music_url and audio_failures[i]>=3) and "youtube-music" or "youtube"))
+                safe_timeout(0.15,function()
+                    if not shutting_down and (desired_index==i or optional_should_retain(i,cache_plan_anchor())) then
+                        enqueue("audio",i,job.priority);pump()
+                    end
+                end)
+            else
+                -- yt-dlp can reject a publicly playable source. After the bounded
+                -- routes fail, record a retryable extraction failure, not UNAVAILABLE.
+                -- Queue order remains intact and explicit Play/Listen can retry.
+                os.remove(status_path(i,"audio.permanent"))
+                write_all(status_path(i,"audio.failed"),"extractor-failed-v2|"..source_identity(urls[i]).."|"..tostring(os.time()))
+                log("AUDIO EXTRACTION EXHAUSTED track "..i.." after "..max_attempts..
+                    " routes; source remains retryable "..failure_detail)
+                -- Reuse the same terminal state for download and stream failures.
+                report_exhausted_audio(i,failure_detail)
+            end
+            job_done(job)
+        end
+        local origin=youtube_id(urls[i])
+        local error_lower=stderr:lower()
+        local unplayable=(error_lower:find("video unavailable",1,true)~=nil or
+            error_lower:find("this video is not available",1,true)~=nil or
+            error_lower:find("unplayable",1,true)~=nil)
+        -- Do not re-run six routes once Music reveals a new source ID.
+        -- A failed or ambiguous lookup falls through to the existing budget.
+        if unplayable and not music_endpoint_override(i) and
+            music_endpoint_valid_id(origin) and not music_endpoint_checked[origin] then
+            try_music_endpoint_replacement(i,function(found)
+                if found then
+                    cleanup_prefix(audio_dir,prefix)
+                    audio_failures[i]=nil
+                    clear_optional_failure("art",i)
+                    clear_optional_failure("video",i)
+                    job_done(job)
+                    if not shutting_down and
+                        (desired_index==i or optional_should_retain(i,cache_plan_anchor())) then
+                        enqueue("audio",i,job.priority)
+                        pump()
+                    end
+                else
+                    conclude_audio_failure()
                 end
             end)
-        else
-            -- yt-dlp can reject a publicly playable source. After the bounded
-            -- routes fail, record a retryable extraction failure, not UNAVAILABLE.
-            -- Queue order remains intact and explicit Play/Listen can retry.
-            os.remove(status_path(i,"audio.permanent"))
-            write_all(status_path(i,"audio.failed"),"extractor-failed-v2|"..source_identity(urls[i]).."|"..tostring(os.time()))
-            log("AUDIO EXTRACTION EXHAUSTED track "..i.." after "..max_attempts..
-                " routes; source remains retryable "..failure_detail)
-            -- Reuse the same terminal state for download and stream failures.
-            report_exhausted_audio(i,failure_detail)
+            return
         end
-        job_done(job)
+        if music_endpoint_override(i) and attempt_number>=max_attempts then
+            -- Do not keep serving an expired/rejected replacement indefinitely.
+            music_endpoint_candidates[origin]=nil
+            music_endpoint_map[origin]=nil
+            music_endpoint_checked[origin]=true
+            write_json(music_endpoint_map_path,music_endpoint_map)
+            log("MUSIC ENDPOINT INVALIDATED track "..i)
+        end
+        conclude_audio_failure()
     end)
 end
 
@@ -1905,7 +2012,7 @@ start_fast_stream=function(i)
     log("STREAM RESOLVE track "..i)
 
     local routes=stream_route_order()
-    local music_url=youtube_music_url(i)
+    local music_url=music_resolved_music_url(i)
     if music_url then
         table.insert(routes,"music-no-js")
         if deno_available then table.insert(routes,"music-js") end
@@ -1957,7 +2064,7 @@ start_fast_stream=function(i)
             table.insert(a,"--extractor-args")
             table.insert(a,"youtube:player_client=web_music,default")
         end
-        table.insert(a,(mode:sub(1,6)=="music-" and music_url) or urls[i])
+        table.insert(a,(mode:sub(1,6)=="music-" and music_url) or music_media_url(i))
         if not startup_first_sound then write_startup_flight("stream_route",i,"Trying "..mode.." direct-stream resolver ("..timeout_seconds.."s ceiling).",false,false) end
         log("STREAM ROUTE track "..i.." "..mode.." timeout "..timeout_seconds.."s")
         run_bounded(cache_priority,ytdlp,a,timeout_seconds,true,function(success,result,error_text,timed_out)
@@ -2035,8 +2142,8 @@ local function art_job(job)
     local a=ytdlp_common()
     table.insert(a,"--skip-download");table.insert(a,"--write-thumbnail")
     table.insert(a,"--output");table.insert(a,artwork_dir.."\\"..prefix)
-    local music_url=youtube_music_url(i)
-    table.insert(a,(job.music_fallback and music_url) or urls[i])
+    local music_url=music_resolved_music_url(i)
+    table.insert(a,(job.music_fallback and music_url) or music_media_url(i))
     log("ART START track "..i.." site="..(job.music_fallback and "youtube-music" or "youtube").." smart_crop="..tostring(cfg.smart_artwork_crop~=false))
 
     run_bounded(cache_priority,ytdlp,a,45,false,function(success,result,error_text,timed_out)
@@ -2317,7 +2424,7 @@ local function video_job(job)
         os.remove(temp);os.remove(normalized)
         local a=ytdlp_common()
         table.insert(a,"--format");table.insert(a,formats[route])
-        table.insert(a,"--no-part");table.insert(a,"--output");table.insert(a,temp);table.insert(a,urls[i])
+        table.insert(a,"--no-part");table.insert(a,"--output");table.insert(a,temp);table.insert(a,music_media_url(i))
         job.request_id=run_bounded(cache_priority,ytdlp,a,120,false,function(success,result,error_text,timed_out)
             job.request_id=nil
             if not (configured_video or controller_want_video) then os.remove(temp);os.remove(normalized);job_done(job);return end
