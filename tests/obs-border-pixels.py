@@ -21,7 +21,7 @@ def overlay_html():
     html = json.loads('"'+match.group(1)+'"') + json.loads('"'+match.group(2)+'"')
     assert html.count('tick();\n})();') == 1
     return html.replace('tick();\n})();',
-                        'window.__yomiPixelTestApply=apply;\ntick();\n})();')
+                        'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\ntick();\n})();')
 
 async def check(page, border, corner, layout, with_video=True, video_aspect=16/9):
     config = {
@@ -42,7 +42,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     }
     if abs(video_aspect - 16/9) > 0.025:
         track["video"] = "unavailable"  # Forces actual video aspect handling instead of full-art fallback.
-    await page.evaluate("ratio => { videoAspect=ratio; }", video_aspect)
+    await page.evaluate("ratio => window.__yomiPixelTestAspect(ratio)", video_aspect)
     await page.evaluate("""([config,track])=>{
         window.__yomiPixelTestApply(config,track,{});
         document.getElementById('artFrame').style.backgroundColor='red';
