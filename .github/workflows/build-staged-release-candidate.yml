@@ -35,13 +35,28 @@ jobs:
           & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $extract -ExpectedVersion '420.69.9027' -ExpectedPackageHash $hash -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $dryData
           if($LASTEXITCODE -ne 0){throw 'Updater ZIP verification rejected candidate'}
           if(-not (Test-Path (Join-Path $extract 'installer/build-manifest.json'))){throw 'Expected extraction missing'}
-      - name: Qualify sealed candidate against current capability contract
+      - name: Verify staged source seal and installation contract (before runtime binaries exist)
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9027-extracted'
-          & (Join-Path $extract 'payload/app/release-qualification.ps1') -Root (Join-Path $extract 'payload') -Mode Sealed -NoReport
-          if($LASTEXITCODE -ne 0){throw 'Candidate failed sealed release qualification'}
+          $payload = Join-Path $extract 'payload'
+          $app = Join-Path $payload 'app'
+          $contract = Get-Content (Join-Path $app 'YOMI-CAPABILITY-CONTRACT.json') -Raw | ConvertFrom-Json
+          $receipt = Get-Content (Join-Path $app 'INSTALLATION-RECEIPT.json') -Raw | ConvertFrom-Json
+          $seal = Get-Content (Join-Path $app 'RUNTIME-INTEGRITY-MANIFEST.json') -Raw | ConvertFrom-Json
+          $version = (Get-Content (Join-Path $payload 'VERSION.txt') -Raw).Trim()
+          if($version -ne '420.69.9027' -or $contract.version -ne $version -or $receipt.version -ne $version -or $seal.version -ne $version){throw 'Candidate identity mismatch'}
+          if(@($seal.files).Count -ne [int]$seal.file_count){throw 'Source seal count mismatch'}
+          foreach($entry in $seal.files){
+            $file = Join-Path $payload ([string]$entry.path).Replace('/','\')
+            if(-not (Test-Path -LiteralPath $file -PathType Leaf)){throw "Source seal file missing: $file"}
+            if((Get-Item -LiteralPath $file).Length -ne [int64]$entry.bytes){throw "Source seal byte mismatch: $file"}
+            if((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne [string]$entry.sha256){throw "Source seal hash mismatch: $file"}
+          }
+          Write-Host "PASS: sealed $($seal.file_count) packaged runtime sources; installed binaries are separately created and validated by the installer."
+          # Full release-qualification -Mode Sealed is only valid after installer-generated binaries exist.
+
       - name: Upload candidate ZIP and proposed update manifest (NOT PUBLISHED)
         uses: actions/upload-artifact@v4
         with:
