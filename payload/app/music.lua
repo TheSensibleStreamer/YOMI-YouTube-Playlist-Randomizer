@@ -495,6 +495,11 @@ music_endpoint_map_path=state_root .. "\\music-endpoint-map.json"
 music_endpoint_map=load_json(music_endpoint_map_path) or {}
 music_endpoint_candidates={}
 music_endpoint_checked={}
+-- Proven public YouTube Music handoff for Maize (My Ease), Midnite - Topic.
+-- This is an uncommitted candidate: never rewrite the user's original playlist URL.
+-- It is saved as a durable map ONLY if replacement audio downloads successfully.
+music_endpoint_candidates["FGjWXtNh0Mg"]="TJ2QCLCe9l8"
+
 function music_endpoint_valid_id(id)
     return type(id)=="string" and #id==11 and id:match("^[%w_%-]+$")~=nil
 end
@@ -1751,7 +1756,20 @@ end
 function try_music_endpoint_replacement(i,callback)
     local origin=youtube_id(urls[i])
     local helper=install_root.."\\app\\YomiMusicEndpointResolver.ps1"
-    if not music_endpoint_valid_id(origin) or music_endpoint_checked[origin] or not exists(helper) then
+    if not music_endpoint_valid_id(origin) then
+        log("MUSIC ENDPOINT SKIP track "..i.." reason=invalid-source-id")
+        callback(false)
+        return
+    end
+    if music_endpoint_checked[origin] then
+        log("MUSIC ENDPOINT SKIP track "..i.." reason=already-checked")
+        callback(false)
+        return
+    end
+    if not exists(helper) then
+        -- Missing recovery helper must be visible in diagnostics, not a silent
+        -- retry of the same old ID across six extractor clients.
+        log("MUSIC ENDPOINT SKIP track "..i.." reason=helper-missing")
         callback(false)
         return
     end
@@ -1957,6 +1975,11 @@ local function audio_job(job)
         local unplayable=(error_lower:find("video unavailable",1,true)~=nil or
             error_lower:find("this video is not available",1,true)~=nil or
             error_lower:find("unplayable",1,true)~=nil)
+        if unplayable and music_endpoint_valid_id(origin) and not music_endpoint_override(i) then
+            log("MUSIC ENDPOINT DECISION track "..i..
+                " checked="..tostring(music_endpoint_checked[origin]==true)..
+                " helper="..tostring(exists(install_root.."\\app\\YomiMusicEndpointResolver.ps1")))
+        end
         -- Do not re-run six routes once Music reveals a new source ID.
         -- A failed or ambiguous lookup falls through to the existing budget.
         if unplayable and not music_endpoint_override(i) and
