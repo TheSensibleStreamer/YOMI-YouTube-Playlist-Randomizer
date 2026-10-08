@@ -1738,7 +1738,7 @@ local function audio_job(job)
     local pot_attempt=pot_available and attempt_number==max_attempts
     local music_attempt=music_url and attempt_number>=4 and attempt_number<=5 and not pot_attempt
     local client_route="default"
-    if pot_attempt then client_route="mweb+pot"
+    if pot_attempt then client_route="mweb+web+pot"
     elseif attempt_number==2 then client_route="web_embedded,default"
     elseif attempt_number==3 then client_route="android,default"
     elseif attempt_number==4 then client_route="web_music,default"
@@ -1755,7 +1755,7 @@ local function audio_job(job)
         a=visible
         table.insert(a,"--verbose")
         table.insert(a,"--plugin-dirs");table.insert(a,pot_plugin_root)
-        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb")
+        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb,web")
         table.insert(a,"--extractor-args")
         table.insert(a,"youtubepot-bgutilcli:cli_path="..(pot_exe:gsub("\\","/")))
     elseif client_route~="default" then
@@ -1780,12 +1780,34 @@ local function audio_job(job)
             -- so absence from "Extractor Plugins" is not evidence of failure.
             local plugin_paths=lower:match("%[debug%]%s*plugin directories:%s*([^\r\n]*)")
             local debug_seen=lower:find("[debug]",1,true)~=nil
+            -- A listed plugin directory and executable version do not prove
+            -- that yt-dlp registered the PO provider. Require its own list.
+            local providers=lower:match("po token providers:%s*([^\r\n]*)")
+            local provider_registered=providers~=nil and
+                (providers:find("bgutil:cli",1,true)~=nil or
+                 providers:find("bgutil:script",1,true)~=nil)
             local request_seen=lower:find("generating a",1,true)~=nil and
                 lower:find("po token",1,true)~=nil
             local provider_cli_seen=lower:find("bgutil-pot version:",1,true)~=nil
             local plugin_load_error=lower:find("error loading plugin",1,true)~=nil or
                 lower:find("error importing plugin",1,true)~=nil
+            -- Only save short, recognized status words, never raw verbose
+            -- output, cookies, attestation bytes or YouTube visitor data.
+            local mweb_status=lower:match("mweb player response playability status:%s*([%w_%-]+)") or "not-logged"
+            local web_status=lower:match("web player response playability status:%s*([%w_%-]+)") or "not-logged"
+            local ads_seen=lower:find("detected a ",1,true)~=nil and
+                lower:find(" ad ",1,true)~=nil
             local reject=lower:find("video unavailable",1,true)~=nil
+            local rejection="other"
+            if lower:find("playback on other websites has been disabled",1,true) then
+                rejection="embedding-disabled"
+            elseif lower:find("not available in your country",1,true) then
+                rejection="geographic"
+            elseif lower:find("sign in to confirm",1,true) then
+                rejection="authentication"
+            elseif reject then
+                rejection="video-unavailable"
+            end
             local error_line=stderr:match("ERROR:%s*([^\r\n]+)") or
                 stderr:match("WARNING:%s*([^\r\n]+)") or
                 (timed_out and "route timed out" or "no yt-dlp error line")
@@ -1795,8 +1817,14 @@ local function audio_job(job)
                 " debug_seen="..tostring(debug_seen)..
                 " plugin_paths_listed="..tostring(plugin_paths~=nil)..
                 " provider_cli_verified="..tostring(provider_cli_seen)..
+                " provider_list_seen="..tostring(providers~=nil)..
+                " provider_registered="..tostring(provider_registered)..
                 " provider_import_error="..tostring(plugin_load_error)..
                 " token_request_logged="..tostring(request_seen)..
+                " mweb_status="..mweb_status..
+                " web_status="..web_status..
+                " browser_ads_detected="..tostring(ads_seen)..
+                " rejection="..rejection..
                 " youtube_unavailable="..tostring(reject)..
                 " status="..tostring(result.status or -1)..
                 " timeout="..tostring(timed_out==true))
