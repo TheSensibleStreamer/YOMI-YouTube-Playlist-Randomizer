@@ -1473,6 +1473,11 @@ local function permanent_error(raw)
         or s:find("blocked in your country",1,true)
 end
 
+local function exhausted_unavailable_error(raw)
+    local s=tostring(raw or ""):lower()
+    return permanent_error(s) or s:find("video unavailable",1,true)
+end
+
 local audio_failures={}
 local stream_resolving={}
 stream_resolve_started={}
@@ -1712,12 +1717,31 @@ local function audio_job(job)
             log("AUDIO RETRY track "..i.." attempt "..(audio_failures[i]+1))
             safe_timeout(1.0,function() enqueue("audio",i,job.priority);pump() end)
         else
-            write_all(status_path(i,"audio.failed"),"1")
-            log("AUDIO FAILED track "..i.." transient; holding requested occurrence")
-            if desired_index==i then
-                requested_index=0
-                local summary=media_error_summary(result,error_text,timed_out)
-                set_engine_status("error","Track "..i.." could not be prepared after alternate YouTube routes. "..summary,i)
+            if exhausted_unavailable_error(stderr) then
+                write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
+                os.remove(status_path(i,"audio.failed"))
+                permanent_reprobe_attempted[i]=true
+                log("AUDIO QUARANTINE track "..i.." after alternate routes agreed unavailable")
+                if desired_index==i then
+                    requested_index=0
+                    local n=next_occurrence(i,1)
+                    if n and n~=i then
+                        desired_index=n
+                        set_engine_status("advancing","Skipping unavailable track "..i.."; moving to track "..n.."...",n)
+                        write_queue_runtime()
+                        safe_timeout(0.05,function() if desired_index==n then play_index(n) end end)
+                    else
+                        set_engine_status("error","Track "..i.." is unavailable and no playable next track was found.",i)
+                    end
+                end
+            else
+                write_all(status_path(i,"audio.failed"),"1")
+                log("AUDIO FAILED track "..i.." transient; holding requested occurrence")
+                if desired_index==i then
+                    requested_index=0
+                    local summary=media_error_summary(result,error_text,timed_out)
+                    set_engine_status("error","Track "..i.." could not be prepared after alternate YouTube routes. "..summary,i)
+                end
             end
         end
         job_done(job)
@@ -2370,15 +2394,7 @@ end
 
 request_bundle=function(i,priority)
     if not i or i<1 or i>#urls then return end
-    if known_bad(i) then
-        if permanent_reprobe_attempted[i] then return end
-        permanent_reprobe_attempted[i]=true
-        os.remove(status_path(i,"audio.permanent"))
-        os.remove(status_path(i,"audio.failed"))
-        audio_failures[i]=nil
-        stream_failures[i]=nil
-        log("AUDIO PERMANENT RECHECK track "..i.." reason=prefetch-horizon")
-    end
+    if known_bad(i) then return end
     local p=tonumber(priority) or 10
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
     if not audio_ready(i) then enqueue("audio",i,p) end
@@ -2395,7 +2411,7 @@ local function schedule_ahead(i)
     local cursor=i
     local audio_tracks_ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
     for n=1,audio_tracks_ahead do
-        local next_i=next_occurrence(cursor,1,true)
+        local next_i=next_occurrence(cursor,1)
         if not next_i or next_i==i then break end
         request_bundle(next_i,n)
         cursor=next_i
@@ -2509,12 +2525,11 @@ end
 local function advance(step)
     local direction=(tonumber(step) or 1)>=0 and 1 or -1
     local base=(transport_pending_target>0 and transport_pending_target) or (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
-    local n=playback_subset_active and next_subset_transport_occurrence(base,direction,true) or next_occurrence(base,direction,true)
+    local n=playback_subset_active and next_subset_transport_occurrence(base,direction,false) or next_occurrence(base,direction,false)
     if not n then
         log("TRANSPORT boundary "..(direction>0 and "next" or "previous").." from track "..tostring(base))
         return
     end
-    if known_bad(n) then explicit_audio_retry(n,"transport") end
     desired_index=n
     transport_pending_target=n
     transport_pending_attempts=0
