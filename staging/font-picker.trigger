@@ -4,3 +4,4 @@ Revalidate all-four-corner alpha, overlap-by-width seams, and full-size visualiz
 Verify frame border-radius on both overlapping media, including real 4:3 video in Fixed and Reflow.
 Use scoped videoAspect test injection inside the real OBS runtime closure.
 Expect shared Reflow seam at 16:9 or 4:3; Fixed 4:3 stays centered and separated.
+Parse-check version-aware release-qualification.ps1 before building v420.69.9027.
