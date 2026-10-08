@@ -28,13 +28,13 @@ function Copy-FilePreserve {
 }
 
 $summary = @(
-    "YOMI Diagnostic Bundle v11 / R61.106.51",
+    "YOMI Diagnostic Bundle v12 / R61.106.53",
     "Collected: $(Get-Date -Format o)",
     "Computer: $env:COMPUTERNAME",
     "User: $env:USERNAME",
     "Windows: $([Environment]::OSVersion.VersionString)",
     "PowerShell: $($PSVersionTable.PSVersion)",
-    "Collector revision: R61.106.51",
+    "Collector revision: R61.106.53",
     ""
 )
 $summary | Out-File (Join-Path $out "00-summary.txt") -Encoding utf8
@@ -70,12 +70,11 @@ $roots | Out-File (Join-Path $out "01-discovered-roots.txt") -Append -Encoding u
 
 # Diagnostic-ish extensions / names to collect broadly.
 $diagExtensions = @(
-    ".log",".txt",".json",".jsonl",".xml",".yaml",".yml",".ini",".cfg",".conf",
-    ".csv",".tsv",".md",".ps1",".lua",".xaml",".cs"
+    ".log",".txt",".json",".jsonl",".xml",".yaml",".yml",".ini",".cfg",".conf",".csv",".tsv"
 )
-$diagNameRegex = '(log|status|state|current|engine|supervisor|server|config|setting|diagnostic|health|lease|ipc|obs|mpv|ffmpeg|yt-dlp|update|install|bootstrap|patch|manifest|telemetry|trace|error|crash|queue|runtime)'
-
-# Paths that are potentially enormous. We still inventory them separately.
+$diagNameRegex = '(log|status|state|current|engine|supervisor|server|config|setting|diagnostic|health|lease|ipc|obs|mpv|ffmpeg|yt-dlp|update|install|bootstrap|manifest|telemetry|trace|error|crash|queue)'
+# Never recursively package generated runtimes, historical backups, or old recovery/config snapshots.
+$excludedTreeRegex = '\\(_MEI[^\\]*|rollback-backup[^\\]*|rollback-backups|recovery-history|config-history|support)\\'
 $heavyPathRegex = '\\(cache|artwork-cache|video-cache|audio-cache|downloads?|installer-cache|backup|backups|recovery|updates|runtime\\ffmpeg|runtime\\mpv|runtime\\yt-dlp)\\'
 
 $collected = New-Object System.Collections.ArrayList
@@ -85,30 +84,39 @@ foreach ($root in $roots) {
     $destRoot = Join-Path $out ("YOMI-ROOT_" + $rootTag)
     New-Item -ItemType Directory -Force -Path $destRoot | Out-Null
 
-    # Full inventory for this root, even for excluded/heavy files.
+    # Compact inventory only. Full recursive inventories were multi-megabyte noise and
+    # repeatedly listed PyInstaller _MEI trees, rollback copies and historical recovery snapshots.
     $inventoryPath = Join-Path $destRoot "_INVENTORY.txt"
-    "ROOT: $root" | Out-File $inventoryPath -Encoding utf8
-
-    Get-ChildItem -LiteralPath $root -Force -Recurse -ErrorAction SilentlyContinue |
-        Select-Object FullName,Length,LastWriteTime,Attributes |
-        Sort-Object FullName |
-        Format-Table -AutoSize | Out-String -Width 4096 |
+    @("ROOT: $root","","TOP LEVEL") | Out-File $inventoryPath -Encoding utf8
+    Get-ChildItem -LiteralPath $root -Force -ErrorAction SilentlyContinue |
+        Select-Object Name,Length,LastWriteTime,Attributes |
+        Format-Table -AutoSize | Out-String -Width 2048 |
         Out-File $inventoryPath -Append -Encoding utf8
 
-    # Collect broadly, but cap each file at 25 MB and avoid obvious media/binary payloads.
+    "RECENT / RELEVANT FILES (max 1500)" | Out-File $inventoryPath -Append -Encoding utf8
     Get-ChildItem -LiteralPath $root -File -Force -Recurse -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.FullName -notmatch $excludedTreeRegex -and
+            ($diagExtensions -contains $_.Extension.ToLowerInvariant() -or $_.Name -match $diagNameRegex)
+        } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1500 FullName,Length,LastWriteTime |
+        Format-Table -AutoSize | Out-String -Width 2048 |
+        Out-File $inventoryPath -Append -Encoding utf8
+
+    # Keep only modest textual evidence. Important large logs are tailed separately below.
+    Get-ChildItem -LiteralPath $root -File -Force -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch $excludedTreeRegex } |
         ForEach-Object {
             $f = $_
             $ext = $f.Extension.ToLowerInvariant()
             $isHeavyPath = $f.FullName -match $heavyPathRegex
             $interestingName = $f.Name -match $diagNameRegex
             $interestingExt = $diagExtensions -contains $ext
-
-            # In cache-ish trees, only take tiny textual state/sidecar/manifest files.
-            $allowFromHeavy = $isHeavyPath -and $interestingExt -and $f.Length -lt 1MB -and $interestingName
+            $allowFromHeavy = $isHeavyPath -and $interestingExt -and $f.Length -lt 512KB -and $interestingName
 
             if (
-                $f.Length -lt 25MB -and
+                $f.Length -lt 4MB -and
                 (($interestingExt -or $interestingName) -and ((-not $isHeavyPath) -or $allowFromHeavy))
             ) {
                 Copy-FilePreserve -FilePath $f.FullName -Root $root -DestRoot $destRoot
@@ -176,6 +184,19 @@ Get-CimInstance Win32_Process |
 # Runtime truth + configured OBS port ownership snapshot.
 $localYomi = Join-Path $env:LOCALAPPDATA "YOMI"
 $stateRoot = Join-Path $localYomi "state"
+
+# Large logs are useful only at the failure edge. Tail them instead of embedding many megabytes.
+$logTailDir = Join-Path $out "Log-Tails"
+New-Item -ItemType Directory -Force -Path $logTailDir | Out-Null
+foreach($logName in @("mpv.log","controller-performance.log","preview-renderer.log","supervisor.log","server-error.log","controller.log")){
+    $logPath = Join-Path (Join-Path $localYomi "logs") $logName
+    if(Test-Path -LiteralPath $logPath -PathType Leaf){
+        try{
+            Get-Content -LiteralPath $logPath -Tail 1600 -ErrorAction SilentlyContinue |
+                Out-File -LiteralPath (Join-Path $logTailDir ($logName+".tail.txt")) -Encoding utf8
+        }catch{}
+    }
+}
 $truthDir = Join-Path $out "Runtime-Truth"
 New-Item -ItemType Directory -Force -Path $truthDir | Out-Null
 foreach ($name in @(
