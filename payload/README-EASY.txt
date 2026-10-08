@@ -3,7 +3,7 @@ YOMI 420.69.9024 — YouTube OBS Music Interface
 INSTALL
 1. Fully extract this ZIP.
 2. Double-click INSTALL YOMI.cmd.
-3. Open YOMI, add your YouTube playlist, and press Listen.
+3. Open YOMI, add your YouTube playlist, and press Play.
 
 OBS (optional)
 Open YOMI Settings > OBS, then use Quick Setup. Copy the shown Browser Source URL and size into OBS.
