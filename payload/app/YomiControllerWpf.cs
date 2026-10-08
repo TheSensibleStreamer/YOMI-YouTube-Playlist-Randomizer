@@ -1277,6 +1277,7 @@ namespace Yomi.Desktop
         private long _lastUiBudgetLogMs = -10000;
         private int _lastRefreshDurationMs;
         private bool _diagnosticBundleWorkerActive;
+        private bool _unavailableTrackAuditRunning;
 
         private Button _minimizeButton;
         private Button _maximizeButton;
@@ -25737,9 +25738,66 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 return;
             }
 
+            bool isTrackAudit = String.Equals(scriptName, "unavailable-track-audit.ps1", StringComparison.OrdinalIgnoreCase);
+            if (isTrackAudit && _unavailableTrackAuditRunning)
+            {
+                ShowToast(title, "The track audit is already running. Its results will appear when it finishes.");
+                return;
+            }
             string powershell = Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe");
             string clipboardBefore = TryGetClipboardText();
             ShowToast(title, startMessage);
+
+            Window auditWindow = null;
+            TextBlock auditProgressText = null;
+            ProgressBar auditProgressBar = null;
+            if (isTrackAudit)
+            {
+                _unavailableTrackAuditRunning = true;
+                auditWindow = new Window
+                {
+                    Owner = _window,
+                    Title = "YOMI - Unavailable track audit",
+                    Width = 540,
+                    Height = 205,
+                    ResizeMode = ResizeMode.NoResize,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    ShowInTaskbar = false,
+                    Background = Brush("AppBg"),
+                    Foreground = Brush("TextPrimary")
+                };
+                var panel = new StackPanel { Margin = new Thickness(20) };
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Checking your playlist",
+                    FontSize = 17,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 0, 0, 12)
+                });
+                auditProgressText = new TextBlock
+                {
+                    Text = startMessage,
+                    TextWrapping = TextWrapping.Wrap
+                };
+                panel.Children.Add(auditProgressText);
+                auditProgressBar = new ProgressBar
+                {
+                    Minimum = 0,
+                    Maximum = 100,
+                    Value = 0,
+                    Height = 17,
+                    Margin = new Thickness(0, 15, 0, 11)
+                };
+                panel.Children.Add(auditProgressBar);
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "Checks track metadata, not playback. Closing this window hides progress; the scan keeps running.",
+                    Opacity = 0.7,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                auditWindow.Content = panel;
+                auditWindow.Show();
+            }
 
             ThreadPool.QueueUserWorkItem(delegate
             {
@@ -25769,6 +25827,27 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                         process.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e)
                         {
                             if (e.Data == null) return;
+                            if (isTrackAudit && e.Data.StartsWith("YOMI_AUDIT_PROGRESS|", StringComparison.Ordinal))
+                            {
+                                string[] fields = e.Data.Split(new[] { '|' }, 4);
+                                int completed = 0, total = 1;
+                                if (fields.Length == 4 &&
+                                    Int32.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out completed) &&
+                                    Int32.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out total))
+                                {
+                                    string message = fields[3];
+                                    double percent = 100.0 * Math.Max(0.0, Math.Min(1.0, completed / (double)Math.Max(1, total)));
+                                    TryBeginInvokeUi(DispatcherPriority.Background, delegate
+                                    {
+                                        if (auditWindow != null && auditWindow.IsVisible)
+                                        {
+                                            if (auditProgressBar != null) auditProgressBar.Value = percent;
+                                            if (auditProgressText != null) auditProgressText.Text = message + "  (" + Math.Floor(percent).ToString(CultureInfo.InvariantCulture) + "%)";
+                                        }
+                                    });
+                                }
+                                return;
+                            }
                             lock (stdoutLock) stdout.AppendLine(e.Data);
                         };
                         process.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs e)
@@ -25810,6 +25889,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     if (finalExitCode > 0)
                         report = "Exit code " + finalExitCode.ToString(CultureInfo.InvariantCulture) + "\r\n\r\n" + report;
 
+                    if (isTrackAudit)
+                    {
+                        _unavailableTrackAuditRunning = false;
+                        if (auditWindow != null && auditWindow.IsVisible) auditWindow.Close();
+                    }
                     ShowNativeReportWindow(title, report);
                     ShowToast(title, finalExitCode == 0 && String.IsNullOrWhiteSpace(finalFailure) ? "Report ready." : "Report finished with errors.");
                 });
