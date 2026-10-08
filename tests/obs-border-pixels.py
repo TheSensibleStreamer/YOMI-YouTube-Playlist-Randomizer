@@ -40,6 +40,8 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         "channel": "Music - Topic", "artwork": "unavailable",
         "full_artwork": "unavailable", "visualizer": "unavailable"
     }
+    if abs(video_aspect - 16/9) > 0.025:
+        track["video"] = "unavailable"  # Forces actual video aspect handling instead of full-art fallback.
     await page.evaluate("ratio => { videoAspect=ratio; }", video_aspect)
     await page.evaluate("""([config,track])=>{
         window.__yomiPixelTestApply(config,track,{});
