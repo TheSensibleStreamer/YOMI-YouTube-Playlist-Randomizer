@@ -30,6 +30,10 @@ function Read-Json([string]$Path){
     return $null
 }
 function Text-Of($v){if($null -eq $v){return ''};return ([string]$v).Trim()}
+function Quote-Arg([string]$Value){
+    if($null -eq $Value){return '\"\"'}
+    return '\"' + (($Value -replace '\"','\\\"')) + '\"'
+}
 function Canonical-Reason([string]$Reason){
     $s=(Text-Of $Reason).ToLowerInvariant()
     if($s -match 'private video'){return 'Private video'}
@@ -135,7 +139,7 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
         $psi.CreateNoWindow=$true
         $psi.RedirectStandardOutput=$true
         $psi.RedirectStandardError=$true
-        foreach($arg in $args){[void]$psi.ArgumentList.Add([string]$arg)}
+        $psi.Arguments=(@($args|ForEach-Object{Quote-Arg ([string]$_)}) -join ' ')
         $p=New-Object Diagnostics.Process
         $p.StartInfo=$psi
         [void]$p.Start()
