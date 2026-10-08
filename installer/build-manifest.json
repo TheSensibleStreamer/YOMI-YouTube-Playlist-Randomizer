@@ -1,7 +1,7 @@
 {
-  "version": "v420.69.9017",
+  "version": "v420.69.9018",
   "product": "YOMI - YouTube OBS Music Interface",
-  "release": "R61.106.53.17.1",
+  "release": "R61.106.53.18.1",
   "update_compatibility": "one-hop-latest",
   "files": {
     "INSTALL YOMI.cmd": {
@@ -9,12 +9,12 @@
       "sha256": "665b136f598151e3d49d82db03f087019d0c23b86ee0d66e7015bb4a6b81bfe8"
     },
     "installer/install.ps1": {
-      "bytes": 50723,
-      "sha256": "5bc1580da416b536a5d56ec81e720306a1bd5a47b15aaff055081890e6800dc0"
+      "bytes": 52129,
+      "sha256": "05fb0ea726cc829eab53f7c3cddab361d946bedbdc5fba60f2f39efd53e659fb"
     },
     "payload/README-EASY.txt": {
       "bytes": 453,
-      "sha256": "eedf096672e49e8580a3cb0720157360953f5a13ee30f95a5491b5db15d1f9ca"
+      "sha256": "be20a2147f0733412bb9b3157fb496d52894f56277fbe79d5dbb9ca64c5d422a"
     },
     "payload/THIRD-PARTY.txt": {
       "bytes": 805,
@@ -26,7 +26,7 @@
     },
     "payload/VERSION.txt": {
       "bytes": 12,
-      "sha256": "2cb66f60874d7a3620f01c067f17dee2f1c4d1d71f5d148947effa824313f5b1"
+      "sha256": "4db7b446ec88468d5f9bf8e2fecd9b5d81ece61b483963dfee489aba5c31092c"
     },
     "payload/app/ArtworkEdgeDetector.cs": {
       "bytes": 14162,
@@ -38,7 +38,7 @@
     },
     "payload/app/FOCUSED-BUILD.txt": {
       "bytes": 54,
-      "sha256": "45c51029bc04f95718c5f9cfeca62469b9baae2875299442cfabed852793636e"
+      "sha256": "52c100921073e0202baa4baa94ae69394aefaf0e17e9fc8f6f98dc7a0d7803fa"
     },
     "payload/app/GRAND-CONSOLIDATION-LINEAGE.txt": {
       "bytes": 10464,
@@ -46,11 +46,11 @@
     },
     "payload/app/INSTALLATION-RECEIPT.json": {
       "bytes": 6205,
-      "sha256": "653d1363acdb7941189511cd6c6242121da4ca71c025fd556d44a4baf6b46cd7"
+      "sha256": "777dc491a87b6dff22ed18ba0dbe459ad8a8cd239fc96645a40038e53c953a11"
     },
     "payload/app/NO-GAPS-CONSOLIDATION-LEDGER.json": {
       "bytes": 21916,
-      "sha256": "70d7eee7cb9337a5eee5ae2939e32eabc703d74c3c8a727daabbc2bffcda0de1"
+      "sha256": "fad41fa0871a65e0c91647dbeed90b84aaaf97f7a07393fa19c5b2b7297c4c2f"
     },
     "payload/app/NO-GAPS-CONSOLIDATION-LEDGER.txt": {
       "bytes": 14037,
@@ -62,11 +62,11 @@
     },
     "payload/app/RUNTIME-INTEGRITY-MANIFEST.json": {
       "bytes": 26118,
-      "sha256": "9a874aeff8ba5c7458169d22369d847bb46b5decc372ed1ba10205994cbf7a90"
+      "sha256": "54486e2c4748df8de4215d306c44f75902997812f7e804c4ab61fbf87499071d"
     },
     "payload/app/YOMI-CAPABILITY-CONTRACT.json": {
       "bytes": 14913,
-      "sha256": "f230fd0acfa137ce8813051cd29eb12b6e5170cdf92f08c50ce93eb465c28b36"
+      "sha256": "92cf3351333406572bb224265b288c5514ae7ef3182a3eb13ff7a68dd423d3a3"
     },
     "payload/app/YomiAbyssalKnowledgeEngine.cs": {
       "bytes": 78971,
@@ -114,7 +114,7 @@
     },
     "payload/app/YomiControllerWpf.cs": {
       "bytes": 1755730,
-      "sha256": "c9c4ef3e6403f7eca29ef66b8cb30ab01b281988d21926c074e86ea9223790cb"
+      "sha256": "e53815e61cd7c21983dbebcbe84bb0c3245df995d259f313d50d381290eed5d6"
     },
     "payload/app/YomiControllerWpf.exe.config": {
       "bytes": 331,
@@ -126,7 +126,7 @@
     },
     "payload/app/YomiControllerWpf.xaml": {
       "bytes": 225209,
-      "sha256": "7ee52bc9e64d8e5a703f0e6615c793d0a31b209b42fa2ee538bcf16bf4bf8514"
+      "sha256": "6b2fc31766d43a4887512afc3e0ca3c13bde4dfe673b2c8ae1d1a0d1ba37814f"
     },
     "payload/app/YomiCounterfactualStrategyKernel.cs": {
       "bytes": 61432,
@@ -302,7 +302,7 @@
     },
     "payload/app/YomiUpdateHost.ps1": {
       "bytes": 9279,
-      "sha256": "7436f5b649e2458abdb2b604bfbcda54e6fdf60a03db193e6368f84c49ee30e4"
+      "sha256": "63d7e85f0d9d3b782f8a507b1ac73a20cf109f892492f172f6f3844bb9deef10"
     },
     "payload/app/YomiUpdateHost.ps1.pre-r61.84-manifest-fix.bak": {
       "bytes": 9925,
@@ -330,7 +330,7 @@
     },
     "payload/app/common.ps1": {
       "bytes": 25083,
-      "sha256": "abfd2c9e9b4b307345c1c1861b082f343636e2ae6ba9de904898efd248b47f2a"
+      "sha256": "bd3c9fe280cd109435103385c9a5d7bb3a0a2f7b22fb456bdfc53d2a29d9b14e"
     },
     "payload/app/components.ps1": {
       "bytes": 4467,
@@ -354,7 +354,7 @@
     },
     "payload/app/default-config.json": {
       "bytes": 7022,
-      "sha256": "8e8f649498bae2e067cd094cfdb8e600fe8b1ee5c301ec4b55afe359fd5e41a7"
+      "sha256": "ac7f2bec012b49ace045d6c81a041ac3402684da596d2615fa63d79bf8b2b87b"
     },
     "payload/app/diagnostics.ps1": {
       "bytes": 4736,
@@ -370,11 +370,11 @@
     },
     "payload/app/lineage-registry.json": {
       "bytes": 5036,
-      "sha256": "b2be5c45b107c386ece0b9b57be4ce33a9a39a17ea304f4a835124c369f53a46"
+      "sha256": "7b02dd03a83ffc52a6eb9d4ea5218a3733b97b14955289cc9ef391ea4fa414e2"
     },
     "payload/app/music.lua": {
-      "bytes": 161452,
-      "sha256": "212beb2c6c125a775f574841dc41620ca5534a21c9eade3012257ad704ad7da0"
+      "bytes": 161966,
+      "sha256": "41bdd1ac9086f25ab2da8ab5d8eeb56a287f355e612db1ba06f78a625cf57318"
     },
     "payload/app/operations-center.ps1": {
       "bytes": 14714,
@@ -449,8 +449,8 @@
       "sha256": "f7ddd28d09ca76ebacaf18d40f52f01b871373672fb1aba9432c837dd87969f7"
     },
     "payload/app/unavailable-track-audit.ps1": {
-      "bytes": 18508,
-      "sha256": "cdff7597aa9f73f584eac52434cfe2fd777a4e36be7b60e2a0a672877c2903b4"
+      "bytes": 18846,
+      "sha256": "5d42d37855600e6d3eeab861118c7c238a88093edef90b862cd317cdf5b4a503"
     },
     "payload/app/uninstall.ps1": {
       "bytes": 6204,
