@@ -59,7 +59,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
                svg:getComputedStyle(document.getElementById('mediaPairSvg')).display};
     }""")
     image = Image.open(io.BytesIO(await page.screenshot(omit_background=True))).convert("RGBA")
-    if with_video and layout == "Reflow" and abs(video_aspect - 16/9)<0.025:
+    if with_video and layout == "Reflow":
         a,v=boxes["art"],boxes["vid"]
         assert round(a["x"]+a["w"]-v["x"]) == border, (border,boxes)
         assert boxes["svg"]=="none", "Shared SVG hides transparent inner corners"
@@ -74,8 +74,8 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
             assert all(v >= 6.4 for v in values), (border,corner,layout,values,boxes)
     if with_video and video_aspect < 1.4:
         assert boxes['vid']['w'] < boxes['art']['w'], boxes
-        assert boxes['vid']['x'] >= boxes['art']['x'] + boxes['art']['w'] - 1, boxes
         if layout == 'Fixed':
+            assert boxes['vid']['x'] >= boxes['art']['x'] + boxes['art']['w'] - 1, boxes
             assert abs(boxes['vidModule']['w']-boxes['artModule']['w']) < 1, boxes
         else:
             assert abs(boxes['vidModule']['w']-boxes['vid']['w']) < 1, boxes
