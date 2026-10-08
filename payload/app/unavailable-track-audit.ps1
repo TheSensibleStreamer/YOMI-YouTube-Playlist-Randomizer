@@ -31,8 +31,9 @@ function Read-Json([string]$Path){
 }
 function Text-Of($v){if($null -eq $v){return ''};return ([string]$v).Trim()}
 function Quote-Arg([string]$Value){
-    if($null -eq $Value){return '\"\"'}
-    return '\"' + (($Value -replace '\"','\\\"')) + '\"'
+    if($null -eq $Value){return '""'}
+    # ProcessStartInfo.Arguments needs real quote delimiters, not backslash-quote.
+    return '"' + $Value.Replace('"','\"') + '"'
 }
 function Canonical-Reason([string]$Reason){
     $s=(Text-Of $Reason).ToLowerInvariant()
@@ -246,18 +247,35 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
     }finally{Remove-Item -LiteralPath $batch -Force -ErrorAction SilentlyContinue}
 }
 
+# The controller consumes these lightweight progress markers as the audit proceeds.
+# Metadata checks never play the tracks or download their audio.
+function Write-AuditProgress([int]$Completed,[int]$Total,[string]$Stage){
+    $safeStage=($Stage -replace '[\r\n|]',' ').Trim()
+    Write-Output ('YOMI_AUDIT_PROGRESS|{0}|{1}|{2}' -f [Math]::Max(0,$Completed),[Math]::Max(1,$Total),$safeStage)
+}
 $routes=@('default','web_embedded,default','android,default','music')
-foreach($route in $routes){
+$progressTotal=[Math]::Max(1,$unique.Count*$routes.Count)
+Write-AuditProgress 0 $progressTotal ('Beginning audit of '+$unique.Count+' unique tracks')
+for($routeIndex=0;$routeIndex -lt $routes.Count;$routeIndex++){
+    $route=$routes[$routeIndex]
     $pending=@()
     foreach($key in $unique.Keys){if(-not $state[$key].success){$pending+=$unique[$key]}}
-    if($pending.Count -eq 0){break}
+    if($pending.Count -eq 0){
+        Write-AuditProgress $progressTotal $progressTotal 'All tracks resolved; creating report'
+        break
+    }
     # Bounded batches prevent one bad Topic video from wedging the full audit.
     $chunkSize=12
+    Write-AuditProgress ($routeIndex*$unique.Count) $progressTotal ('Checking '+$route+' ('+$pending.Count+' tracks remaining)')
     for($offset=0;$offset -lt $pending.Count;$offset+=$chunkSize){
         $last=[Math]::Min($pending.Count-1,$offset+$chunkSize-1)
         Invoke-ProbeRoute -ProbeRows @($pending[$offset..$last]) -Route $route
+        $completed=$routeIndex*$unique.Count+$last+1
+        Write-AuditProgress $completed $progressTotal ('Checking '+$route+': '+($last+1)+' of '+$pending.Count+' remaining tracks')
     }
+    Write-AuditProgress (($routeIndex+1)*$unique.Count) $progressTotal ('Completed '+$route+'; '+($routeIndex+1)+' of '+$routes.Count+' routes')
 }
+Write-AuditProgress $progressTotal $progressTotal 'Writing CSV and text reports'
 
 $results=@()
 foreach($row in $rows){
