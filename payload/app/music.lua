@@ -639,10 +639,12 @@ function known_bad(i)
     -- Legacy builds wrote a one-byte '1' marker; that has no source identity and therefore cannot
     -- safely condemn a still-valid track after playlist/cache evolution. Migrate it by retrying.
     local raw=(read_all(marker) or ""):match("^%s*(.-)%s*$") or ""
-    local current=source_identity(urls[i])
+    -- Quarantines made by older YouTube-only releases were never checked through
+    -- YouTube Music. Re-probe them lazily on first access instead of skipping them.
+    local current="youtube-music-checked-v1|"..source_identity(urls[i])
     if raw=="" or raw=="1" or raw~=current then
         os.remove(marker)
-        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason="..(raw=="1" and "legacy-unscoped" or "source-mismatch"))
+        log("AUDIO PERMANENT STALE-CLEAR track "..i.." reason="..(raw=="1" and "legacy-unscoped" or "new-fallback-or-source-mismatch"))
         return false
     end
     return true
@@ -1738,7 +1740,7 @@ local function audio_job(job)
             end)
         else
             if exhausted_unavailable_error(stderr) then
-                write_all(status_path(i,"audio.permanent"),source_identity(urls[i]))
+                write_all(status_path(i,"audio.permanent"),"youtube-music-checked-v1|"..source_identity(urls[i]))
                 os.remove(status_path(i,"audio.failed"))
                 permanent_reprobe_attempted[i]=true
                 log("AUDIO QUARANTINE track "..i.." after alternate routes agreed unavailable")
