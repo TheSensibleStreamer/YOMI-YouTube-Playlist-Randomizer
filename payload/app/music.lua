@@ -1128,6 +1128,9 @@ function prune_audio_cache(anchor)
 end
 
 local function set_engine_status(phase,message,index)
+    engine_phase_current=tostring(phase or "")
+    engine_status_index_current=tonumber(index) or 0
+    engine_status_unix=os.time()
     write_json(engine_status_file,{
         phase=phase or "",
         message=message or "",
@@ -1472,6 +1475,7 @@ end
 
 local audio_failures={}
 local stream_resolving={}
+stream_resolve_started={}
 local stream_failures={}
 local stream_consecutive_failures=0
 stream_route_degraded_until={js=0,["no-js"]=0}
@@ -1718,6 +1722,7 @@ start_fast_stream=function(i)
     if audio_ready(i) then play_index(i);return end
     if stream_resolving[i] then return end
     stream_resolving[i]=true
+    stream_resolve_started[i]=os.time()
     if not startup_first_sound then write_startup_flight("stream_resolving",i,"Resolving the direct audio stream.",false,false) end
     set_engine_status("preparing","Resolving stream for track "..i.."...",i)
     log("STREAM RESOLVE track "..i)
@@ -1728,6 +1733,7 @@ start_fast_stream=function(i)
     local timed_out_any=false
     local function finish_failure()
         stream_resolving[i]=nil
+        stream_resolve_started[i]=nil
         stream_failures[i]=(stream_failures[i] or 0)+1
         local stderr=table.concat(stderr_parts," ")
         local permanent=permanent_error(stderr)
@@ -1780,6 +1786,7 @@ start_fast_stream=function(i)
             if success and tonumber(result.status or 0)==0 and direct:match("^https?://") then
                 stream_route_mark(mode,true,false)
                 stream_resolving[i]=nil
+                stream_resolve_started[i]=nil
                 stream_failures[i]=nil
                 stream_consecutive_failures=0
                 if desired_index==i and playing_index~=i then
@@ -3145,6 +3152,29 @@ end)
 safe_periodic_timer(2,function()
     local i=(playing_index>0 and playing_index) or current_index
     if i>0 then write_current(i);write_queue_runtime() end
+end)
+safe_periodic_timer(1,function()
+    if shutting_down then return end
+    local i=(desired_index>0 and desired_index) or current_index
+    if not i or i<1 or i>#urls or playing_index==i or audio_ready(i) or known_bad(i) then return end
+    local key=job_key("audio",i)
+    local resolving=stream_resolving[i]==true
+    local started=tonumber(stream_resolve_started[i]) or 0
+    if resolving and started>0 and os.time()-started>20 then
+        stream_resolving[i]=nil;stream_resolve_started[i]=nil
+        log("AUDIO LIVENESS resolver-stale track "..i.."; falling back to durable cache")
+        resolving=false
+    end
+    if engine_phase_current=="preparing" and not resolving and not active[key] and not queued[key] then
+        if exists(status_path(i,"audio.failed")) then
+            set_engine_status("error","Track "..i.." could not be prepared after retries. Press Play to retry or Next to skip.",i)
+            log("AUDIO LIVENESS terminal-failure surfaced track "..i)
+            write_queue_runtime()
+        else
+            log("AUDIO LIVENESS rearm track "..i.." reason=preparing-without-worker")
+            enqueue("audio",i,0);pump();write_queue_runtime()
+        end
+    end
 end)
 if slot_restore_paused then mp.set_property_native("pause",true) end
 log("SLOT ACTIVE "..(active_slot_name~="" and active_slot_name or "Main").." ["..active_slot_id.."]"..(prewarm_start and " prewarm-paused" or (slot_restore_paused and " paused" or (explicit_play_start and " explicit-play" or ""))))
