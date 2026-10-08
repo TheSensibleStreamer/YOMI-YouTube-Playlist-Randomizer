@@ -1,118 +1,117 @@
 {
-    "schema":  1,
-    "product":  "YOMI",
-    "version":  "420.69.9026",
-    "seal":  "DEV13.59",
-    "status":  "SEALED",
-    "generated_utc":  "2026-08-29T16:39:03.2779772Z",
-    "public_base":  {
-                        "version":  "4.2.0.7",
-                        "commit":  "9b7104e2743b9fc02697ce5bbb2d4f6787a257cc",
-                        "sha256":  "f1024ed394f3a0a322dfe38abc9cf23637e695ca13e32b0231f30a8c056b456e"
-                    },
-    "package_manifest_sha256":  "0593f8b1fe34241faf814c8ac3c0bedce462c08d7bcdaebe52ab0a81ff65f143",
-    "patches":  [
-                    {
-                        "id":  "DEV13.28",
-                        "script":  "apply-dev13.28.ps1",
-                        "sha256":  "baed7075e5df8a05f654ec614e08925b6f3fca7b8ce9e598560d2c654148c991",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.40",
-                        "script":  "apply-yomi-4.2.0.8-dev13.40-visualizer-signal-shaper.ps1",
-                        "sha256":  "87fb1169a7babcc648d03d7a953c3e68a07a0b625e05cec3bed66ab2d1c2fee2",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.41",
-                        "script":  "apply-yomi-4.2.0.8-dev13.41-obs-composition-engine.ps1",
-                        "sha256":  "a77009f7dad46ed562629a47bf4174969c654cf53e5e6322cdd6530cf8d97aef",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.42",
-                        "script":  "apply-yomi-4.2.0.8-dev13.42-playback-handoff-engine.ps1",
-                        "sha256":  "67fe636434e18d08c83612b6da0470e77c9f549489eac946231aece7100326db",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.43",
-                        "script":  "apply-yomi-4.2.0.8-dev13.43-predictive-continuity-governor.ps1",
-                        "sha256":  "5bb975954dde2c6561d6667d2cc6a7d6a1409a36e68054b5356c6cb0d884d504",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.44",
-                        "script":  "apply-yomi-4.2.0.8-dev13.44-media-admission-budget-governor.ps1",
-                        "sha256":  "06a2b521e7311e8657831575e3f9c8ed0f4d3d3ec647f03016b23d079daaa833",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.45",
-                        "script":  "apply-yomi-4.2.0.8-dev13.45-media-fault-containment.ps1",
-                        "sha256":  "5884c47a6a2c3777c93884f483702ad947225b872f56efe03a54d51c9e04e143",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.46",
-                        "script":  "apply-yomi-4.2.0.8-dev13.46-cache-coherence-artifact-integrity.ps1",
-                        "sha256":  "fd85d6009e0b90d82a727cef069ddd839ac25c8d5103ea1b5805e42be9e89ccc",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.47",
-                        "script":  "apply-yomi-4.2.0.8-dev13.47-performance-attribution-stream-telemetry.ps1",
-                        "sha256":  "2b6fbf55505dfe0e18f4372658468a231b87bb31604799a3454d823bc63a6e2c",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.48",
-                        "script":  "apply-yomi-4.2.0.8-dev13.48-runtime-slo-regression-sentinel.ps1",
-                        "sha256":  "69c67642ec4aa7e1b9a233859d594adbd0b85b7b00fc98dd588b657e63a40778",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.49",
-                        "script":  "apply-yomi-4.2.0.8-dev13.49-transactional-configuration-change-impact.ps1",
-                        "sha256":  "08597131c985cfea186975230ccec4b811308784292e21cbb63b2a22756a10ba",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.50",
-                        "script":  "apply-yomi-4.2.0.8-dev13.50-runtime-state-coherence-protocol.ps1",
-                        "sha256":  "ad4ed123cf502914e468658df930dfd6a7c87396eb04ae5a391f59090ba0bf27",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.51",
-                        "script":  "apply-yomi-4.2.0.8-dev13.51-crash-recovery-replay-engine.ps1",
-                        "sha256":  "90918062c847c386c7973cc11a2e0e3e7439976b3496ae7a97ba859f6b0e158f",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.52",
-                        "script":  "apply-yomi-4.2.0.8-dev13.52-atomic-update-last-known-good.ps1",
-                        "sha256":  "43ad45603034dd84af8a828dab9b1f2b8ded0beca23b99fca3d33ed5aea60a47",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.57",
-                        "script":  "apply-yomi-4.2.0.8-dev13.57-no-gaps-all-in-one.ps1",
-                        "sha256":  "d62271fc2a2057d9c7f8e0336d02542b2e496c101476500200da5a3640d9d8a4",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.58",
-                        "script":  "apply-yomi-4.2.0.8-dev13.58-release-qualification-gate.ps1",
-                        "sha256":  "f333844bca53fe5d086c4430a29330bee05477d3b404d899f7c0a4ee434d5057",
-                        "status":  "PASS"
-                    },
-                    {
-                        "id":  "DEV13.59",
-                        "script":  "apply-yomi-4.2.0.8-dev13.59-library-memory-listening-ledger.ps1",
-                        "sha256":  "337c7cf283cf6912dc6c38dd00fd549ee1a5c1122183b678ff21932178a2ff44",
-                        "status":  "PASS"
-                    }
-                ]
+  "schema": 1,
+  "product": "YOMI",
+  "version": "420.69.9027",
+  "seal": "DEV13.59",
+  "status": "SEALED",
+  "generated_utc": "2026-10-08T22:55:34.789935Z",
+  "public_base": {
+    "version": "4.2.0.7",
+    "commit": "9b7104e2743b9fc02697ce5bbb2d4f6787a257cc",
+    "sha256": "f1024ed394f3a0a322dfe38abc9cf23637e695ca13e32b0231f30a8c056b456e"
+  },
+  "patches": [
+    {
+      "id": "DEV13.28",
+      "script": "apply-dev13.28.ps1",
+      "sha256": "baed7075e5df8a05f654ec614e08925b6f3fca7b8ce9e598560d2c654148c991",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.40",
+      "script": "apply-yomi-4.2.0.8-dev13.40-visualizer-signal-shaper.ps1",
+      "sha256": "87fb1169a7babcc648d03d7a953c3e68a07a0b625e05cec3bed66ab2d1c2fee2",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.41",
+      "script": "apply-yomi-4.2.0.8-dev13.41-obs-composition-engine.ps1",
+      "sha256": "a77009f7dad46ed562629a47bf4174969c654cf53e5e6322cdd6530cf8d97aef",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.42",
+      "script": "apply-yomi-4.2.0.8-dev13.42-playback-handoff-engine.ps1",
+      "sha256": "67fe636434e18d08c83612b6da0470e77c9f549489eac946231aece7100326db",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.43",
+      "script": "apply-yomi-4.2.0.8-dev13.43-predictive-continuity-governor.ps1",
+      "sha256": "5bb975954dde2c6561d6667d2cc6a7d6a1409a36e68054b5356c6cb0d884d504",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.44",
+      "script": "apply-yomi-4.2.0.8-dev13.44-media-admission-budget-governor.ps1",
+      "sha256": "06a2b521e7311e8657831575e3f9c8ed0f4d3d3ec647f03016b23d079daaa833",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.45",
+      "script": "apply-yomi-4.2.0.8-dev13.45-media-fault-containment.ps1",
+      "sha256": "5884c47a6a2c3777c93884f483702ad947225b872f56efe03a54d51c9e04e143",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.46",
+      "script": "apply-yomi-4.2.0.8-dev13.46-cache-coherence-artifact-integrity.ps1",
+      "sha256": "fd85d6009e0b90d82a727cef069ddd839ac25c8d5103ea1b5805e42be9e89ccc",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.47",
+      "script": "apply-yomi-4.2.0.8-dev13.47-performance-attribution-stream-telemetry.ps1",
+      "sha256": "2b6fbf55505dfe0e18f4372658468a231b87bb31604799a3454d823bc63a6e2c",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.48",
+      "script": "apply-yomi-4.2.0.8-dev13.48-runtime-slo-regression-sentinel.ps1",
+      "sha256": "69c67642ec4aa7e1b9a233859d594adbd0b85b7b00fc98dd588b657e63a40778",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.49",
+      "script": "apply-yomi-4.2.0.8-dev13.49-transactional-configuration-change-impact.ps1",
+      "sha256": "08597131c985cfea186975230ccec4b811308784292e21cbb63b2a22756a10ba",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.50",
+      "script": "apply-yomi-4.2.0.8-dev13.50-runtime-state-coherence-protocol.ps1",
+      "sha256": "ad4ed123cf502914e468658df930dfd6a7c87396eb04ae5a391f59090ba0bf27",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.51",
+      "script": "apply-yomi-4.2.0.8-dev13.51-crash-recovery-replay-engine.ps1",
+      "sha256": "90918062c847c386c7973cc11a2e0e3e7439976b3496ae7a97ba859f6b0e158f",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.52",
+      "script": "apply-yomi-4.2.0.8-dev13.52-atomic-update-last-known-good.ps1",
+      "sha256": "43ad45603034dd84af8a828dab9b1f2b8ded0beca23b99fca3d33ed5aea60a47",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.57",
+      "script": "apply-yomi-4.2.0.8-dev13.57-no-gaps-all-in-one.ps1",
+      "sha256": "d62271fc2a2057d9c7f8e0336d02542b2e496c101476500200da5a3640d9d8a4",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.58",
+      "script": "apply-yomi-4.2.0.8-dev13.58-release-qualification-gate.ps1",
+      "sha256": "f333844bca53fe5d086c4430a29330bee05477d3b404d899f7c0a4ee434d5057",
+      "status": "PASS"
+    },
+    {
+      "id": "DEV13.59",
+      "script": "apply-yomi-4.2.0.8-dev13.59-library-memory-listening-ledger.ps1",
+      "sha256": "337c7cf283cf6912dc6c38dd00fd549ee1a5c1122183b678ff21932178a2ff44",
+      "status": "PASS"
+    }
+  ]
 }
