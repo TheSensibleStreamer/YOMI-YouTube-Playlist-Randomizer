@@ -67,6 +67,10 @@ local ytdlp = install_root .. "\\runtime\\yt-dlp\\yt-dlp.exe"
 local ffmpeg = install_root .. "\\runtime\\ffmpeg\\ffmpeg.exe"
 local ffmpeg_dir = install_root .. "\\runtime\\ffmpeg"
 local deno = install_root .. "\\runtime\\deno\\deno.exe"
+-- Optional Rust PO-token CLI is invoked only by the sixth, truly distinct
+-- mweb recovery lane; no background HTTP service is required.
+pot_exe = install_root .. "\\runtime\\pot\\bgutil-pot.exe"
+pot_plugin_root = install_root .. "\\runtime\\yt-dlp\\yt-dlp-plugins"
 local runner = install_root .. "\\app\\PriorityRun.exe"
 local runtime_id = os.getenv("YOMI_RUNTIME_ID") or "focused-r19"
 
@@ -215,6 +219,8 @@ local last_current_semantic = ""
 local last_queue_runtime_semantic = ""
 local ffmpeg_available = exists(ffmpeg)
 local deno_available = exists(deno)
+pot_available = exists(pot_exe) and
+    exists(pot_plugin_root .. "\\bgutil-rs\\yt_dlp_plugins\\extractor\\getpot_bgutil_cli.py")
 local cache_priority = "idle"
 local workers = 2
 local prefetch_ahead = 15
@@ -1462,6 +1468,12 @@ local function ytdlp_fast_common(use_js)
     return a
 end
 
+-- The older five route budget remains the default when PO recovery is not
+-- installed. Source failures stay retryable, never marked permanently dead.
+function audio_attempt_limit(i)
+    return (youtube_music_url(i) and 5 or 3) + (pot_available and 1 or 0)
+end
+
 local function audio_selector()
     local quality=tostring(cfg.audio_quality or "Best available")
     local low=tostring(cfg.audio_preference or "Prefer selected maximum")=="Prefer lowest compatible"
@@ -1713,7 +1725,7 @@ local function audio_job(job)
     local a=ytdlp_common()
     local attempt_number=(audio_failures[i] or 0)+1
     local music_url=youtube_music_url(i)
-    local max_attempts=music_url and 5 or 3
+    local max_attempts=audio_attempt_limit(i)
     if attempt_number>max_attempts then
         -- Direct-stream resolution can finish after background download has
         -- exhausted every route. Do not create a new redundant attempt.
@@ -1723,13 +1735,20 @@ local function audio_job(job)
         job_done(job)
         return
     end
-    local music_attempt=music_url and attempt_number>=4
+    local pot_attempt=pot_available and attempt_number==max_attempts
+    local music_attempt=music_url and attempt_number>=4 and attempt_number<=5 and not pot_attempt
     local client_route="default"
-    if attempt_number==2 then client_route="web_embedded,default"
+    if pot_attempt then client_route="mweb+pot"
+    elseif attempt_number==2 then client_route="web_embedded,default"
     elseif attempt_number==3 then client_route="android,default"
     elseif attempt_number==4 then client_route="web_music,default"
     elseif attempt_number==5 then client_route="web_safari,default" end
-    if client_route~="default" then
+    if pot_attempt then
+        table.insert(a,"--plugin-dirs");table.insert(a,pot_plugin_root)
+        table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client=mweb")
+        table.insert(a,"--extractor-args")
+        table.insert(a,"youtubepot-bgutilcli:cli_path="..(pot_exe:gsub("\\","/")))
+    elseif client_route~="default" then
         table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client="..client_route)
     end
     table.insert(a,"--format");table.insert(a,audio_selector())
@@ -1737,16 +1756,15 @@ local function audio_job(job)
     table.insert(a,"--no-part")
     table.insert(a,"--output");table.insert(a,template)
     table.insert(a,music_attempt and music_url or urls[i])
-    log("AUDIO START track "..i.." attempt "..attempt_number.."/"..max_attempts.." site="..(music_attempt and "youtube-music" or "youtube").." client="..client_route)
-    -- This is already one of several alternative extractor routes. A long wall
-    -- timeout per route makes genuinely unreachable tracks appear to freeze YOMI.
-    -- Current-user requests get a short bound; background cache gets more room.
-    local route_deadline=(desired_index==i) and 30 or 50
+    log("AUDIO START track "..i.." attempt "..attempt_number.."/"..max_attempts.." site="..(pot_attempt and "po-token-mweb" or (music_attempt and "youtube-music" or "youtube")).." client="..client_route)
+    -- The one-time CLI uses short-lived browser attestation, not a server.
+    -- Bound it too; all other yt-dlp route deadlines remain unchanged.
+    local route_deadline=pot_attempt and 70 or ((desired_index==i) and 30 or 50)
     run_bounded(cache_priority,ytdlp,a,route_deadline,false,function(success,result,error_text,timed_out)
         local stderr=tostring(result.stderr or "").." "..tostring(error_text or "")
         if not (success and tonumber(result.status or -1)==0) then
             log("AUDIO EXTRACT FAIL track "..i.." attempt="..attempt_number.." site="..
-                (music_attempt and "youtube-music" or "youtube").." route="..client_route..
+                (pot_attempt and "po-token-mweb" or (music_attempt and "youtube-music" or "youtube")).." route="..client_route..
                 " "..media_error_summary(result,error_text,timed_out))
         end
         local media=nil
@@ -1835,7 +1853,7 @@ start_fast_stream=function(i)
         -- is NOT proof Music or the durable downloader cannot play the source.
         log("STREAM RESOLVE FAIL track "..i..(timed_out_any and " timeout" or "").."; trying bounded durable YouTube/Music routes")
         requested_index=0
-        if audio_prefetch_backoff(i) or (audio_failures[i] or 0)>=(music_url and 5 or 3) then
+        if audio_prefetch_backoff(i) or (audio_failures[i] or 0)>=audio_attempt_limit(i) then
             log("STREAM CACHE FALLBACK SKIPPED track "..i.." because its full-download routes already failed")
             report_exhausted_audio(i,"All full-download routes failed earlier; explicit Play or Listen retries.")
             return
