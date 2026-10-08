@@ -6658,10 +6658,26 @@ namespace Yomi.Desktop
             return FontStretches.Normal;
         }
 
-        private void RefreshTextFontComboPreview()
+        private void RefreshTextFontComboPreview(bool useSelectedItem = false)
         {
             if (_settingsTextFont == null) return;
-            string choice = ComboText(_settingsTextFont, DefaultOverlayTextFont);
+
+            // Editable ComboBox.Text is a dispatcher turn behind SelectedItem on
+            // mouse-wheel changes. Never preview the previous selection's face.
+            string choice = useSelectedItem && _settingsTextFont.SelectedItem != null
+                ? ComboItemText(_settingsTextFont.SelectedItem)
+                : ComboText(_settingsTextFont, DefaultOverlayTextFont);
+            if (String.IsNullOrWhiteSpace(choice)) choice = DefaultOverlayTextFont;
+
+            // Keep the closed editor text in sync with the selected row. This
+            // runs only on actual list selection changes; manual font-name typing
+            // is still supported when the text field loses keyboard focus.
+            if (useSelectedItem && _settingsTextFont.SelectedItem != null &&
+                !String.Equals(_settingsTextFont.Text, choice, StringComparison.Ordinal))
+            {
+                _settingsTextFont.Text = choice;
+            }
+
             try
             {
                 _settingsTextFont.FontFamily = SettingsPreviewFont(choice);
@@ -6702,6 +6718,12 @@ namespace Yomi.Desktop
                     FontWeight = FontWeights.Normal
                 };
                 PrepareSettingsComboItem(box, item);
+                try
+                {
+                    Style fontStyle = box.TryFindResource("SettingsFontComboItem") as Style;
+                    if (fontStyle != null) item.Style = fontStyle;
+                }
+                catch { }
                 box.Items.Add(item);
             };
 
@@ -6794,7 +6816,7 @@ namespace Yomi.Desktop
             FillCombo(_settingsTextSize, "24", "28", "32", "36", "40", "44", "48", "52", "56", "60", "64");
             FillCombo(_settingsMinTextSize, "12", "14", "16", "18", "20", "22", "24");
             FillCombo(_settingsTextGap, "0", "4", "8", "10", "12", "14", "16", "20", "24", "28", "32");
-            FillCuratedTextFontCombo(_settingsTextFont); _settingsTextFont.SelectionChanged += delegate { RefreshTextFontComboPreview(); }; _settingsTextFont.LostKeyboardFocus += delegate { RefreshTextFontComboPreview(); };
+            FillCuratedTextFontCombo(_settingsTextFont); _settingsTextFont.SelectionChanged += delegate { RefreshTextFontComboPreview(true); }; _settingsTextFont.LostKeyboardFocus += delegate { RefreshTextFontComboPreview(false); };
             FillNamedColorCombo(_settingsTextColor, GeneralNamedColors); _settingsTextColor.SelectionChanged += delegate { if (!_settingsPopulating) RefreshStyledComboForeground(_settingsTextColor); };
             FillCombo(_settingsTextOutline, "0", "1", "2", "3", "4", "5", "6", "7", "8", "10", "12", "14", "16");
             FillNamedColorCombo(_settingsOutlineColor, GeneralNamedColors); _settingsOutlineColor.SelectionChanged += delegate { if (!_settingsPopulating) RefreshStyledComboForeground(_settingsOutlineColor); };
@@ -8565,7 +8587,7 @@ namespace Yomi.Desktop
                 _settingsArtwork.IsChecked = GetBool(c, "artwork_enabled", true); _settingsVideo.IsChecked = GetBool(c, "video_enabled", true); _settingsTitle.IsChecked = GetBool(c, "title_enabled", true); _settingsChannel.IsChecked = GetBool(c, "channel_enabled", true); _settingsSmartArtworkCrop.IsChecked = GetBool(c, "smart_artwork_crop", true); SetCombo(_settingsOverlayVideoQuality, unifiedVideoQuality); SetComboPreserve(_settingsVideoFps, GetString(c, "video_fps", "Source FPS"));
                 SetComboPreserve(_settingsBroadcastPreset, GetString(c, "overlay_preset", "Custom")); _settingsDirectorMode.IsChecked = GetBool(c, "director_mode", false); LoadDirectorOutputDraft(c, 1, _settingsOutput1Enabled, _settingsOutput1Modules, _settingsOutput1Layout); LoadDirectorOutputDraft(c, 2, _settingsOutput2Enabled, _settingsOutput2Modules, _settingsOutput2Layout); LoadDirectorOutputDraft(c, 3, _settingsOutput3Enabled, _settingsOutput3Modules, _settingsOutput3Layout); LoadDirectorOutputDraft(c, 4, _settingsOutput4Enabled, _settingsOutput4Modules, _settingsOutput4Layout);
                 SetComboPreserve(_settingsCanvasWidth, GetInt(c, "canvas_width", 2560).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsCanvasHeight, String.Equals(GetString(c, "canvas_height_mode", "Auto"), "Auto", StringComparison.OrdinalIgnoreCase) ? "Auto" : GetInt(c, "canvas_height", 90).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaWidth, GetInt(c, "media_width", 160).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaHeight, GetInt(c, "media_height", 90).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsSafeMargin, GetInt(c, "overlay_safe_margin_px", 8).ToString(CultureInfo.InvariantCulture));
-                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square")); SetComboPreserve(_settingsMediaAspectLayout, GetString(c, "media_aspect_layout", "Reflow")); string mediaResamplingChoice = GetString(c, "obs_media_scaling", "Smooth"); SetComboPreserve(_settingsObsMediaScaling, mediaResamplingChoice.IndexOf("nearest", StringComparison.OrdinalIgnoreCase) >= 0 || mediaResamplingChoice.IndexOf("point", StringComparison.OrdinalIgnoreCase) >= 0 ? "Nearest" : "Smooth");
+                _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(true); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square")); SetComboPreserve(_settingsMediaAspectLayout, GetString(c, "media_aspect_layout", "Reflow")); string mediaResamplingChoice = GetString(c, "obs_media_scaling", "Smooth"); SetComboPreserve(_settingsObsMediaScaling, mediaResamplingChoice.IndexOf("nearest", StringComparison.OrdinalIgnoreCase) >= 0 || mediaResamplingChoice.IndexOf("point", StringComparison.OrdinalIgnoreCase) >= 0 ? "Nearest" : "Smooth");
                 _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Off")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoiceFromConfig(c)); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "60 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
                 bool settingsObsPackageEnabled = String.Equals(GetString(c, "app_mode", "Streamer / OBS"), "Streamer / OBS", StringComparison.OrdinalIgnoreCase);
                 int settingsPreparedTracks = defaults ? 15 : Math.Max(1, Math.Min(30, GetInt(c, "prefetch_ahead", 15)));
