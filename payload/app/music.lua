@@ -1695,8 +1695,10 @@ local function audio_job(job)
     local max_attempts=music_url and 5 or 3
     local music_attempt=music_url and attempt_number>=4
     local client_route="default"
-    if attempt_number==2 or attempt_number==5 then client_route="web_embedded,default"
-    elseif attempt_number==3 then client_route="android,default" end
+    if attempt_number==2 then client_route="web_embedded,default"
+    elseif attempt_number==3 then client_route="android,default"
+    elseif attempt_number==4 then client_route="web_music,default"
+    elseif attempt_number==5 then client_route="web_safari,default" end
     if client_route~="default" then
         table.insert(a,"--extractor-args");table.insert(a,"youtube:player_client="..client_route)
     end
@@ -1845,6 +1847,13 @@ start_fast_stream=function(i)
         local a=ytdlp_fast_common(use_js)
         table.insert(a,"--format");table.insert(a,audio_selector())
         table.insert(a,"--get-url")
+        -- music.youtube.com by itself does not select yt-dlp's web_music
+        -- player API. Explicitly choose it so the fallback is a new route,
+        -- rather than the same failed default extraction with another hostname.
+        if mode:sub(1,6)=="music-" then
+            table.insert(a,"--extractor-args")
+            table.insert(a,"youtube:player_client=web_music,default")
+        end
         table.insert(a,(mode:sub(1,6)=="music-" and music_url) or urls[i])
         if not startup_first_sound then write_startup_flight("stream_route",i,"Trying "..mode.." direct-stream resolver ("..timeout_seconds.."s ceiling).",false,false) end
         log("STREAM ROUTE track "..i.." "..mode.." timeout "..timeout_seconds.."s")
