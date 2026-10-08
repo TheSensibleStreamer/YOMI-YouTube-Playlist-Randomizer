@@ -2427,7 +2427,7 @@ request_bundle=function(i,priority)
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
     if not audio_ready(i) then enqueue("audio",i,p) end
     local is_current=(i==playing_index or i==desired_index)
-    if (configured_art or controller_want_art) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
+    if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
     local video_profile_current=video_profile_ready(i)
     local video_migrate_ahead=(not is_current) and legacy_video_validation_ready(i) and video_profile_current
     if (configured_video or controller_want_video) and (not video_profile_current or video_migrate_ahead) and not optional_failure_blocked("video",i) then enqueue("video",i,p+(is_current and 6 or 45)) end
@@ -2458,7 +2458,7 @@ function clear_stale_queued_prefetch()
     local kept={}
     local dropped=0
     for _,job in ipairs(jobs) do
-        local lane_disabled=(job.kind=="video" and not (configured_video or controller_want_video)) or (job.kind=="art" and not (configured_art or controller_want_art)) or (job.kind=="viz" and not (configured_viz or controller_want_viz))
+        local lane_disabled=(job.kind=="video" and not (configured_video or controller_want_video)) or (job.kind=="art" and not (configured_art or controller_want_art or configured_video or controller_want_video)) or (job.kind=="viz" and not (configured_viz or controller_want_viz))
         local pin=(job.i==desired_index or job.i==playing_index or job.i==requested_index or (tonumber(job.priority) or 100)<=0)
         if lane_disabled then
             queued[job.key]=nil
