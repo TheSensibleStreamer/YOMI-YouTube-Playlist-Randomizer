@@ -80,7 +80,7 @@ for required in [
     "mediaPairLine=document.getElementById('mediaPairLine')",
     "function layoutMediaPair(active,vertical,bp,color,radiusPx)",
     "mediaPairRect.setAttribute('stroke',color)",
-    "mediaPairLine.setAttribute('stroke-linecap','butt')",
+    "mediaPairLine.setAttribute('stroke-linecap','round')",
     "function parseHexColor(v)",
     "vizCtx.imageSmoothingEnabled=false",
     "forceSolid=vizColorMode==='solid'",
