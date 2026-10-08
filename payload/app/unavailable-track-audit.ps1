@@ -153,8 +153,8 @@ foreach($key in $unique.Keys){
     $state[$key]=[ordered]@{success=$false;method='';resolved_id='';title='';channel='';url='';reasons=@();routes=@()}
 }
 
-function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
-    if($ProbeRows.Count -eq 0){return}
+function Start-ProbeRoute([object[]]$ProbeRows,[string]$Route){
+    if($ProbeRows.Count -eq 0){return $null}
     $batch=Join-Path $env:TEMP ("yomi-unavailable-audit-"+[Guid]::NewGuid().ToString('N')+".txt")
     try{
         [IO.File]::WriteAllLines($batch,@($ProbeRows|ForEach-Object{
@@ -178,18 +178,36 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
         $p=New-Object Diagnostics.Process
         $p.StartInfo=$psi
         [void]$p.Start()
-        # Drain both pipes concurrently: large batches previously risked deadlocking.
+        # Collect both streams asynchronously so parallel workers cannot deadlock
+        # when yt-dlp emits several megabytes of metadata or diagnostics.
         $outTask=$p.StandardOutput.ReadToEndAsync()
         $errTask=$p.StandardError.ReadToEndAsync()
-        $limitMs=[Math]::Min(240000,[Math]::Max(75000,$ProbeRows.Count*14000))
-        $timedOut=-not $p.WaitForExit($limitMs)
-        if($timedOut){try{$p.Kill()}catch{}}
-        try{$p.WaitForExit(10000)|Out-Null}catch{}
-        $stdout='';$stderr=''
-        try{if($outTask.Wait(10000)){$stdout=$outTask.Result}}catch{}
-        try{if($errTask.Wait(10000)){$stderr=$errTask.Result}}catch{}
-        if($timedOut){$stderr+=[Environment]::NewLine+'YOMI audit deadline exceeded for batch'}
+        $limitMs=[Math]::Min(90000,[Math]::Max(20000,$ProbeRows.Count*6000))
+        return [pscustomobject]@{
+            Process=$p; StdoutTask=$outTask; StderrTask=$errTask;
+            Started=[DateTime]::UtcNow; LimitMs=$limitMs; Batch=$batch;
+            Rows=@($ProbeRows); Route=$Route
+        }
+    }catch{
+        Remove-Item -LiteralPath $batch -Force -ErrorAction SilentlyContinue
+        throw
+    }
+}
 
+function Finish-ProbeRoute($Handle){
+    $ProbeRows=@($Handle.Rows)
+    $Route=[string]$Handle.Route
+    $p=$Handle.Process
+    $batch=[string]$Handle.Batch
+    try{
+        $elapsed=([DateTime]::UtcNow-$Handle.Started).TotalMilliseconds
+        $timedOut=($elapsed -ge $Handle.LimitMs -and -not $p.HasExited)
+        if($timedOut){try{$p.Kill()}catch{}}
+        try{$p.WaitForExit(5000)|Out-Null}catch{}
+        $stdout='';$stderr=''
+        try{if($Handle.StdoutTask.Wait(5000)){$stdout=$Handle.StdoutTask.Result}}catch{}
+        try{if($Handle.StderrTask.Wait(5000)){$stderr=$Handle.StderrTask.Result}}catch{}
+        if($timedOut){$stderr+=[Environment]::NewLine+'YOMI audit deadline exceeded for batch'}
         foreach($line in @($stdout -split "\r?\n")){
             if([string]::IsNullOrWhiteSpace($line)){continue}
             try{
@@ -244,7 +262,10 @@ function Invoke-ProbeRoute([object[]]$ProbeRows,[string]$Route){
                 $state[$key].routes+=($Route+':NO_METADATA')
             }
         }
-    }finally{Remove-Item -LiteralPath $batch -Force -ErrorAction SilentlyContinue}
+    }finally{
+        Remove-Item -LiteralPath $batch -Force -ErrorAction SilentlyContinue
+        try{$p.Dispose()}catch{}
+    }
 }
 
 # The controller consumes these lightweight progress markers as the audit proceeds.
@@ -264,14 +285,37 @@ for($routeIndex=0;$routeIndex -lt $routes.Count;$routeIndex++){
         Write-AuditProgress $progressTotal $progressTotal 'All tracks resolved; creating report'
         break
     }
-    # Bounded batches prevent one bad Topic video from wedging the full audit.
+    # Run four independent, bounded yt-dlp batches together rather than waiting
+    # for a single slow batch before starting the next.
     $chunkSize=12
+    $maxConcurrent=4
+    $nextOffset=0
+    $completedRows=0
+    $active=@()
     Write-AuditProgress ($routeIndex*$unique.Count) $progressTotal ('Checking '+$route+' ('+$pending.Count+' tracks remaining)')
-    for($offset=0;$offset -lt $pending.Count;$offset+=$chunkSize){
-        $last=[Math]::Min($pending.Count-1,$offset+$chunkSize-1)
-        Invoke-ProbeRoute -ProbeRows @($pending[$offset..$last]) -Route $route
-        $completed=$routeIndex*$unique.Count+$last+1
-        Write-AuditProgress $completed $progressTotal ('Checking '+$route+': '+($last+1)+' of '+$pending.Count+' remaining tracks')
+    while($nextOffset -lt $pending.Count -or $active.Count -gt 0){
+        while($active.Count -lt $maxConcurrent -and $nextOffset -lt $pending.Count){
+            $last=[Math]::Min($pending.Count-1,$nextOffset+$chunkSize-1)
+            $slice=@($pending[$nextOffset..$last])
+            $handle=Start-ProbeRoute -ProbeRows $slice -Route $route
+            if($handle){$active+=,$handle}
+            $nextOffset=$last+1
+        }
+        $remaining=@()
+        $progressed=$false
+        foreach($handle in $active){
+            $elapsed=([DateTime]::UtcNow-$handle.Started).TotalMilliseconds
+            if($handle.Process.HasExited -or $elapsed -ge $handle.LimitMs){
+                Finish-ProbeRoute $handle
+                $completedRows+=$handle.Rows.Count
+                $progressed=$true
+                Write-AuditProgress ($routeIndex*$unique.Count+$completedRows) $progressTotal ('Checking '+$route+': '+$completedRows+' of '+$pending.Count+' attempted')
+            }else{
+                $remaining+=,$handle
+            }
+        }
+        $active=@($remaining)
+        if(-not $progressed){Start-Sleep -Milliseconds 150}
     }
     Write-AuditProgress (($routeIndex+1)*$unique.Count) $progressTotal ('Completed '+$route+'; '+($routeIndex+1)+' of '+$routes.Count+' routes')
 }
