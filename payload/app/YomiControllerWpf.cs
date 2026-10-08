@@ -6275,6 +6275,7 @@ namespace Yomi.Desktop
             var diagnostics = MenuSub("Diagnostics");
             diagnostics.Items.Add(MenuAction("Create diagnostic bundle...", "", CreateDiagnosticBundle));
             MenuSeparator(diagnostics);
+            diagnostics.Items.Add(MenuAction("Unavailable track audit", "", LaunchUnavailableTrackAudit));
             diagnostics.Items.Add(MenuAction("Cache integrity audit", "", LaunchCacheIntegrityAudit));
             diagnostics.Items.Add(MenuAction("Detailed performance report", "", LaunchPerformanceAttribution));
             diagnostics.Items.Add(MenuAction("Service-level check", "", LaunchSloSentinel));
@@ -9586,8 +9587,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             AddMenuItem(queueMenu, "Play next", delegate { QueueCommand("yomi-order-play-next"); });
             AddMenuItem(queueMenu, "Prepare", delegate { BatchPrepareSelected(); });
             AddMenuItem(queueMenu, "Toggle favorite", delegate { ToggleFavoriteSelectedOrCurrent(); });
-            // Source opening is intentionally not exposed in the Queue menu. Accidental browser
-            // launches were repeatedly reported as disruptive; diagnostics retain the URL internally.
+            AddMenuItem(queueMenu, "Open source in browser", delegate { OpenSelectedQueueSource(); });
             var queueMoveMenu = new MenuItem { Header = "Move" };
             AddMenuItem(queueMoveMenu, "+5 positions", delegate { QueueCommand("yomi-order-move-later", "5"); });
             AddMenuItem(queueMoveMenu, "To top of upcoming", delegate { MoveSelectedBlockToBoundary(Math.Max(1, _currentSlot + 1), "top-upcoming"); });
@@ -11183,6 +11183,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             AddCommand("Tools", "OBS setup", "", "obs browser source overlay", delegate { LaunchObsInstructions(); });
             AddCommand("Tools", "Open YOMI data folder", "", "data folder cache files", delegate { SafeStart("explorer.exe", Quote(_dataRoot)); });
             AddCommand("Diagnostics", "Create diagnostic bundle", "", "diagnostics support logs bundle zip runtime obs media performance", delegate { CreateDiagnosticBundle(); });
+            AddCommand("Diagnostics", "Unavailable track audit", "", "dead broken unavailable private youtube track audit queue filter midnite", delegate { LaunchUnavailableTrackAudit(); });
             AddCommand("Cache", "Deep cache integrity audit", "", "cache sha256 integrity receipts quarantine forensic audit", delegate { LaunchCacheIntegrityAudit(); });
             AddCommand("Cache", "Open cache quarantine", "", "cache quarantine corrupted stale objects", delegate { SafeStart("explorer.exe", Quote(Path.Combine(_objectRoot, "quarantine"))); });
             AddCommand("Performance", "Analyze current session", "", "performance attribution latency p95 bottleneck scheduler queue critical path", delegate { LaunchPerformanceAttribution(); });
@@ -25815,6 +25816,60 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 }
                 catch { _diagnosticBundleWorkerActive = false; }
             });
+        }
+
+        private void LaunchUnavailableTrackAudit()
+        {
+            string filter = _queueSearchBox == null ? "" : (_queueSearchBox.Text ?? "").Trim();
+            var rows = new List<Dictionary<string, object>>();
+            foreach (int occurrence in _order)
+            {
+                TrackMeta meta;
+                if (!_trackMeta.TryGetValue(occurrence, out meta) || meta == null || String.IsNullOrWhiteSpace(meta.Url)) continue;
+                if (!String.IsNullOrWhiteSpace(filter))
+                {
+                    string haystack = String.Join(" ", new[] { meta.Title ?? "", meta.Channel ?? "", meta.YoutubeId ?? "", meta.Url ?? "" });
+                    if (haystack.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                }
+                rows.Add(new Dictionary<string, object>
+                {
+                    { "occurrence", occurrence }, { "title", meta.Title ?? "" }, { "channel", meta.Channel ?? "" },
+                    { "youtube_id", meta.YoutubeId ?? "" }, { "url", meta.Url ?? "" }
+                });
+            }
+            if (rows.Count == 0)
+            {
+                ShowToast("Unavailable track audit", String.IsNullOrWhiteSpace(filter) ? "No playlist tracks are available to scan." : "No tracks match the current Queue filter: " + filter);
+                return;
+            }
+
+            Directory.CreateDirectory(_stateRoot);
+            string candidatePath = Path.Combine(_stateRoot, "unavailable-track-audit-candidates.json");
+            var serializer = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue, RecursionLimit = 64 };
+            var snapshot = new Dictionary<string, object>
+            {
+                { "schema", 1 }, { "created_utc", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "filter", filter }, { "count", rows.Count }, { "rows", rows }
+            };
+            WriteUtf8NoBom(candidatePath, serializer.Serialize(snapshot));
+            string args = "-CandidatePath " + Quote(candidatePath) + " -FilterLabel " + Quote(filter) + " -NoOpen";
+            string start = String.IsNullOrWhiteSpace(filter)
+                ? "Scanning all " + rows.Count.ToString("N0", CultureInfo.InvariantCulture) + " playlist tracks..."
+                : "Scanning " + rows.Count.ToString("N0", CultureInfo.InvariantCulture) + " tracks matching '" + filter + "'...";
+            RunReportInYomi("Unavailable track audit", "unavailable-track-audit.ps1", args, start);
+        }
+
+        private void OpenSelectedQueueSource()
+        {
+            QueueRow row = SelectedQueueRows().FirstOrDefault();
+            if (row == null) return;
+            TrackMeta meta;
+            if (!_trackMeta.TryGetValue(row.OccurrenceId, out meta) || meta == null || String.IsNullOrWhiteSpace(meta.Url))
+            {
+                ShowToast("Open source", "This queue row has no source URL.");
+                return;
+            }
+            SafeStart(meta.Url, "");
         }
 
         private void LaunchCacheIntegrityAudit()
