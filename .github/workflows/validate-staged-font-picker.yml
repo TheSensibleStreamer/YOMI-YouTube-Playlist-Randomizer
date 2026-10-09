@@ -165,7 +165,8 @@ jobs:
           $music=Get-Content 'payload/app/music.lua' -Raw
           if(-not $music.Contains('MUSIC ENDPOINT REARM track ')){throw 'Manual failed-prefetch Music lookup cannot retry'}
           foreach($needle in @(
-            "if(shareSeam){if(vertical)vid.style.marginTop=(-bp)+'px';else vid.style.marginLeft=(-bp)+'px';}",
+            "artFrame.style.setProperty(vertical?'--yomi-border-bottom':'--yomi-border-right',first+'px');",
+            "vidFrame.style.setProperty(vertical?'--yomi-border-top':'--yomi-border-left',second+'px');",
             'layoutMediaPair(false,vertical,bp,borderColor,radiusPx);',
             'shareSeam?Math.max(radiusPx,bp*2+2):radiusPx'
           )){if(-not $obsSource.Contains($needle)){throw ('Media border still doubles the seam or covers inner corners: '+$needle)}}
