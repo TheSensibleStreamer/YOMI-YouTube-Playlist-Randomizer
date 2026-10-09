@@ -52,3 +52,5 @@ Final Windows and Chromium revalidation: automatic visible-title/channel matchin
 Verify all live visualizer regressions from 9039: Auto title/channel length, manual 1-8 width stable vertical anchor, neutral cached palette, instant gradient/rainbow across songs, no false codec floor pixels, independent Solid/Gradient settings, no WPF/OBS geometry changes.
 
 Real Chromium retest with correct metadata height fallback, native eight-row aspect, and relayout on metadata; WPF controller status unchanged.
+
+Verify YOMI 50% first-launch/factory-reset volume with preserved saved levels after 9040 visualizer shape and live palette fixes. Full Windows C# and Chromium OBS geometry regression.
