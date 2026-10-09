@@ -299,7 +299,9 @@ public static class YomiObsHttpServerR6183
     {
         string config=ConfigJson();
         if(String.IsNullOrWhiteSpace(config))config="null";
-        // The renderer instance changes on every OBS host restart. Existing Browser\n        // Sources can poll a new server while still running JavaScript from an old build.\n        return "{\"renderer_instance\":\""+StartedUtcTicks.ToString(CultureInfo.InvariantCulture)+"\",\"state\":"+StateJson()+",\"config\":"+config+"}";
+        // The renderer instance changes on every OBS host restart. Existing Browser
+        // Sources can poll a new server while still running JavaScript from an old build.
+        return "{\"renderer_instance\":\""+StartedUtcTicks.ToString(CultureInfo.InvariantCulture)+"\",\"state\":"+StateJson()+",\"config\":"+config+"}";
     }
 
     private static string UrlDecode(string value)
