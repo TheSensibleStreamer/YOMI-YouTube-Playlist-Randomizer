@@ -22,3 +22,5 @@ Repeat square-source render and updater geometry checks after fixing C# embedded
 Validate native pixel-square standalone visualizer with text and media disabled, in addition to the standard OBS routes.
 
 Validate 9034 prewarmed startup clock progressing to PLAYING after 180ms, no stale zero-position UI, and Pause/Resume never reenters STARTING.
+
+Validate Windows WPF controller compilation with actual raw-mpv-clock confirmation for late STARTING and ready-status previous tracks.
