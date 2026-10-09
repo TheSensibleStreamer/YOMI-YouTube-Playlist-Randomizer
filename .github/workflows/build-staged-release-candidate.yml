@@ -1,4 +1,4 @@
-name: Build unpublished YOMI 9036 candidate
+name: Build unpublished YOMI 9037 candidate
 on:
   push:
     paths:
@@ -18,35 +18,35 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          python tools/build_release_candidate.py --version 420.69.9036 --output dist/9036
+          python tools/build_release_candidate.py --version 420.69.9037 --output dist/9037
           if($LASTEXITCODE -ne 0){throw 'Candidate packaging failed'}
       - name: Exercise updater package verification on actual candidate ZIP
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $root = (Resolve-Path 'dist/9036').Path
+          $root = (Resolve-Path 'dist/9037').Path
           $metadata = Get-Content (Join-Path $root 'update.json') -Raw | ConvertFrom-Json
-          if($metadata.version -ne '420.69.9036'){throw 'Wrong release candidate identity'}
+          if($metadata.version -ne '420.69.9037'){throw 'Wrong release candidate identity'}
           $zip = Join-Path $root $metadata.package_name
           $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           if($hash -ne $metadata.sha256){throw 'Updater manifest ZIP hash mismatch'}
-          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9036-extracted'
-          $dryData = Join-Path $env:RUNNER_TEMP 'YOMI-9036-dryrun'
-          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $extract -ExpectedVersion '420.69.9036' -ExpectedPackageHash $hash -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $dryData
+          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9037-extracted'
+          $dryData = Join-Path $env:RUNNER_TEMP 'YOMI-9037-dryrun'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $extract -ExpectedVersion '420.69.9037' -ExpectedPackageHash $hash -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $dryData
           if($LASTEXITCODE -ne 0){throw 'Updater ZIP verification rejected candidate'}
           if(-not (Test-Path (Join-Path $extract 'installer/build-manifest.json'))){throw 'Expected extraction missing'}
       - name: Verify staged source seal and installation contract (before runtime binaries exist)
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9036-extracted'
+          $extract = Join-Path $env:RUNNER_TEMP 'YOMI-9037-extracted'
           $payload = Join-Path $extract 'payload'
           $app = Join-Path $payload 'app'
           $contract = Get-Content (Join-Path $app 'YOMI-CAPABILITY-CONTRACT.json') -Raw | ConvertFrom-Json
           $receipt = Get-Content (Join-Path $app 'INSTALLATION-RECEIPT.json') -Raw | ConvertFrom-Json
           $seal = Get-Content (Join-Path $app 'RUNTIME-INTEGRITY-MANIFEST.json') -Raw | ConvertFrom-Json
           $version = (Get-Content (Join-Path $payload 'VERSION.txt') -Raw).Trim()
-          if($version -ne '420.69.9036' -or $contract.version -ne $version -or $receipt.version -ne $version -or $seal.version -ne $version){throw 'Candidate identity mismatch'}
+          if($version -ne '420.69.9037' -or $contract.version -ne $version -or $receipt.version -ne $version -or $seal.version -ne $version){throw 'Candidate identity mismatch'}
           if(@($seal.files).Count -ne [int]$seal.file_count){throw 'Source seal count mismatch'}
           foreach($entry in $seal.files){
             $file = Join-Path $payload ([string]$entry.path).Replace('/','\')
@@ -60,9 +60,9 @@ jobs:
       - name: Upload candidate ZIP and proposed update manifest (NOT PUBLISHED)
         uses: actions/upload-artifact@v4
         with:
-          name: YOMI-420.69.9036-UNPUBLISHED-CANDIDATE
+          name: YOMI-420.69.9037-UNPUBLISHED-CANDIDATE
           path: |
-            dist/9036/YOMI-v420.69.9036.zip
-            dist/9036/update.json
+            dist/9037/YOMI-v420.69.9037.zip
+            dist/9037/update.json
           if-no-files-found: error
           retention-days: 7
