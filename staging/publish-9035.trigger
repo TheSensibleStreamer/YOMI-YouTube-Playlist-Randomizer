@@ -1,0 +1,1 @@
+Release verified YOMI 420.69.9035: raw advancing mpv samples correct PLAY icon and frozen zero-time after any handoff; cached prior-track rows now correctly show READY/AUDIO READY rather than always PLAYED. Preserve audio/OBS media rendering.
