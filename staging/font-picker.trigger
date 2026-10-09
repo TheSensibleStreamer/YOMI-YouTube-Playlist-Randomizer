@@ -8,3 +8,4 @@ Parse-check version-aware release-qualification.ps1 before building v420.69.9027
 Validate OBS with 135px actual browser height, configured 144px media, and square-pixel visualizer render.
 Validate revised Music search helper syntax, OBS fitted corners, and square-pixel visualization.
 Check PowerShell launch bypass for Powaz replacement search after PriorityRun status 3, and run OBS Chromium geometry regression.
+Run browser pixels for nonoverlapping 4-corner media seams and visualizer edge; validate playback reserve and priority queue.
