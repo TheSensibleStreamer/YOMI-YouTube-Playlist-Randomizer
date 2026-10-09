@@ -26,9 +26,9 @@ lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(
     """
 cfg={visualizer_temporal_detail='Enhanced',visualizer_shape='Spectrum',
+     visualizer_pixel_size='Extra Chunky',
      visualizer_color_mode='Solid',visualizer_activity='Active',
      visualizer_vertical_anchor='Source',visualizer_direction='Normal'}
-function visualizer_render_dimensions() return 40,10 end
 function visualizer_fps() return cfg.visualizer_fps=='30 FPS' and 30 or 60 end
 function visualizer_frequency_parameters()
   if cfg.visualizer_activity=='Subtle' then return 4,2048,'sqrt','log' end
@@ -41,8 +41,14 @@ function visualizer_frequency_trim_filter() return '' end
 function visualizer_spacing_filter() return '' end
 """
 )
-for name in ("visualizer_temporal_rate", "viz_filter"):
+for name in ("visualizer_render_dimensions", "visualizer_temporal_rate", "viz_filter"):
     lua.execute(lua_function(name))
+
+assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 6), "Coarse source holds eight length units"
+for preset, dimensions in (("Chunky", (512, 16)), ("Fine", (768, 24)), ("Extra Fine", (1440, 36))):
+    lua.globals().cfg.visualizer_pixel_size = preset
+    assert tuple(lua.globals().visualizer_render_dimensions()) == dimensions, (preset, dimensions)
+lua.globals().cfg.visualizer_pixel_size = "Extra Chunky"
 
 def call_filter(fps, shape="Spectrum", mode="Enhanced", activity="Active"):
     lua.globals().cfg.visualizer_fps = f"{fps} FPS"
@@ -91,8 +97,8 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
             assert abs(frames - fps * 3) <= 1, (sr, fps, shape, frames)
             assert abs(seconds - 3) <= 1/fps + 0.001, (sr, fps, shape, seconds)
             # Existing Center Mirror stacks two even-height half-rasters (6 + 6).
-            expected_height = 12 if shape == "Center Mirror" else 10
-            assert (int(info["width"]), int(info["height"])) == (40, expected_height), (shape, info)
+            expected_height = 8 if shape == "Center Mirror" else 6
+            assert (int(info["width"]), int(info["height"])) == (192, expected_height), (shape, info)
             print(f"PASS enhanced {shape} {sr} Hz, {fps} FPS: {frames} frames, {seconds:.3f}s, render {time.monotonic()-start:.3f}s")
 
     for fps in (30, 60):
