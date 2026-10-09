@@ -74,7 +74,7 @@ jobs:
           # Keep normal and pressed window chrome unchanged. Only soften the
           # Close/X hover background by a modest amount relative to #2A1C1F.
           $design=Get-Content 'payload/app/YomiDesign.xaml' -Raw
-          if(-not $design.Contains('<Color x:Key="Color.DangerSoft">#372427</Color>')){
+          if(-not $design.Contains('<Color x:Key="Color.DangerSoft">#503035</Color>')){
             throw 'Close-button hover color is not the agreed subtle red'
           }
           if(-not $design.Contains('<Color x:Key="Color.Danger">#C47F7F</Color>')){
@@ -169,9 +169,16 @@ jobs:
           foreach($need in @(
             'artFrame.style.borderRadius=r;vidFrame.style.borderRadius=r;',
             'artFrame.style.clipPath=mediaClip;vidFrame.style.clipPath=mediaClip;',
-            "viz.style.flex='0 0 0px';viz.style.width='0px';",
+            "viz.style.width='0px';viz.style.height='0px';viz.style.flex='0 0 0px';",
             "mediaPairLine.setAttribute('stroke-linecap','round')"
           )){if(-not $obsSource.Contains($need)){throw ('Missing shared-border/visualizer safeguard: '+$need)}}
+          if($obsSource.Contains('.media-frame::after{')){throw 'Media border still uses translucent over-image pseudo-element'}
+          if(-not $obsSource.Contains('overflow:hidden;isolation:isolate;background:transparent;border-style:solid')){
+            throw 'OBS media frame is not physically bordered and image-clipped'
+          }
+          if(([regex]::Matches($designText,'<Setter TargetName="B" Property="Background" Value="#503035"/>')).Count -ne 2){
+            throw 'Both X hover templates must use the visible muted red'
+          }
           $music=Get-Content 'payload/app/music.lua' -Raw
           if(-not $music.Contains('MUSIC ENDPOINT REARM track ')){throw 'Manual failed-prefetch Music lookup cannot retry'}
           foreach($needle in @(
