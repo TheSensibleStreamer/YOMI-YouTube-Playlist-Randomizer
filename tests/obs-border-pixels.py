@@ -32,7 +32,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         "media_corner_style": corner, "media_aspect_layout": layout,
         "artwork_enabled": with_art, "video_enabled": with_video,
         "title_enabled": True, "channel_enabled": True,
-        "visualizer_enabled": True, "visualizer_match_text_overhang": True,
+        "visualizer_enabled": True, "visualizer_match_text_overhang": False,
         "overlay_text_gap_px": 8, "visualizer_length_multiplier": viz_length
     }
     track = {
@@ -128,7 +128,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     # wider than the text viewport. Peak pooling reduces columns when necessary.
     assert abs(boxes["viz"]["w"]/boxes["viz"]["h"]-(pixel_info["srcW"]/pixel_info["srcH"])) < .045, (boxes,pixel_info)
     assert boxes["viz"]["w"] <= 1400, ("Visualizer exceeds OBS viewport",boxes)
-    assert boxes["viz"]["w"] <= boxes["text"]["w"]+12, boxes
+    assert boxes["viz"]["x"]+boxes["viz"]["w"] <= 1400.5, boxes
     visualizer_left=boxes["viz"]["x"]
     if visible:
         last_frame=boxes[visible[-1]]
@@ -141,6 +141,74 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     if layout=="Reflow" and abs(video_aspect-16/9)<0.025 and visible:
         assert abs((boxes["text"]["x"]-visualizer_left)-8)<1.1, boxes
     print(f"PASS {border}px {corner} {layout} video={with_video}, video_ratio={video_aspect:.3f}, text={boxes['text']['w']:.0f}px viz={boxes['viz']['w']:.0f}px")
+
+async def check_text_match(page):
+    # Actual browser layout, not just a reconstructed width formula. This
+    # verifies the checkbox, visible glyph measurement, symmetric overhang,
+    # 1:1 frequency cells, and track-to-track width changes.
+    config = {
+        "artwork_enabled": True, "video_enabled": True,
+        "title_enabled": True, "channel_enabled": True,
+        "visualizer_enabled": True, "visualizer_match_text_overhang": True,
+        "visualizer_length_multiplier": 1,
+        "media_width": 180, "media_height": 100,
+        "overlay_text_gap_px": 14, "text_size": 28,
+        "text_font": "Arial", "text_alignment": "Auto",
+        "media_border_enabled": False,
+    }
+    measurements=[]
+    for title, channel in [
+        ("Short", "Channel"),
+        ("Longer title testing that the frequency display follows the title", "Channel"),
+        ("Short", "A longer musical channel name that should determine the visualizer width"),
+    ]:
+        track={"index":1,"title":title,"channel":channel,
+               "artwork":"unavailable","full_artwork":"unavailable",
+               "visualizer":"unavailable"}
+        output=await page.evaluate("""([config,track])=>{
+            window.__yomiPixelTestApply(config,track,{});
+            const region=txt.getBoundingClientRect(),vr=viz.getBoundingClientRect();
+            const spans=[titleEl,channelEl].filter(x=>!x.classList.contains('hidden')).map(el=>{
+                const range=document.createRange();range.selectNodeContents(el);
+                const rect=range.getBoundingClientRect();
+                return {left:Math.max(region.left,rect.left),right:Math.min(region.right,rect.right)};
+            });
+            return {left:vr.left,right:vr.right,width:vr.width,height:vr.height,
+                    nativeColumns:vizDisplayColumns,rows:vizEl.videoHeight||6,
+                    textLeft:Math.min(...spans.map(x=>x.left)),
+                    textRight:Math.max(...spans.map(x=>x.right)),
+                    auto:vizAutoMatchText};
+        }""",[config,track])
+        assert output["auto"], ("Auto length incorrectly disabled",output)
+        assert output["width"] > 0 and output["width"] <= 1400, output
+        assert abs(output["width"]/output["nativeColumns"]-output["height"]/6) < 0.05, output
+        left_gap=output["textLeft"]-output["left"]
+        right_gap=output["right"]-output["textRight"]
+        assert left_gap >= 0, output
+        # A display cell is indivisible; equal left/right padding is accurate
+        # to within one native square-pixel cell.
+        cell=output["height"]/6
+        assert -cell-2 <= right_gap-left_gap <= 2, (output,left_gap,right_gap)
+        measurements.append(output)
+    assert measurements[0]["width"] < measurements[1]["width"], measurements
+    assert measurements[0]["width"] < measurements[2]["width"], measurements
+    print("PASS text-matched OBS geometry: title/channel selection, symmetric overhang, automatic square cells")
+    # The very same setting must not hijack the manual length control when off.
+    config["visualizer_match_text_overhang"]=False
+    config["visualizer_length_multiplier"]=1
+    track["title"]="A much longer song title does not affect the manual length"
+    short=await page.evaluate("""([c,t])=>{
+        window.__yomiPixelTestApply(c,t,{});
+        return {w:viz.getBoundingClientRect().width,auto:vizAutoMatchText};
+    }""",[config,track])
+    config["visualizer_length_multiplier"]=4
+    long=await page.evaluate("""([c,t])=>{
+        window.__yomiPixelTestApply(c,t,{});
+        return {w:viz.getBoundingClientRect().width,auto:vizAutoMatchText};
+    }""",[config,track])
+    assert not short["auto"] and not long["auto"], (short,long)
+    assert long["w"] > short["w"], (short,long)
+    print("PASS text match off: manual 1.0–8.0 length remains independent")
 
 async def main():
     async with async_playwright() as p:
@@ -161,6 +229,7 @@ async def main():
                          (2,"Soft","Reflow",False,16/9,False),
                          (2,"Soft","Reflow",True,16/9,True,2)]:
                 await check(page,*args)
+            await check_text_match(page)
             # Standalone /visualizer should honor its requested long spectrum
             # while preserving square pixels and staying within the source.
             standalone=await page.evaluate("""()=>{
