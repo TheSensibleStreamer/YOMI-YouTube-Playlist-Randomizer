@@ -3315,9 +3315,6 @@ safe_register_script_message("yomi-hide-comment",function() end)
 safe_register_script_message("yomi-rehearse",function() end)
 safe_register_script_message("yomi-freeze-toggle",function() end)
 
-local playback_clock_pending_index=0
-local playback_clock_baseline=nil
-
 safe_register_event("file-loaded",function()
     local loaded=current_index
     local requested_before_load=requested_index
@@ -3362,11 +3359,6 @@ safe_register_event("file-loaded",function()
     -- playback-restart proves mpv has actually resumed presentation.
     playing_index=current_index
     loaded_waiting_for_restart=current_index
-    -- A prewarmed, already-decoded file can resume audibly without mpv
-    -- emitting another playback-restart event. Track actual clock movement
-    -- for that specific newly-loaded occurrence as a secondary confirmation.
-    playback_clock_pending_index=current_index
-    playback_clock_baseline=nil
     sync_playback_subset_cursor(current_index)
     if slot_bookmark_pending then
         if slot_bookmark_occurrence==current_index and slot_bookmark_seconds>0.5 then
@@ -3391,7 +3383,7 @@ safe_register_event("file-loaded",function()
     end
 end)
 
-local function confirm_playback_started(origin)
+safe_register_event("playback-restart",function()
     if shutting_down or mp.get_property_native("pause") == true then return end
     local pending=math.floor(tonumber(loaded_waiting_for_restart) or 0)
     local i=pending>0 and pending or ((playing_index>0 and playing_index) or current_index)
@@ -3403,8 +3395,6 @@ local function confirm_playback_started(origin)
             return
         end
         loaded_waiting_for_restart=0
-        playback_clock_pending_index=0
-        playback_clock_baseline=nil
         playing_index=i
         transient_skip_streak=0
         sync_playback_subset_cursor(i)
@@ -3413,38 +3403,12 @@ local function confirm_playback_started(origin)
         write_current(i);write_queue_runtime();write_runtime_lease()
         append_all(history_file,(utils.format_json({unix=os.time(),index=i,title=m.title,channel=m.channel}) or "{}").."\n")
         schedule_ahead(i)
-        log("PLAYING track "..i.." confirmed by "..tostring(origin or "playback-restart"))
+        log("PLAYING track "..i.." confirmed by playback-restart")
     end
     if not startup_first_sound then
         startup_first_sound=true
-        write_startup_flight("first_sound",i,"Playback advanced ("..tostring(origin or "playback-restart")..").",true,false)
+        write_startup_flight("first_sound",i,"Playback reached mpv playback-restart.",true,false)
         log("FIRST SOUND track "..tostring(i).." @ "..tostring(startup_elapsed_ms()).."ms")
-    end
-end
-safe_register_event("playback-restart",function()
-    confirm_playback_started("playback-restart")
-end)
--- mpv may NOT send playback-restart on unpausing a prewarmed first file.
--- Two advancing samples, for the same still-pending occurrence, establish
--- the audible transport clock without guessing from the button click.
-mp.observe_property("time-pos","number",function(_,seconds)
-    if shutting_down or loaded_waiting_for_restart<=0 then return end
-    if playing_index~=loaded_waiting_for_restart or mp.get_property_native("pause")==true then
-        playback_clock_baseline=nil
-        return
-    end
-    local pos=tonumber(seconds)
-    if not pos or pos<0 then return end
-    if playback_clock_pending_index~=loaded_waiting_for_restart then
-        playback_clock_pending_index=loaded_waiting_for_restart
-        playback_clock_baseline=nil
-    end
-    if playback_clock_baseline==nil or pos<playback_clock_baseline then
-        playback_clock_baseline=pos
-        return
-    end
-    if pos-playback_clock_baseline>=0.18 then
-        confirm_playback_started("advancing-transport-clock")
     end
 end)
 
