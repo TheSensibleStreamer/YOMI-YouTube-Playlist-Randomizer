@@ -46,3 +46,5 @@ Check the existing automatic title/channel matching checkbox: equal overhang on 
 Recheck dynamic title/channel width equal-overhang Chromium browser tests using DOM glyph geometry, plus Windows C# compilation.
 
 Final Windows and Chromium revalidation: automatic visible-title/channel matching, symmetrical overhang, high-frequency peak pooling, manual 1-8 length, native square cells.
+
+9039 regression from 2026-10-09 diagnostic: NEXT skips source-bound exhausted-audio cooldowns but explicit Play retries; stop outgoing mpv clock for uncached target; preserve filtered and reverse navigation.
