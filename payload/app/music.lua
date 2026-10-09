@@ -287,19 +287,24 @@ function visualizer_render_dimensions()
         elseif raw_w>=130 or raw_h>=30 then preset="Chunky"
         else preset="Extra Chunky" end
     end
-    local w,h=40,10
+    -- At length 4.0 use half the encoded columns; 8.0 uses them all.
+    -- Encode the full frequency span once so changing length is instant,
+    -- without decoding a larger frame rate or stretching columns into bars.
+    -- Extra Chunky is intentionally coarser: 24x6 visible cells at 4.0,
+    -- compared with 40x10 previously. Both dimensions retain square cells.
+    local w,h=24,6
     if preset=="Chunky" then w,h=64,16
     elseif preset=="Fine" then w,h=96,24
     elseif preset=="Extra Fine" then w,h=180,36 end
     if w%2==1 then w=w+1 end
     if h%2==1 then h=h+1 end
-    return w,h
+    return w*2,h
 end
 
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r6110620-temporal-peaks",
+        "r6110621-full-length-8-coarse-pixels",
         tostring(visualizer_fps()),
         tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
