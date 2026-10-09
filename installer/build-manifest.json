@@ -1,7 +1,7 @@
 {
-  "version": "v420.69.9030",
+  "version": "v420.69.9031",
   "product": "YOMI - YouTube OBS Music Interface",
-  "release": "R61.106.53.30.1",
+  "release": "R61.106.53.31.1",
   "update_compatibility": "one-hop-latest",
   "files": {
     "INSTALL YOMI.cmd": {
@@ -10,7 +10,7 @@
     },
     "installer/install.ps1": {
       "bytes": 56482,
-      "sha256": "f29fe48e2a3ed66e0b858c441b49538c2fed426f77f3b7d68372984832068eff"
+      "sha256": "0d6e44f3917b7d0a220da83769db2de0e15e5fe4f4f9a53cab33d9aeb95f435e"
     },
     "payload/app/aegis-repair.ps1": {
       "bytes": 9623,
@@ -66,7 +66,7 @@
     },
     "payload/app/FOCUSED-BUILD.txt": {
       "bytes": 54,
-      "sha256": "51b1553cb37087774c6d050f167a75942d423343eb5b108ef3a24dee11968611"
+      "sha256": "16d7fbec6c7b4b5823521f004b785973173f0a0e6be316f438cbdb81a6f11e0d"
     },
     "payload/app/GRAND-CONSOLIDATION-LINEAGE.txt": {
       "bytes": 10676,
@@ -78,7 +78,7 @@
     },
     "payload/app/INSTALLATION-RECEIPT.json": {
       "bytes": 4267,
-      "sha256": "d557ec4c156c8a989b73693cde5f63ef861290d8cc0f4534c0837197f34b61ad"
+      "sha256": "88d34c8e8f12df6240c85020ea18cc6137e65cdd2b3633ef47934f5878002966"
     },
     "payload/app/lineage-registry.json": {
       "bytes": 5197,
@@ -138,7 +138,7 @@
     },
     "payload/app/RUNTIME-INTEGRITY-MANIFEST.json": {
       "bytes": 16723,
-      "sha256": "2277b34414984d5853dda74556cbe35b15a5bdf32e59cf477e133216f20cc189"
+      "sha256": "ec6448b3fbdabcce74a564542f470b909bc39ba8236c2b7623f4cbf56510b58e"
     },
     "payload/app/self-test.ps1": {
       "bytes": 8525,
@@ -198,7 +198,7 @@
     },
     "payload/app/YOMI-CAPABILITY-CONTRACT.json": {
       "bytes": 15537,
-      "sha256": "cf35ce85a5998c1cea8b981ed6b3b21e2c0f31096addb8a3049371c28df8b3d2"
+      "sha256": "c4ac79455e14ae57cefe4c6b62a56891abe81cb1cbbbe7507ce8412228abf558"
     },
     "payload/app/yomi.ico": {
       "bytes": 28249,
@@ -294,7 +294,7 @@
     },
     "payload/app/YomiDesign.xaml": {
       "bytes": 105527,
-      "sha256": "f7aa736d6942c1ed9f4c15466218fffa94fdf956e45fa7b62efcb7c63f742e06"
+      "sha256": "196110da6f1500ae60d48300e584715534b1067b578cc6745d1f49981e8326a5"
     },
     "payload/app/YomiDiagnosticBundle.ps1": {
       "bytes": 29916,
@@ -486,7 +486,7 @@
     },
     "payload/VERSION.txt": {
       "bytes": 12,
-      "sha256": "c4dd0a0bdb507a5a1397d674d4fc87a79f431598ddd33127e421792114bb5e70"
+      "sha256": "ea7173800f3192bd0b83aa89acfe52e7f032649d87add876593e6f2e33483767"
     }
   }
 }
