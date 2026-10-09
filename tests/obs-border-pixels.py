@@ -161,6 +161,21 @@ async def main():
                          (2,"Soft","Reflow",False,16/9,False),
                          (2,"Soft","Reflow",True,16/9,True,2)]:
                 await check(page,*args)
+            # Standalone /visualizer and audio-only overlays must also avoid
+            # stretching the native pixel grid across the entire Browser Source.
+            standalone=await page.evaluate("""()=>{
+                window.__yomiPixelTestApply({
+                    artwork_enabled:false,video_enabled:false,title_enabled:false,
+                    channel_enabled:false,visualizer_enabled:true,
+                    visualizer_length_multiplier:4
+                },{index:1,visualizer:'unavailable'}, {});
+                const r=viz.getBoundingClientRect();
+                return {width:r.width,height:r.height,x:r.x};
+            }""")
+            assert abs(standalone["width"]/standalone["height"]-4)<0.05,standalone
+            assert standalone["width"] <= 550,standalone
+            assert abs(standalone["x"])<1,standalone
+            print("PASS standalone visualizer native 40x10 square-pixel footprint")
             assert not errors,errors
         finally:
             await browser.close()
