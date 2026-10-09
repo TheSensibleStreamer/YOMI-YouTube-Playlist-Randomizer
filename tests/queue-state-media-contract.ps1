@@ -66,7 +66,7 @@ Assert-Equal ([QueueTruth]::QueueOptionalMediaSummary($ready)) "0/1 ready" "Opti
 Assert-Equal ([QueueTruth]::QueueHasOptionalMediaIssue($ready)) $true "Issues includes optional failures"
 $ready.Video = "NOT_REQUIRED"
 Assert-Equal ([QueueTruth]::QueueOptionalMediaSummary($ready)) "Off" "No requested presentation assets"
-Assert-Equal ([QueueTruth]::QueueOptionalMediaSummary($null)) "—" "Missing snapshot is unknown, not failed"
+Assert-Equal ([QueueTruth]::QueueOptionalMediaSummary($null)) ([char]0x2014).ToString() "Missing snapshot is unknown, not failed"
 $ready.Audio = "ACTIVE"
 $ready.TransitionReady = $false
 Assert-Equal ([QueueTruth]::QueueAudioStatus($ready)) "BUILDING" "Audio actively preparing"
