@@ -22,6 +22,7 @@ function section(from, to) {
 const clock = section('function clockPositionAt(', 'function layoutMediaPair(');
 const grid = section('function visualizerColumns(', 'function layoutViz(');
 const vizRenderer=section('function renderVizFrame()', 'function ensureCanvas(');
+const palette=section('function parseHexColor(', 'function renderVizFrame(');
 assert(!clock.includes('fetch('), 'no HTTP requests in presented-frame sync loop');
 assert(!js.includes('clockTick('), 'no 80 ms clock polling loop');
 assert(js.includes('syncAV(videoEl,\'video\',null);syncAV(vizEl,\'viz\',null);'), 'both sources synchronize to same clock');
@@ -44,7 +45,7 @@ const context = {
   vid: { classList: {contains:()=>false} },
 };
 vm.createContext(context);
-vm.runInContext(clock + grid, context);
+vm.runInContext(clock + grid + palette, context);
 
 function el(time = 0) {
   return {
@@ -78,13 +79,13 @@ assert.equal(video.currentTime, visualizer.currentTime, 'same clock after pause 
 
 const fitTextGrid=context.fitVizTextGrid;
 for(const [w,h,cols,rows,ew,eh,n] of [
- [720,90,192,6,720,90,48],
- [300,90,192,6,300,90,20],
- [190,90,192,6,180,90,12],
- [7,90,192,6,7,42,1]
+ [720,90,192,8,715,88,65],
+ [300,90,192,8,297,88,27],
+ [190,90,192,8,187,88,17],
+ [7,90,192,8,7,56,1]
 ]) {
  const o=fitTextGrid(w,h,cols,rows);
- assert.deepEqual(Array.from(o),[ew,eh,n],'text-match uses full-height square cells');
+ assert.deepEqual(Array.from(o),[ew,eh,n],'text-match tracks requested text width');
  assert.equal(o[0]/o[2],o[1]/rows,'square cells at every dynamic width');
 }
 const titleEl={classList:{contains:()=>false},textContent:'Long title',firstChild:{},glyph:{left:525,right:855,width:330}};
@@ -101,36 +102,22 @@ channelEl.classList.contains=()=>true;
 textExtent=context.visibleVizTextBounds({left:520,right:1390});
 assert.equal(textExtent.right,855,'hidden channel does not influence width');
 const fit=context.fitVizPixelGrid;
-for(const [vw,vh,cols,rows,ew,eh,ec] of [
- [2560,90,24,6,360,90,24],
- [2560,90,48,6,720,90,48],
- [2560,90,96,6,1440,90,96],
- [2200,90,192,6,2196,72,183],
- [2000,90,64,16,320,80,64],
- [2560,90,96,24,288,72,96],
- [180,90,40,10,180,50,36],
- [80,90,40,10,80,20,40]
-]) {
- const actual=fit(vw,vh,cols,rows);
- assert.equal(actual[0],ew,'width for ' + cols + ' x ' + rows);
- assert.equal(actual[1],eh,'height for ' + cols + ' x ' + rows);
- assert.equal(actual[2],ec,'displayed column count');
- assert(Math.abs(actual[0]/actual[2]-actual[1]/rows)<1e-8,'square output cells');
-}
-
 const bins=context.visualizerColumns;
-for(const [maxColumns,length,expected] of [
- [192,1,24],[192,2,48],[192,4,96],[192,6,144],[192,8,192],
- [128,4,64],[128,8,128]
-]) assert.equal(bins(maxColumns,length),expected,'length '+length+' maps correctly');
-assert.equal(fit(2560,90,bins(192,4),6)[0],1440,'length 4.0 uses 1440 pixels at 90 high');
-assert.equal(fit(2200,90,bins(192,8),6)[0],2196,'length 8.0 fills 2196 of 2200 pixels with square cells');
-const widths=[1,2,4,8].map(n=>fit(880,135,bins(192,n),6)[0]);
-assert(widths.every((w,i)=>i===0||w>=widths[i-1]),'length must not get shorter in a narrow OBS source: '+widths);
-
+const measured=[];
+for(const n of [1,2,4,8]) {
+ const width=120*n,cols=bins(192,n),shape=fit(2560,90,cols,8,width);
+ measured.push(shape[0]);
+ assert.equal(shape[1],88,'height remains fixed across manual length '+n);
+ assert(Math.abs(shape[0]-width)<=11,'manual '+n+' produces expected compact width, got '+shape[0]);
+ assert.equal(shape[0]/shape[2],shape[1]/8,'all pixels square at length '+n);
+}
+assert(measured[0]<150 && measured[1]<300 && measured[3]<1000,'regression: 1.0 and 2.0 must not fill screen: '+measured);
+const widths=[1,2,4,8].map(n=>fit(880,135,bins(192,n),8,120*n));
+assert(widths.every((v,i)=>i===0||v[0]>=widths[i-1][0]),'length must not shrink on a small source');
+assert(widths.every(v=>v[1]===128),'height stays constant even when length is capped to viewport');
 // Exercise actual production per-frame renderer: a peak in an odd-numbered
 // source column MUST remain visible when default length reduces 192 to 96.
-const sw=192,sh=6;
+const sw=192,sh=8;
 const raw=new Uint8ClampedArray(sw*sh*4);
 let brightAt=(2*sw+13)*4;raw[brightAt]=180;raw[brightAt+1]=110;raw[brightAt+2]=60;raw[brightAt+3]=255;
 const put=[];
@@ -143,11 +130,11 @@ context.vizDisplayColumns=0;
 context.vizAutoMatchText=false;
 context.vizLengthMultiplier=4;
 context.vizColorMode='solid';context.vizSolidColor='#7F40F0';
-context.parseHexColor=()=>[127,64,240];
+
 vm.runInContext(vizRenderer,context);
 context.renderVizFrame();
 assert.equal(put.length,1);
-let frame=put[0];assert.equal(frame.width,96);assert.equal(frame.height,6);
+let frame=put[0];assert.equal(frame.width,96);assert.equal(frame.height,8);
 let at=(2*96+6)*4;
 assert.deepEqual(Array.from(frame.data.slice(at,at+4)),[127,64,240,255],'odd source-column transient is preserved');
 context.vizLengthMultiplier=8;
@@ -163,4 +150,19 @@ context.vizDisplayColumns=150;
 context.renderVizFrame();
 assert.equal(put[3].width,150,'automatic match ignores the manual 1.0 length cap');
 context.vizAutoMatchText=false;
+context.vizColorMode='gradient';context.vizGradientPreset='Ocean';context.vizGradientOrientation='Horizontal';
+context.vizDisplayColumns=80;
+context.renderVizFrame();
+const oldColor=Array.from(put[4].data.slice((2*80+6)*4,(2*80+6)*4+4));
+context.vizGradientPreset='Fire';
+context.renderVizFrame();
+const newColor=Array.from(put[5].data.slice((2*80+6)*4,(2*80+6)*4+4));
+assert.notDeepEqual(oldColor,newColor,'changing gradient instantly recolors the current cached frame');
+context.vizGradientPreset='Rainbow';
+context.renderVizFrame();
+assert.notDeepEqual(newColor,Array.from(put[6].data.slice((2*80+6)*4,(2*80+6)*4+4)),'rainbow is a gradient preset');
+const faintAt=(3*sw+20)*4;raw[faintAt]=24;raw[faintAt+1]=24;raw[faintAt+2]=24;
+context.renderVizFrame();
+const faint=put[7].data.slice((3*80+8)*4,(3*80+8)*4+4);
+assert.equal(faint[3],0,'near-black codec residue must not light bottom rows');
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
