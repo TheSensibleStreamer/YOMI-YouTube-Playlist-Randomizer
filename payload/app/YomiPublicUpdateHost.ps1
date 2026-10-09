@@ -18,7 +18,7 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="UpdateWindow"
-        Width="500" Height="212" MinWidth="500" MinHeight="212" MaxWidth="500" MaxHeight="212"
+        Width="500" MinWidth="500" MaxWidth="500" MinHeight="152" MaxHeight="208" SizeToContent="Height"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         WindowStartupLocation="CenterScreen" Background="Transparent"
         ShowInTaskbar="True" Topmost="False" FontFamily="Segoe UI" FontSize="14"
@@ -48,13 +48,13 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
           </Button>
         </Grid>
       </Border>
-      <Grid Grid.Row="1" Margin="18,12,18,11">
+      <Grid Grid.Row="1" Margin="18,9,18,9">
         <Grid.RowDefinitions>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
           <RowDefinition Height="12"/>
           <RowDefinition Height="Auto"/>
-          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
           <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock x:Name="VersionText" Foreground="#F0F0EC" FontSize="15" FontWeight="SemiBold"/>
@@ -63,7 +63,7 @@ Remove-Item -LiteralPath $statusFile -Force -ErrorAction SilentlyContinue
           <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" Background="#8D8D86"/>
         </Grid>
         <TextBlock x:Name="PercentText" Grid.Row="4" Margin="0,7,0,0" Foreground="#8F8F89" FontSize="12" Visibility="Collapsed"/>
-        <Button x:Name="DoneButton" Grid.Row="5" HorizontalAlignment="Right" MinWidth="86" Height="29"
+        <Button x:Name="DoneButton" Grid.Row="5" HorizontalAlignment="Right" Margin="0,9,0,0" MinWidth="86" Height="29"
                 Padding="12,0" Background="#252525" BorderBrush="#444440" BorderThickness="1"
                 Foreground="#E8E8E3" Content="Close" Visibility="Collapsed"/>
       </Grid>
