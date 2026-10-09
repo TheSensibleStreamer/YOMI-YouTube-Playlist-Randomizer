@@ -204,8 +204,11 @@ jobs:
           foreach($required in @(
             'let w=Math.max(1,Math.round(sw*fraction));',
             'let selectedColumns=Math.max(1,Math.round(sampleW*Math.max(.25,Math.min(1,vizLengthMultiplier/4))));',
-            'let width=Math.max(1,Math.min(available,tr.height*squareAspect));',
-            'let height=Math.max(1,width/squareAspect);'
+            'let size=fitVizPixelGrid(available,tr.height,selectedColumns,sampleH),width=size[0],height=size[1];',
+            'if(scale>=1)scale=Math.floor(scale);',
+            'vizCtx.drawImage(vizEl,0,0,w,sh,0,0,w,h);',
+            'function syncAV(el,kind,frame){',
+            "syncAV(videoEl,'video',null);syncAV(vizEl,'viz',null);"
           )){if(-not $obsSquare.Contains($required)){throw ('Square visualizer source-grid rule missing: '+$required)}}
           if($obsSquare.Contains('viz.style.width=(matchText?available:')){
             throw 'Visualizer still stretches to entire text area'
