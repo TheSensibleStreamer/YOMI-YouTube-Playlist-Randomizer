@@ -6559,13 +6559,14 @@ namespace Yomi.Desktop
             if (String.Equals(preset, "Fire", StringComparison.OrdinalIgnoreCase)) { first="#FF3B30"; second="#FFD60A"; return; }
             if (String.Equals(preset, "Forest", StringComparison.OrdinalIgnoreCase)) { first="#2D6A4F"; second="#B7E4C7"; return; }
             if (String.Equals(preset, "Mono", StringComparison.OrdinalIgnoreCase)) { first="#6E6E68"; second="#F2F0E8"; return; }
+            if (String.Equals(preset, "Rainbow", StringComparison.OrdinalIgnoreCase)) { first="#FF4141"; second="#4141FF"; return; }
             first="#FF6B6B"; second="#7B2CBF";
         }
 
         private static void FillGradientPresetCombo(ComboBox box)
         {
             if (box == null) return; box.Items.Clear(); box.IsEditable=false;
-            foreach (string name in new[] { "Sunset", "Ocean", "Pastel", "Fire", "Forest", "Mono" })
+            foreach (string name in new[] { "Sunset", "Ocean", "Pastel", "Fire", "Forest", "Mono", "Rainbow" })
             {
                 string a,b; GradientPresetColors(name,out a,out b); Color sample=ParseColor(a);
                 var item=new ComboBoxItem { Content=name, Tag=name, FontWeight=FontWeights.SemiBold, Foreground=GradientChoiceBrush(a,b), Effect=LegibilityEffect(sample) };
@@ -6838,7 +6839,7 @@ namespace Yomi.Desktop
             FillCombo(_settingsVisualizerFill, "Off", "Adaptive", "Aggressive");
             FillCombo(_settingsVisualizerActivity, "Subtle", "Normal", "Active");
             FillCombo(_settingsVisualizerOpacity, "0.15", "0.20", "0.25", "0.30", "0.40", "0.50", "0.65", "0.80", "1.00");
-            FillCombo(_settingsVisualizerColorMode, "Solid", "Gradient", "Rainbow");
+            FillCombo(_settingsVisualizerColorMode, "Solid", "Gradient");
             FillVisualizerColorCombo(_settingsVisualizerSolidColor);
             _settingsVisualizerSolidColor.SelectionChanged += delegate { if (!_settingsPopulating) RefreshVisualizerColorComboForeground(_settingsVisualizerSolidColor); };
             FillGradientPresetCombo(_settingsVisualizerGradientPreset); _settingsVisualizerGradientPreset.SelectionChanged += delegate { if (!_settingsPopulating) RefreshStyledComboForeground(_settingsVisualizerGradientPreset); };
@@ -6857,6 +6858,9 @@ namespace Yomi.Desktop
             FillCombo(_settingsVisualizerSpacing, "None", "Light", "Wide");
             FillCombo(_settingsVisualizerFps, "30 FPS", "60 FPS");
             FillCombo(_settingsVisualizerLength, "1.0", "1.5", "2.0", "3.0", "4.0", "6.0", "8.0");
+            _settingsVisualizerColorMode.SelectionChanged += delegate { if (!_settingsPopulating) SyncVisualizerSettingsControls(); };
+            _settingsVisualizerMatchText.Checked += delegate { if (!_settingsPopulating) SyncVisualizerSettingsControls(); };
+            _settingsVisualizerMatchText.Unchecked += delegate { if (!_settingsPopulating) SyncVisualizerSettingsControls(); };
             FillCombo(_settingsVisualizerDirection, "Normal", "Mirrored");
             FillCombo(_settingsVisualizerAnchor, "Source", "Top", "Center", "Bottom");
             FillCombo(_settingsVisualizerLayer, "Behind text", "Above text");
@@ -8581,6 +8585,15 @@ namespace Yomi.Desktop
             return "#8A8A84";
         }
 
+        private void SyncVisualizerSettingsControls()
+        {
+            bool solid = String.Equals(ComboText(_settingsVisualizerColorMode, "Solid"), "Solid", StringComparison.OrdinalIgnoreCase);
+            if (_settingsVisualizerSolidColor != null) _settingsVisualizerSolidColor.IsEnabled = solid;
+            if (_settingsVisualizerGradientPreset != null) _settingsVisualizerGradientPreset.IsEnabled = !solid;
+            if (_settingsVisualizerGradientOrientation != null) _settingsVisualizerGradientOrientation.IsEnabled = !solid;
+            if (_settingsVisualizerLength != null) _settingsVisualizerLength.IsEnabled = !Checked(_settingsVisualizerMatchText);
+        }
+
         private void PopulateIntegratedSettings(bool defaults)
         {
             _settingsPopulating = true;
@@ -8595,7 +8608,8 @@ namespace Yomi.Desktop
                 SetComboPreserve(_settingsBroadcastPreset, GetString(c, "overlay_preset", "Custom")); _settingsDirectorMode.IsChecked = GetBool(c, "director_mode", false); LoadDirectorOutputDraft(c, 1, _settingsOutput1Enabled, _settingsOutput1Modules, _settingsOutput1Layout); LoadDirectorOutputDraft(c, 2, _settingsOutput2Enabled, _settingsOutput2Modules, _settingsOutput2Layout); LoadDirectorOutputDraft(c, 3, _settingsOutput3Enabled, _settingsOutput3Modules, _settingsOutput3Layout); LoadDirectorOutputDraft(c, 4, _settingsOutput4Enabled, _settingsOutput4Modules, _settingsOutput4Layout);
                 SetComboPreserve(_settingsCanvasWidth, GetInt(c, "canvas_width", 2560).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsCanvasHeight, String.Equals(GetString(c, "canvas_height_mode", "Auto"), "Auto", StringComparison.OrdinalIgnoreCase) ? "Auto" : GetInt(c, "canvas_height", 90).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaWidth, GetInt(c, "media_width", 160).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsMediaHeight, GetInt(c, "media_height", 90).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsSafeMargin, GetInt(c, "overlay_safe_margin_px", 8).ToString(CultureInfo.InvariantCulture));
                 _settingsAutoFitText.IsChecked = GetBool(c, "overlay_auto_fit_text", true); SetCombo(_settingsTextSize, NormalizeOverlayTextSize(GetInt(c, "text_size", DefaultOverlayTextSize)).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsMinTextSize, GetInt(c, "overlay_min_text_size", 18).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsTextGap, GetInt(c, "overlay_text_gap_px", 14).ToString(CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextFont, NormalizeOverlayFontChoice(GetString(c, "text_font", DefaultOverlayTextFont))); RefreshTextFontComboPreview(true); SelectNamedColor(_settingsTextColor, GetString(c, "text_color", DefaultOverlayTextColor), DefaultOverlayTextColor); SetCombo(_settingsTextOutline, GetInt(c, "text_outline", DefaultOverlayTextOutline).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsOutlineColor, GetString(c, "outline_color", DefaultOverlayOutlineColor), DefaultOverlayOutlineColor); SetComboPreserve(_settingsTextOpacity, GetDouble(c, "text_opacity", DefaultOverlayTextOpacity).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsTextAlignment, GetString(c, "text_alignment", DefaultOverlayTextAlignment)); SetCombo(_settingsTextSpacing, "Normal"); _settingsTextGlow.IsChecked = GetBool(c, "text_glow", false); _settingsMediaBorderEnabled.IsChecked = GetBool(c, "media_border_enabled", true); SetCombo(_settingsMediaBorderPx, GetInt(c, "media_border_px", 2).ToString(CultureInfo.InvariantCulture)); SelectNamedColor(_settingsMediaBorderColor, GetString(c, "media_border_color", "#252525"), "#252525"); SetComboPreserve(_settingsMediaCornerStyle, GetString(c, "media_corner_style", "Square")); SetComboPreserve(_settingsMediaAspectLayout, GetString(c, "media_aspect_layout", "Reflow")); string mediaResamplingChoice = GetString(c, "obs_media_scaling", "Smooth"); SetComboPreserve(_settingsObsMediaScaling, mediaResamplingChoice.IndexOf("nearest", StringComparison.OrdinalIgnoreCase) >= 0 || mediaResamplingChoice.IndexOf("point", StringComparison.OrdinalIgnoreCase) >= 0 ? "Nearest" : "Smooth");
-                _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Off")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoiceFromConfig(c)); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "60 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
+                _settingsVisualizerEnabled.IsChecked = GetBool(c, "visualizer_enabled", true); _settingsVisualizerMatchText.IsChecked = GetBool(c, "visualizer_match_text_overhang", true); SetCombo(_settingsVisualizerFill, GetString(c, "visualizer_adaptive_fill", "Off")); SetComboPreserve(_settingsVisualizerActivity, GetString(c, "visualizer_activity", "Active")); SetComboPreserve(_settingsVisualizerOpacity, GetDouble(c, "visualizer_opacity", 0.3).ToString("0.00", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerColorMode, String.Equals(GetString(c, "visualizer_color_mode", "Solid"), "Rainbow", StringComparison.OrdinalIgnoreCase) ? "Gradient" : GetString(c, "visualizer_color_mode", "Solid")); SelectVisualizerColor(_settingsVisualizerSolidColor, GetString(c, "visualizer_solid_color", "#8A8A84")); SetComboPreserve(_settingsVisualizerGradientPreset, String.Equals(GetString(c, "visualizer_color_mode", "Solid"), "Rainbow", StringComparison.OrdinalIgnoreCase) ? "Rainbow" : GetString(c, "visualizer_gradient_preset", "Sunset")); SetComboPreserve(_settingsVisualizerGradientOrientation, GetString(c, "visualizer_gradient_orientation", "Horizontal")); SetCombo(_settingsVisualizerPixelSize, VisualizerPixelSizeChoiceFromConfig(c)); SetComboPreserve(_settingsVisualizerFrequencyScale, GetString(c, "visualizer_frequency_scale", "Logarithmic")); SetCombo(_settingsVisualizerTrim, GetInt(c, "visualizer_high_frequency_trim", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerLift, GetInt(c, "visualizer_high_frequency_lift_db", 0).ToString(CultureInfo.InvariantCulture)); SetCombo(_settingsVisualizerShape, GetString(c, "visualizer_shape", "Spectrum")); SetCombo(_settingsVisualizerSpacing, GetString(c, "visualizer_bar_spacing", "None")); SetCombo(_settingsVisualizerFps, GetString(c, "visualizer_fps", "60 FPS")); SetCombo(_settingsVisualizerLength, GetDouble(c, "visualizer_length_multiplier", 4.0).ToString("0.0", CultureInfo.InvariantCulture)); SetComboPreserve(_settingsVisualizerDirection, GetString(c, "visualizer_direction", "Normal")); SetComboPreserve(_settingsVisualizerAnchor, GetString(c, "visualizer_vertical_anchor", "Source")); SetComboPreserve(_settingsVisualizerLayer, GetString(c, "visualizer_layer", "Behind text"));
+                SyncVisualizerSettingsControls();
                 bool settingsObsPackageEnabled = String.Equals(GetString(c, "app_mode", "Streamer / OBS"), "Streamer / OBS", StringComparison.OrdinalIgnoreCase);
                 int settingsPreparedTracks = defaults ? 15 : Math.Max(1, Math.Min(30, GetInt(c, "prefetch_ahead", 15)));
                 int settingsCacheBudgetMb = defaults ? 512 : Math.Max(64, Math.Min(2048, GetInt(c, "optional_cache_budget_mb", GetInt(c, "video_cache_limit_mb", 512))));
@@ -9214,7 +9228,7 @@ namespace Yomi.Desktop
 
                 var mode = new MenuItem { Header = "Color mode" };
                 string currentMode = GetString(c, "visualizer_color_mode", "Solid");
-                foreach (string value in new[] { "Solid", "Gradient", "Rainbow" })
+                foreach (string value in new[] { "Solid", "Gradient" })
                 {
                     MenuItem item = VisualizerQuickChoice(mode, value, value, delegate { ApplyVisualizerQuickConfig(delegate(Dictionary<string, object> cfg) { cfg["visualizer_color_mode"] = value; }); });
                     item.IsChecked = String.Equals(currentMode, value, StringComparison.OrdinalIgnoreCase);
@@ -9230,16 +9244,18 @@ namespace Yomi.Desktop
                     try { Color color=ParseColor(hex); item.Foreground = new SolidColorBrush(color); item.Effect = LegibilityEffect(color); } catch { }
                     item.IsChecked = String.Equals(currentColor, hex, StringComparison.OrdinalIgnoreCase) && String.Equals(currentMode, "Solid", StringComparison.OrdinalIgnoreCase);
                 }
+                colors.IsEnabled = String.Equals(currentMode, "Solid", StringComparison.OrdinalIgnoreCase);
                 root.Items.Add(colors);
 
                 var gradient = new MenuItem { Header = "Gradient" };
                 string currentGradient = GetString(c, "visualizer_gradient_preset", "Sunset");
-                foreach (string value in new[] { "Sunset", "Ocean", "Pastel", "Fire", "Forest", "Mono" })
+                foreach (string value in new[] { "Sunset", "Ocean", "Pastel", "Fire", "Forest", "Mono", "Rainbow" })
                 {
                     MenuItem item = VisualizerQuickChoice(gradient, value, value, delegate { ApplyVisualizerQuickConfig(delegate(Dictionary<string, object> cfg) { cfg["visualizer_gradient_preset"] = value; cfg["visualizer_color_mode"] = "Gradient"; }); });
                     string ga,gb; GradientPresetColors(value,out ga,out gb); item.Foreground=GradientChoiceBrush(ga,gb); item.Effect=LegibilityEffect(ParseColor(ga));
                     item.IsChecked = String.Equals(currentGradient, value, StringComparison.OrdinalIgnoreCase) && String.Equals(currentMode, "Gradient", StringComparison.OrdinalIgnoreCase);
                 }
+                gradient.IsEnabled = !String.Equals(currentMode, "Solid", StringComparison.OrdinalIgnoreCase);
                 var orientation = new MenuItem { Header = "Direction" };
                 string currentOrientation = GetString(c, "visualizer_gradient_orientation", "Horizontal");
                 foreach (string value in new[] { "Horizontal", "Vertical" })
@@ -19876,30 +19892,54 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     height = Math.Max(32, (int)Math.Round(width / rawAspect));
                 }
             }
-            string visualizerColor = "#8A8A84";
-            string visualizerColorMode = "Solid";
+            string visualizerColor = "#8A8A84", visualizerColorMode = "Solid", vizPreset = "Sunset", vizOrientation = "Horizontal";
             if (visualizer)
             {
                 try
                 {
-                    Dictionary<string, object> visualizerConfig = ReadJsonCached(Path.Combine(_dataRoot, "config.json"));
+                    Dictionary<string, object> visualizerConfig = ReadJsonFresh(Path.Combine(_dataRoot, "config.json"));
                     visualizerColor = GetString(visualizerConfig, "visualizer_solid_color", "#8A8A84");
                     visualizerColorMode = GetString(visualizerConfig, "visualizer_color_mode", "Solid");
+                    vizPreset = GetString(visualizerConfig, "visualizer_gradient_preset", "Sunset");
+                    vizOrientation = GetString(visualizerConfig, "visualizer_gradient_orientation", "Horizontal");
                 }
                 catch { }
                 if (String.IsNullOrWhiteSpace(visualizerColor) || !System.Text.RegularExpressions.Regex.IsMatch(visualizerColor, "^#[0-9A-Fa-f]{6}$")) visualizerColor = "#8A8A84";
+                if (String.Equals(visualizerColorMode, "Rainbow", StringComparison.OrdinalIgnoreCase)) { visualizerColorMode = "Gradient"; vizPreset = "Rainbow"; }
             }
             int vizR = visualizer ? Int32.Parse(visualizerColor.Substring(1,2), NumberStyles.HexNumber, CultureInfo.InvariantCulture) : 0;
             int vizG = visualizer ? Int32.Parse(visualizerColor.Substring(3,2), NumberStyles.HexNumber, CultureInfo.InvariantCulture) : 0;
             int vizB = visualizer ? Int32.Parse(visualizerColor.Substring(5,2), NumberStyles.HexNumber, CultureInfo.InvariantCulture) : 0;
-            // Solid retains the exact-color cleanup that removes H.264 chroma/edge shades.
-            // Gradient/Rainbow are already fully colored by music.lua, so repainting them here
-            // would destroy the palette and make Controller disagree with OBS.
+            // Cached visualizer video is white occupancy. Apply the selected palette
+            // when decoding each frame so a prior song never retains stale colors.
             string visualizerPost = "";
-            if (visualizer && String.Equals(visualizerColorMode, "Solid", StringComparison.OrdinalIgnoreCase))
-                visualizerPost = ",format=gray,lut=y='if(gt(val,3),255,0)',format=rgb24,lutrgb=r='if(gt(val,0)," + vizR.ToString(CultureInfo.InvariantCulture) + ",0)':g='if(gt(val,0)," + vizG.ToString(CultureInfo.InvariantCulture) + ",0)':b='if(gt(val,0)," + vizB.ToString(CultureInfo.InvariantCulture) + ",0)',format=bgra";
-            else if (visualizer)
-                visualizerPost = ",format=bgra";
+            if (visualizer)
+            {
+                string mask = ",format=gray,lut=y='if(gt(val,48),255,0)',format=rgb24";
+                if (String.Equals(visualizerColorMode, "Solid", StringComparison.OrdinalIgnoreCase))
+                    visualizerPost = mask + ",lutrgb=r='if(gt(val,0)," + vizR.ToString(CultureInfo.InvariantCulture) + ",0)':g='if(gt(val,0)," + vizG.ToString(CultureInfo.InvariantCulture) + ",0)':b='if(gt(val,0)," + vizB.ToString(CultureInfo.InvariantCulture) + ",0)',format=bgra";
+                else
+                {
+                    string pos = String.Equals(vizOrientation, "Vertical", StringComparison.OrdinalIgnoreCase) ? "Y/H" : "X/W";
+                    string red, green, blue;
+                    if (String.Equals(vizPreset, "Rainbow", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string phase = "2*PI*" + pos;
+                        red = "127.5+127.5*sin(" + phase + ")";
+                        green = "127.5+127.5*sin(" + phase + "-2.094395)";
+                        blue = "127.5+127.5*sin(" + phase + "+2.094395)";
+                    }
+                    else
+                    {
+                        string first, second;
+                        GradientPresetColors(vizPreset, out first, out second);
+                        Color a = ParseColor(first), b = ParseColor(second);
+                        Func<int,int,string> interp = (n,z) => n.ToString(CultureInfo.InvariantCulture) + "+(" + (z-n).ToString(CultureInfo.InvariantCulture) + ")*" + pos;
+                        red = interp(a.R,b.R); green = interp(a.G,b.G); blue = interp(a.B,b.B);
+                    }
+                    visualizerPost = mask + ",geq=r='r(X,Y)*(" + red + ")/255':g='g(X,Y)*(" + green + ")/255':b='b(X,Y)*(" + blue + ")/255',format=bgra";
+                }
+            }
             string filter = visualizer
                 ? "fps=" + Math.Round(fps).ToString(CultureInfo.InvariantCulture) + ",scale=" +
                     width.ToString(CultureInfo.InvariantCulture) + ":" + height.ToString(CultureInfo.InvariantCulture) +
