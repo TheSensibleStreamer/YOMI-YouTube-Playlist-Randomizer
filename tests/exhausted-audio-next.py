@@ -83,7 +83,10 @@ assert L.next_occurrence(1,1,False)==2
 # The real transport source must guard against a late async exhaustion and
 # stop the old mpv clock before presenting an uncached new track as playing.
 a=s[s.index("local function commit_pending_transport("):s.index("local function advance(")]
-assert "if known_bad(n) then" in a and "next_occurrence(n,1,false)" in a
+assert "if known_bad(n) then" in a and "next_occurrence(n,direction,false)" in a
+assert "next_subset_transport_occurrence(n,direction,false)" in a
+assert "transport_pending_direction=direction" in s
+assert "transport_pending_direction=1" in s
 assert 'explicit_audio_retry(n,"transport")' not in a
 assert 'mp.commandv("stop")' in a and 'playing_index=0' in a
 assert "audio_ready(n)" in a
