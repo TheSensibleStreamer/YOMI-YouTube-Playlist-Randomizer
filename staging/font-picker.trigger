@@ -36,3 +36,5 @@ Revalidate entire audio engine against real mpv-compatible Lua 5.1 grammar inste
 9037 appearance defaults: first-run Midnight theme 75% intensity, Slate blend 25%, 15% window transparency; factory reset agrees; saved themes unchanged.
 
 Integration 9038: verify square OBS pixels, synchronized video+visualizer to audio, 48 kHz 2x spectral analysis, runtime reuse.
+
+Revalidate manual visualizer length 1.0-8.0, full-width native frequency frame at 48 kHz, and Extra Chunky 192x6 source with 24x6 base units.
