@@ -101,12 +101,16 @@ jobs:
           }
 
           $music=Get-Content (Join-Path $app 'music.lua') -Raw
-          foreach($required in @(
-            'local function confirm_playback_started(origin)',
-            'mp.observe_property("time-pos","number",function(_,seconds)',
-            'confirm_playback_started("advancing-transport-clock")',
-            'loaded_waiting_for_restart=0'
-          )){if(-not $music.Contains($required)){throw ('Prewarmed first track confirmation missing: '+$required)}}
+          # 9034 inserted an additional Lua playback observer immediately
+          # before the user's next launch stopped producing audio and OBS.
+          # Restore the previously functioning 9033 engine; retain independent
+          # controller clock recovery and truthful previous-cache statuses.
+          if($music.Contains('playback_clock_pending_index') -or $music.Contains('confirm_playback_started("advancing-transport-clock")')){
+            throw 'Known 9034 audio engine experiment is still in the rollback build'
+          }
+          if(-not $music.Contains('safe_register_event("playback-restart",function()')){
+            throw 'Original playback-restart listener missing'
+          }
           foreach($required in @('next_subset_transport_occurrence(base,direction,false)','next_occurrence(base,direction,false)','if known_bad(i) then return end','AUDIO QUARANTINE CLEARED track ','extractor-failed-v2|','web_embedded,default','android,default')){
             if(-not $music.Contains($required)){throw ('Playback quarantine repair missing: '+$required)}
           }
@@ -259,8 +263,15 @@ jobs:
       - name: Test real OBS overlay corner alpha and shared border thickness
         shell: bash
         run: python tests/obs-border-pixels.py
-      - name: Reproduce prewarmed first-track Play Pause Resume in actual Lua callbacks
+      - name: Parse whole production Lua audio engine before publishing
         shell: bash
         run: |
           python -m pip install --quiet lupa
-          python tests/startup-playback-contract.py
+          python -c "from lupa import LuaRuntime; LuaRuntime().execute(\"assert(loadfile('payload/app/music.lua'))\"); print('PASS whole Lua source compiles')"
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('payload/app/music.lua').read_text(encoding='utf-8-sig')
+          assert 'playback_clock_pending_index' not in s
+          assert 'safe_register_event("playback-restart",function()' in s
+          print("PASS restored 9033 audio engine has original mpv event handler")
+          PY
