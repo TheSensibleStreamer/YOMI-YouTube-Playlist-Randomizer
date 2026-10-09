@@ -33,6 +33,7 @@ function log(s) table.insert(warnings,s) end
 os={time=function() return clock end,remove=function(p) fs[p]=nil end}
 repeat_mode="off";order={1,2,3,4};order_position={[1]=1,[2]=2,[3]=3,[4]=4}
 playback_subset_active=false;playback_subset={};playback_subset_position={}
+audio_failures={};stream_failures={}
 stream_route_failures={js=0,['no-js']=0};stream_route_degraded_until={js=0,['no-js']=0}
 music_endpoint_checked={}
 function youtube_id(url) return url end
