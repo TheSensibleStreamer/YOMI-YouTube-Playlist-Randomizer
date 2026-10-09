@@ -76,6 +76,30 @@ context.syncAV(visualizer,'viz',null);
 assert.equal(video.paused,false); assert.equal(visualizer.paused,false);
 assert.equal(video.currentTime, visualizer.currentTime, 'same clock after pause and resume');
 
+const fitTextGrid=context.fitVizTextGrid;
+for(const [w,h,cols,rows,ew,eh,n] of [
+ [720,90,192,6,720,90,48],
+ [300,90,192,6,300,90,20],
+ [190,90,192,6,180,90,12],
+ [7,90,192,6,7,42,1]
+]) {
+ const o=fitTextGrid(w,h,cols,rows);
+ assert.deepEqual(Array.from(o),[ew,eh,n],'text-match uses full-height square cells');
+ assert.equal(o[0]/o[2],o[1]/rows,'square cells at every dynamic width');
+}
+const titleEl={classList:{contains:()=>false},textContent:'Long title',firstChild:{},glyph:{left:525,right:855,width:330}};
+const channelEl={classList:{contains:()=>false},textContent:'Short channel',firstChild:{},glyph:{left:525,right:685,width:160}};
+context.titleEl=titleEl;context.channelEl=channelEl;
+context.document={createRange:()=>({selectNodeContents(el){this.el=el},getBoundingClientRect(){return this.el.glyph}})};
+let textExtent=context.visibleVizTextBounds({left:520,right:1390});
+assert.equal(textExtent.left,525);
+assert.equal(textExtent.right,855,'longer title sets rightmost edge');
+channelEl.glyph={left:525,right:990,width:465};
+textExtent=context.visibleVizTextBounds({left:520,right:1390});
+assert.equal(textExtent.right,990,'longer channel sets rightmost edge');
+channelEl.classList.contains=()=>true;
+textExtent=context.visibleVizTextBounds({left:520,right:1390});
+assert.equal(textExtent.right,855,'hidden channel does not influence width');
 const fit=context.fitVizPixelGrid;
 for(const [vw,vh,cols,rows,ew,eh,ec] of [
  [2560,90,24,6,360,90,24],
@@ -132,4 +156,10 @@ assert.equal(put[1].width,183,'8.0 fills narrow source without elongated cells o
 context.vizDisplayColumns=0;
 context.renderVizFrame();
 assert.equal(put[2].width,192,'full-width OBS source uses all 8.0 units without skipped bins');
+context.vizLengthMultiplier=1;
+context.vizAutoMatchText=true;
+context.vizDisplayColumns=150;
+context.renderVizFrame();
+assert.equal(put[3].width,150,'automatic match ignores the manual 1.0 length cap');
+context.vizAutoMatchText=false;
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
