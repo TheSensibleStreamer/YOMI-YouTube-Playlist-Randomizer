@@ -56,13 +56,13 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     }""", [config,track])
     await page.wait_for_timeout(50)
     pixel_info = await page.evaluate("""()=>{
-        Object.defineProperty(vizEl, "videoWidth", {configurable:true, value:40});
-        Object.defineProperty(vizEl, "videoHeight", {configurable:true, value:10});
+        Object.defineProperty(vizEl, "videoWidth", {configurable:true, value:192});
+        Object.defineProperty(vizEl, "videoHeight", {configurable:true, value:6});
         window.__yomiPixelTestRenderViz();
         let box=vizCanvas.getBoundingClientRect();
         return {w:box.width,h:box.height,srcW:vizCanvas.width,srcH:vizCanvas.height};
     }""")
-    assert pixel_info["srcW"] == (40 if viz_length==4 else 20) and pixel_info["srcH"] == 10, pixel_info
+    assert 1 <= pixel_info["srcW"] <= 192*viz_length/8 and pixel_info["srcH"] == 6, pixel_info
     physical_pixel_x=pixel_info["w"]/pixel_info["srcW"]
     physical_pixel_y=pixel_info["h"]/pixel_info["srcH"]
     assert abs(physical_pixel_x/physical_pixel_y-1) < 0.06, (pixel_info,physical_pixel_x,physical_pixel_y)
@@ -124,11 +124,11 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
             for x in (round(a["x"]),round(a["x"]+a["w"])-1):
                 for y in (round(a["y"]),round(a["y"]+a["h"])-1):
                     assert image.getpixel((x,y))[3]==0, (border,corner,layout,name,(x,y),image.getpixel((x,y)))
-    # Native visualizer samples fill at most their own square-pixel width,
-    # independent of a 1400px or 2560px OBS source or text-overhang setting.
+    # Native spectrum cells remain square even when the requested length is
+    # wider than the text viewport. Peak pooling reduces columns when necessary.
     assert abs(boxes["viz"]["w"]/boxes["viz"]["h"]-(pixel_info["srcW"]/pixel_info["srcH"])) < .045, (boxes,pixel_info)
-    assert boxes["viz"]["w"] <= 550, ("Visualizer stretched across OBS",boxes)
-    assert boxes["viz"]["w"] <= boxes["text"]["w"]+1, boxes
+    assert boxes["viz"]["w"] <= 1400, ("Visualizer exceeds OBS viewport",boxes)
+    assert boxes["viz"]["w"] <= boxes["text"]["w"]+12, boxes
     visualizer_left=boxes["viz"]["x"]
     if visible:
         last_frame=boxes[visible[-1]]
@@ -161,8 +161,8 @@ async def main():
                          (2,"Soft","Reflow",False,16/9,False),
                          (2,"Soft","Reflow",True,16/9,True,2)]:
                 await check(page,*args)
-            # Standalone /visualizer and audio-only overlays must also avoid
-            # stretching the native pixel grid across the entire Browser Source.
+            # Standalone /visualizer should honor its requested long spectrum
+            # while preserving square pixels and staying within the source.
             standalone=await page.evaluate("""()=>{
                 window.__yomiPixelTestApply({
                     artwork_enabled:false,video_enabled:false,title_enabled:false,
@@ -172,10 +172,10 @@ async def main():
                 const r=viz.getBoundingClientRect();
                 return {width:r.width,height:r.height,x:r.x};
             }""")
-            assert abs(standalone["width"]/standalone["height"]-4)<0.05,standalone
-            assert standalone["width"] <= 550,standalone
+            assert standalone["width"] > 1200 and standalone["width"] <= 1400,standalone
+            assert standalone["width"]/standalone["height"] > 15,standalone
             assert abs(standalone["x"])<1,standalone
-            print("PASS standalone visualizer native 40x10 square-pixel footprint")
+            print("PASS standalone OBS visualizer honors requested 4.0 length and square pixels")
             assert not errors,errors
         finally:
             await browser.close()
