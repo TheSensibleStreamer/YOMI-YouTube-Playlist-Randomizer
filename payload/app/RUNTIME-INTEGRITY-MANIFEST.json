@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9029",
+  "version": "420.69.9030",
   "seal": "DEV13.59",
-  "generated_utc": "2026-10-09T00:08:08.202065Z",
+  "generated_utc": "2026-10-09T00:54:41.331002Z",
   "file_count": 98,
   "files": [
     {
@@ -79,7 +79,7 @@
     {
       "path": "app/INSTALLATION-RECEIPT.json",
       "bytes": 4267,
-      "sha256": "d9c7460761fd0019806460350a4b0fcb9a023794c4e5b8de7cbea7df73cdb7cf"
+      "sha256": "d557ec4c156c8a989b73693cde5f63ef861290d8cc0f4534c0837197f34b61ad"
     },
     {
       "path": "app/lineage-registry.json",
@@ -88,8 +88,8 @@
     },
     {
       "path": "app/music.lua",
-      "bytes": 180480,
-      "sha256": "fe2a26985091c145d638cf58dded3f4f981e5579419156c1e92b94f92b11bc84"
+      "bytes": 181681,
+      "sha256": "c8a60116dc57faef9e0b5f712da5f924000685addb3f8e7aa8729ff50f93627d"
     },
     {
       "path": "app/NO-GAPS-CONSOLIDATION-LEDGER.json",
@@ -239,7 +239,7 @@
     {
       "path": "app/YOMI-CAPABILITY-CONTRACT.json",
       "bytes": 15537,
-      "sha256": "84cbebe41eb001128f3175b0b726c9e23597f989d79ce435c8b58e20699e97fc"
+      "sha256": "cf35ce85a5998c1cea8b981ed6b3b21e2c0f31096addb8a3049371c28df8b3d2"
     },
     {
       "path": "app/YomiCausalGraphLab.cs",
@@ -494,7 +494,7 @@
     {
       "path": "VERSION.txt",
       "bytes": 12,
-      "sha256": "676ad79d6e6bf87e4cd9b52165e74871b1182e0903f0835bf8f4106114ed0cff"
+      "sha256": "c4dd0a0bdb507a5a1397d674d4fc87a79f431598ddd33127e421792114bb5e70"
     }
   ]
 }
