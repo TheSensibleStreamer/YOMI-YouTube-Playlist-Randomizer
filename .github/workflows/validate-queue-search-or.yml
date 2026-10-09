@@ -1,0 +1,27 @@
+name: Validate YOMI queue-search OR grammar
+on:
+  push:
+    paths:
+      - "payload/app/YomiControllerWpf.cs"
+      - "tests/queue-search-or-contract.py"
+      - ".github/workflows/validate-queue-search-or.yml"
+  pull_request:
+    paths:
+      - "payload/app/YomiControllerWpf.cs"
+      - "tests/queue-search-or-contract.py"
+      - ".github/workflows/validate-queue-search-or.yml"
+permissions:
+  contents: read
+jobs:
+  queue-search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Compile and test YOMI's actual Queue search methods
+        run: python tests/queue-search-or-contract.py
