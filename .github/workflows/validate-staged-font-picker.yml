@@ -130,6 +130,27 @@ jobs:
           $updater=Get-Content (Join-Path $app 'update.ps1') -Raw
           if(-not $updater.Contains('Restart handoff is ready.')){throw 'Updater restart handoff missing'}
           if($updater.Contains("Start-Process -FilePath $launcher -ArgumentList 'controller'")){throw 'Updater still has competing relaunch owner'}
+          $updaterWindow=Get-Content (Join-Path $app 'YomiPublicUpdateHost.ps1') -Raw
+          if(-not $updaterWindow.Contains('SizeToContent="Height"') -or -not $updaterWindow.Contains('MinHeight="152" MaxHeight="208"')){
+            throw 'Updater is still a tall fixed-size window'
+          }
+          if(-not $updaterWindow.Contains('<RowDefinition Height="Auto"/>') -or -not $updaterWindow.Contains('Margin="0,9,0,0" MinWidth="86"')){
+            throw 'Updater still reserves a large empty row above the Update button'
+          }
+          if($updaterWindow.Contains('Width="500" Height="212"')){
+            throw 'Legacy 212px updater window returned'
+          }
+          $obsSquare=Get-Content (Join-Path $app 'YomiObsServerHost.cs') -Raw
+          foreach($required in @(
+            'let w=Math.max(1,Math.round(sw*fraction));',
+            'let selectedColumns=Math.max(1,Math.round(sampleW*Math.max(.25,Math.min(1,vizLengthMultiplier/4))));',
+            'let width=Math.max(1,Math.min(available,tr.height*squareAspect));',
+            'let height=Math.max(1,width/squareAspect);'
+          )){if(-not $obsSquare.Contains($required)){throw ('Square visualizer source-grid rule missing: '+$required)}}
+          if($obsSquare.Contains('viz.style.width=(matchText?available:')){
+            throw 'Visualizer still stretches to entire text area'
+          }
+
           $updateHostText=Get-Content (Join-Path $app 'YomiPublicUpdateHost.ps1') -Raw
           if(-not $updateHostText.Contains('Queue-DetachedRelaunch')){throw 'Detached restart relay not wired'}
           if(-not $updateHostText.Contains('detached restart relay owns the single post-update relaunch')){throw 'Single restart ownership marker missing'}
