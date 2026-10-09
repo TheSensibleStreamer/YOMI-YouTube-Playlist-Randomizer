@@ -28,3 +28,5 @@ Validate Windows WPF controller compilation with actual raw-mpv-clock confirmati
 Run compiled Windows controller tests: first sampled playback, Pause/Resume, switching occurrences, engine stopping, and ready prior rows.
 
 Rerun both Windows compile and passing WPF clock behavioral tests after correcting the CI exit-code check.
+
+Recovery 9036: use last working 9033 engine; compile full production Lua; preserve 9035 controller UI and OBS output. Path staging/font-picker.trigger.
