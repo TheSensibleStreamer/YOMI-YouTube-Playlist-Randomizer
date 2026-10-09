@@ -13830,7 +13830,18 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _clockEvidenceLast = -1;
                 _clockConfirmedOccurrence = 0;
             }
-            if (!_running || !haveSnapshot || idle || paused || occurrence <= 0) return false;
+            if (!_running)
+            {
+                // A new mpv runtime must earn a new confirmation even when
+                // the same bookmarked occurrence is restored after restart.
+                _clockEvidenceOccurrence = 0;
+                _clockEvidenceSampleMs = -10000;
+                _clockEvidenceStart = -1;
+                _clockEvidenceLast = -1;
+                _clockConfirmedOccurrence = 0;
+                return false;
+            }
+            if (!haveSnapshot || idle || paused || occurrence <= 0) return false;
 
             // TryGetMpvPlaybackSnapshot() extrapolates its returned position for
             // UI smoothness. That prediction is NOT proof of active playback.
