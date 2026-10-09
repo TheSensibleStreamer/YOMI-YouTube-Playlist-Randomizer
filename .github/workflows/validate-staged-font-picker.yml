@@ -204,7 +204,10 @@ jobs:
           foreach($required in @(
             'function visualizerColumns(sourceWidth,length){',
             'let selectedColumns=visualizerColumns(sampleW,vizLengthMultiplier);',
-            'let size=fitVizPixelGrid(available,tr.height,selectedColumns,sampleH),width=size[0],height=size[1];',
+            'size=fitVizPixelGrid(available,tr.height,selectedColumns,sampleH);',
+            'size=fitVizTextGrid(desired,tr.height,sampleW,sampleH);',
+            'let textBounds=visibleVizTextBounds(tr);',
+            'vizAutoMatchText=true;',
             'if(scale>=1)scale=Math.floor(scale);',
             'vizSourceCtx.drawImage(vizEl,0,0,sw,sh);',
             'for(let sx=lo;sx<hi;sx++){',
