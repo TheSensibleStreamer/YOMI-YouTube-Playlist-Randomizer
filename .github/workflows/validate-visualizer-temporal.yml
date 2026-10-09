@@ -31,5 +31,10 @@ jobs:
           lua.execute('assert(loadstring(...))',source)
           print('PASS: whole production Lua engine parses')
           PY
+      - name: Install FFmpeg and ffprobe in CI runner
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -hide_banner -version | head -n 1
       - name: Validate actual FFmpeg temporal filters, frame counts and timing
         run: python tests/visualizer-temporal-analysis.py
