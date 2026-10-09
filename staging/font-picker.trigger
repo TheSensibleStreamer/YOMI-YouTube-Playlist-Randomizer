@@ -20,3 +20,5 @@ Test compact content-height updater, true 40x10 native pixels in 135px overlay, 
 Repeat square-source render and updater geometry checks after fixing C# embedded-JavaScript comment quoting.
 
 Validate native pixel-square standalone visualizer with text and media disabled, in addition to the standard OBS routes.
+
+Validate 9034 prewarmed startup clock progressing to PLAYING after 180ms, no stale zero-position UI, and Pause/Resume never reenters STARTING.
