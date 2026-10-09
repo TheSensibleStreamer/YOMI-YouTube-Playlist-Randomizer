@@ -20,12 +20,15 @@ function section(from, to) {
   return js.slice(a, b);
 }
 const clock = section('function clockPositionAt(', 'function layoutMediaPair(');
-const grid = section('function fitVizPixelGrid(', 'function layoutViz(');
+const grid = section('function visualizerColumns(', 'function layoutViz(');
+const vizRenderer=section('function renderVizFrame()', 'function ensureCanvas(');
 assert(!clock.includes('fetch('), 'no HTTP requests in presented-frame sync loop');
 assert(!js.includes('clockTick('), 'no 80 ms clock polling loop');
 assert(js.includes('syncAV(videoEl,\'video\',null);syncAV(vizEl,\'viz\',null);'), 'both sources synchronize to same clock');
 assert(js.includes("watchFrames(videoEl,'video');watchFrames(vizEl,'viz');"), 'both sources use presented frame callbacks');
-assert(js.includes('vizCtx.drawImage(vizEl,0,0,w,sh,0,0,w,h);'), 'source pixel grid is cropped, not stretched');
+assert(js.includes('vizSourceCtx.drawImage(vizEl,0,0,sw,sh);'), 'full-width native source grid is sampled before pooling');
+assert(vizRenderer.includes('hi=Math.max(lo+1,Math.ceil((x+1)*sw/w))'), 'frequency bins peak-pooled, not dropped');
+assert(!js.includes('vizLengthMultiplier/4'), 'no old 4.0 ceiling on length');
 
 const context = {
   Math, Number, String,
@@ -75,7 +78,8 @@ assert.equal(video.currentTime, visualizer.currentTime, 'same clock after pause 
 
 const fit=context.fitVizPixelGrid;
 for(const [vw,vh,cols,rows,ew,eh] of [
- [2560,90,40,10,360,90],
+ [2560,90,24,6,360,90],
+ [2560,90,48,6,720,90],
  [2000,90,64,16,320,80],
  [2560,90,96,24,288,72],
  [180,90,40,10,160,40],
@@ -86,4 +90,35 @@ for(const [vw,vh,cols,rows,ew,eh] of [
  assert.equal(actual[1],eh,'height for ' + cols + ' x ' + rows);
  assert(Math.abs(actual[0]/cols-actual[1]/rows)<1e-8,'square output cells');
 }
-console.log('PASS OBS embedded JS syntax; common audio clock and pause/resume; no frame-time HTTP; square-pixel geometry');
+const bins=context.visualizerColumns;
+for(const [maxColumns,length,expected] of [
+ [48,1,6],[48,2,12],[48,4,24],[48,6,36],[48,8,48],
+ [128,4,64],[128,8,128]
+]) assert.equal(bins(maxColumns,length),expected,'length '+length+' maps correctly');
+assert.equal(fit(2560,90,bins(48,4),6)[0],360,'length 4.0 uses 360 pixels at 90 high');
+assert.equal(fit(2560,90,bins(48,8),6)[0],720,'length 8.0 uses 720 pixels at 90 high');
+
+// Exercise actual production per-frame renderer: a peak in an odd-numbered
+// source column MUST remain visible when default length reduces 48 to 24.
+const sw=48,sh=6;
+const raw=new Uint8ClampedArray(sw*sh*4);
+let brightAt=(2*sw+13)*4;raw[brightAt]=180;raw[brightAt+1]=110;raw[brightAt+2]=60;raw[brightAt+3]=255;
+const put=[];
+context.vizCtx={createImageData:(w,h)=>({width:w,height:h,data:new Uint8ClampedArray(w*h*4)}),putImageData:(frame)=>{put.push(frame)}};
+context.vizSourceCtx={imageSmoothingEnabled:false,drawImage:()=>{},getImageData:()=>({data:raw})};
+context.vizCanvas={width:0,height:0};
+context.vizSourceCanvas={width:0,height:0};
+context.vizEl={videoWidth:sw,videoHeight:sh};
+context.vizLengthMultiplier=4;
+context.vizColorMode='solid';context.vizSolidColor='#7F40F0';
+context.parseHexColor=()=>[127,64,240];
+vm.runInContext(vizRenderer,context);
+context.renderVizFrame();
+assert.equal(put.length,1);
+let frame=put[0];assert.equal(frame.width,24);assert.equal(frame.height,6);
+let at=(2*24+6)*4;
+assert.deepEqual(Array.from(frame.data.slice(at,at+4)),[127,64,240,255],'odd source-column transient is preserved');
+context.vizLengthMultiplier=8;
+context.renderVizFrame();
+assert.equal(put[1].width,48,'8.0 reads full frequency range with zero frequency skips');
+console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
