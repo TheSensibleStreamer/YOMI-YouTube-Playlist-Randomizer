@@ -1,0 +1,1 @@
+Publish YOMI 420.69.9037 after successful WPF, OBS, whole-Lua and Windows updater verification. Change only new installation and factory-reset appearance: Midnight 75% intensity, 15% window transparency, Slate accent blend 25%; preserve existing controller-ui.json choices.
