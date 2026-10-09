@@ -837,6 +837,13 @@ namespace Yomi.Desktop
         private bool _playbackSnapshotPaused;
         private double _playbackSnapshotPosition = -1;
         private long _playbackSnapshotStampMs = -10000;
+        // A confirmed *sampled* mpv clock outranks a stale STARTING label.
+        // Use raw IPC samples, NEVER extrapolated UI clock or button intention.
+        private int _clockEvidenceOccurrence;
+        private long _clockEvidenceSampleMs = -10000;
+        private double _clockEvidenceStart = -1;
+        private double _clockEvidenceLast = -1;
+        private int _clockConfirmedOccurrence;
         private bool _queueOpen = true;
         private double _queueWorkbenchWidth = FullPlayerDefaultWidth;
         private double _queueWorkbenchHeight = QueueWorkbenchMinHeight;
@@ -13812,6 +13819,50 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             catch { return false; }
         }
 
+
+        private bool ConfirmPlaybackFromSampledMpvClock(int occurrence, bool haveSnapshot, bool idle, bool paused)
+        {
+            if (occurrence != _clockEvidenceOccurrence)
+            {
+                _clockEvidenceOccurrence = occurrence;
+                _clockEvidenceSampleMs = -10000;
+                _clockEvidenceStart = -1;
+                _clockEvidenceLast = -1;
+                _clockConfirmedOccurrence = 0;
+            }
+            if (!_running || !haveSnapshot || idle || paused || occurrence <= 0) return false;
+
+            // TryGetMpvPlaybackSnapshot() extrapolates its returned position for
+            // UI smoothness. That prediction is NOT proof of active playback.
+            // Only new raw named-pipe time-pos samples can confirm a real clock.
+            long stamp;
+            double raw;
+            lock (_playbackSnapshotSync)
+            {
+                stamp = _playbackSnapshotStampMs;
+                raw = _playbackSnapshotPosition;
+            }
+            if (stamp > _clockEvidenceSampleMs && raw >= 0 && _clock.ElapsedMilliseconds - stamp < 1500)
+            {
+                if (_clockEvidenceStart < 0 || raw < _clockEvidenceLast - 0.05 ||
+                    raw - _clockEvidenceLast > 2.0)
+                {
+                    // New track, seek, or stale discontinuous data: new baseline.
+                    _clockEvidenceStart = raw;
+                }
+                else if (_clockConfirmedOccurrence != occurrence && raw - _clockEvidenceStart >= 0.18)
+                {
+                    _clockConfirmedOccurrence = occurrence;
+                    WriteControllerPerformanceLogAsync("MPV CLOCK PLAY CONFIRM occurrence=" +
+                        occurrence.ToString(CultureInfo.InvariantCulture) +
+                        " observed_delta=" + (raw - _clockEvidenceStart).ToString("0.000", CultureInfo.InvariantCulture));
+                }
+                _clockEvidenceLast = raw;
+                _clockEvidenceSampleMs = stamp;
+            }
+            return _clockConfirmedOccurrence == occurrence;
+        }
+
         private void RefreshPlaybackState()
         {
             var current = ReadJsonCached(Path.Combine(_stateRoot, "current.json"));
@@ -13860,12 +13911,23 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _startupPrewarmReady = false;
                 _startupPrewarmPlayLatched = false;
             }
-            _lastPlaybackPhase = phase;
-
             int currentOccurrence = GetInt(current, "occurrence_id", GetInt(current, "index", 0));
             int engineOccurrence = GetInt(engine, "index", 0);
             int queueOccurrence = GetInt(queue, "current_index", 0);
             int occurrence = ResolveSurfaceOccurrence(currentOccurrence, engineOccurrence, queueOccurrence, phase);
+            // A rare prewarm or mid-session mpv handoff never publishes another
+            // playback-restart. If its raw IPC clock demonstrably advances,
+            // stop projecting STARTING/0:00 while audio is already sounding.
+            bool clockIsAdvancing = ConfirmPlaybackFromSampledMpvClock(
+                occurrence, haveMpvSnapshot, idleActive, mpvPaused);
+            if (phase == "starting" && clockIsAdvancing &&
+                engineOccurrence == occurrence && !_slotSwitchActive)
+            {
+                phase = "playing";
+                _audioActive = true;
+                _paused = false;
+            }
+            _lastPlaybackPhase = phase;
             if (occurrence > 0) RestoreQueuePlaybackSubsetIfNeeded(queue);
             int position = GetInt(current, "position", 0);
             if (IsTransitionPhase(phase))
@@ -17725,8 +17787,16 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     row.QuickSecondaryLabel = "AGAIN";
                     row.QuickPrimaryTip = "Play this occurrence now";
                     row.QuickSecondaryTip = "Queue this played occurrence directly after the current track";
-                    row.Status = "PLAYED";
-                    row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextMuted"));
+                    // Playback history is not cache readiness. Previous items
+                    // remain playable and their cached audio is mandatory.
+                    // Show READY (or AUDIO READY) when runtime confirms cache.
+                    if (runtime != null && runtime.TransitionReady)
+                        ApplyRuntimeQueueStatus(row, runtime);
+                    else
+                    {
+                        row.Status = "PLAYED";
+                        row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextMuted"));
+                    }
                     row.PositionBrush = Brush("TextMuted");
                     row.TitleBrush = Brush("TextPrimary");
                     row.RowBackground = Brushes.Transparent;
@@ -22016,6 +22086,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _playbackSnapshotPosition = -1;
                 _playbackSnapshotStampMs = -10000;
             }
+            _clockEvidenceOccurrence = 0;
+            _clockEvidenceSampleMs = -10000;
+            _clockEvidenceStart = -1;
+            _clockEvidenceLast = -1;
+            _clockConfirmedOccurrence = 0;
             _timePosition = 0;
             if (!_seeking) UpdateTimeUi(0);
             UpdateFramePreviewClocks();
