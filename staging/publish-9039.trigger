@@ -1,0 +1,1 @@
+Publish YOMI 420.69.9039 as diagnostic-driven Next/Previous recovery test update. Base public version 420.69.9038 at 38110e49e664ec6efd77ef6c224003ef3e8b11af. Package and all prior code checks passed. Preserve ability to manually retry failed YouTube sources.
