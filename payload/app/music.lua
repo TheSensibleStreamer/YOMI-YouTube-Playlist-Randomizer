@@ -1780,7 +1780,11 @@ function try_music_endpoint_replacement(i,callback)
         {"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",helper,
          "-VideoId",origin,"-Title",tostring(identity.title or ""),
          "-Channel",tostring(identity.channel or ""),"-Duration",tostring(math.floor(tonumber(identity.duration) or 0))},
-        22,false,function(ok,result,error_text,timed_out)
+        -- Metadata-only resolution is a short, deadline-bound lookup. Run it directly:
+        -- PriorityRun can fail to create its nested Windows Job (status 3) before
+        -- PowerShell begins, silently defeating the only alternate-audio route.
+        -- mpv's async subprocess timeout still owns this one lookup.
+        22,true,function(ok,result,error_text,timed_out)
             local code=tonumber((result or {}).status or -1) or -1
             local output=tostring((result or {}).stdout or "")
             local candidate=output:match("MUSIC_ENDPOINT_ID=([%w_%-]+)")
@@ -1789,7 +1793,16 @@ function try_music_endpoint_replacement(i,callback)
                 log("MUSIC ENDPOINT CANDIDATE track "..i.." replacement="..candidate)
                 callback(true)
             else
-                local reason=output:match("MUSIC_ENDPOINT_REASON=([%w_%-]+)") or "no-helper-detail"
+                local reason=output:match("MUSIC_ENDPOINT_REASON=([%w_%-]+)")
+                if not reason then
+                    local err=(tostring((result or {}).stderr or "").." "..tostring(error_text or "")):lower()
+                    if err:find("priorityrun failed",1,true) then reason="priorityrun-spawn-failure"
+                    elseif err:find("parsererror",1,true) or err:find("parse error",1,true) then reason="powershell-parse-error"
+                    elseif err:find("commandnotfoundexception",1,true) then reason="powershell-command-missing"
+                    elseif timed_out then reason="deadline-expired"
+                    elseif code==2 then reason="no-verified-source"
+                    else reason="unclassified-helper-error" end
+                end
                 log("MUSIC ENDPOINT NO REPLACEMENT track "..i.." status="..code..
                     " reason="..reason.." timeout="..tostring(timed_out==true))
                 callback(false)
