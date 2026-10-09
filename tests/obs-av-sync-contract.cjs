@@ -150,6 +150,7 @@ context.vizDisplayColumns=150;
 context.renderVizFrame();
 assert.equal(put[3].width,150,'automatic match ignores the manual 1.0 length cap');
 context.vizAutoMatchText=false;
+context.vizLengthMultiplier=8;
 context.vizColorMode='gradient';context.vizGradientPreset='Ocean';context.vizGradientOrientation='Horizontal';
 context.vizDisplayColumns=80;
 context.renderVizFrame();
