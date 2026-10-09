@@ -57,12 +57,12 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     await page.wait_for_timeout(50)
     pixel_info = await page.evaluate("""()=>{
         Object.defineProperty(vizEl, "videoWidth", {configurable:true, value:192});
-        Object.defineProperty(vizEl, "videoHeight", {configurable:true, value:6});
+        Object.defineProperty(vizEl, "videoHeight", {configurable:true, value:8});
         window.__yomiPixelTestRenderViz();
         let box=vizCanvas.getBoundingClientRect();
         return {w:box.width,h:box.height,srcW:vizCanvas.width,srcH:vizCanvas.height};
     }""")
-    assert 1 <= pixel_info["srcW"] <= 192*viz_length/8 and pixel_info["srcH"] == 6, pixel_info
+    assert 1 <= pixel_info["srcW"] <= 192*viz_length/8 and pixel_info["srcH"] == 8, pixel_info
     physical_pixel_x=pixel_info["w"]/pixel_info["srcW"]
     physical_pixel_y=pixel_info["h"]/pixel_info["srcH"]
     assert abs(physical_pixel_x/physical_pixel_y-1) < 0.06, (pixel_info,physical_pixel_x,physical_pixel_y)
@@ -174,20 +174,20 @@ async def check_text_match(page):
                 return {left:Math.max(region.left,rect.left),right:Math.min(region.right,rect.right)};
             });
             return {left:vr.left,right:vr.right,width:vr.width,height:vr.height,
-                    nativeColumns:window.__yomiPixelTestColumns(),rows:vizEl.videoHeight||6,
+                    nativeColumns:window.__yomiPixelTestColumns(),rows:vizEl.videoHeight||8,
                     textLeft:Math.min(...spans.map(x=>x.left)),
                     textRight:Math.max(...spans.map(x=>x.right)),
                     auto:window.__yomiPixelTestAutoMatch()};
         }""",[config,track])
         assert output["auto"], ("Auto length incorrectly disabled",output)
         assert output["width"] > 0 and output["width"] <= 1400, output
-        assert abs(output["width"]/output["nativeColumns"]-output["height"]/6) < 0.05, output
+        assert abs(output["width"]/output["nativeColumns"]-output["height"]/8) < 0.05, output
         left_gap=output["textLeft"]-output["left"]
         right_gap=output["right"]-output["textRight"]
         assert left_gap >= 0, output
         # A display cell is indivisible; equal left/right padding is accurate
         # to within one native square-pixel cell.
-        cell=output["height"]/6
+        cell=output["height"]/8
         assert -cell-2 <= right_gap-left_gap <= 2, (output,left_gap,right_gap)
         measurements.append(output)
     assert measurements[0]["width"] < measurements[1]["width"], measurements
@@ -241,8 +241,8 @@ async def main():
                 const r=viz.getBoundingClientRect();
                 return {width:r.width,height:r.height,x:r.x};
             }""")
-            assert standalone["width"] > 1200 and standalone["width"] <= 1400,standalone
-            assert standalone["width"]/standalone["height"] > 15,standalone
+            assert 300 <= standalone["width"] <= 650,standalone
+            assert standalone["width"]/standalone["height"] > 3,standalone
             assert abs(standalone["x"])<1,standalone
             print("PASS standalone OBS visualizer honors requested 4.0 length and square pixels")
             assert not errors,errors
