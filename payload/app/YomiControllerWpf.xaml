@@ -1227,8 +1227,8 @@
                                     <Border x:Name="SettingsSectionBroadcastVisualizer" Style="{StaticResource SettingsGroup}"><StackPanel>
                                         <TextBlock Text="Visualizer" Style="{StaticResource SettingsHeading}"/>
                                         <CheckBox x:Name="SettingsVisualizerEnabled" Content="Show visualizer" Style="{StaticResource SettingsCheck}" Margin="0,8,0,0"/>
-                                        <CheckBox x:Name="SettingsVisualizerMatchText" Content="OBS: match the title/channel width automatically" Style="{StaticResource SettingsCheck}" Margin="0,8,0,0"/>
-                                        <TextBlock Text="OBS Browser Source only: automatically match visualizer width to the title and channel block. The controller backdrop always fills its player lane." Style="{StaticResource SettingsHelp}" Margin="24,4,0,0" TextWrapping="Wrap"/>
+                                        <CheckBox x:Name="SettingsVisualizerMatchText" Content="OBS: automatically match the longer title/channel" Style="{StaticResource SettingsCheck}" Margin="0,8,0,0"/>
+                                        <TextBlock Text="OBS Browser Source only: match the longer visible text line with equal space past the words on each side. Pixels stay square. Turn off to use manual length. Controller visualizer is unchanged." Style="{StaticResource SettingsHelp}" Margin="24,4,0,0" TextWrapping="Wrap"/>
                                         <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="Activity" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerActivity" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Opacity" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerOpacity" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
