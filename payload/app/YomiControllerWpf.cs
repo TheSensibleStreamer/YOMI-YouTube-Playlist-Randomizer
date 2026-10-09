@@ -17828,7 +17828,10 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                         ApplyRuntimeQueueStatus(row, runtime);
                     else
                     {
-                        row.Status = "WAITING";
+                        // No nearby mpv snapshot is UNKNOWN cache state, not
+                        // proof of missing audio. Match the unprofiled upcoming
+                        // case instead of pretending the old song is unready.
+                        row.Status = "QUEUED";
                         row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextMuted"));
                     }
                     row.PositionBrush = Brush("TextMuted");
