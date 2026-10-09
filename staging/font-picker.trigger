@@ -32,3 +32,5 @@ Rerun both Windows compile and passing WPF clock behavioral tests after correcti
 Recovery 9036: use last working 9033 engine; compile full production Lua; preserve 9035 controller UI and OBS output. Path staging/font-picker.trigger.
 
 Revalidate entire audio engine against real mpv-compatible Lua 5.1 grammar instead of Lua 5.5.
+
+9037 appearance defaults: first-run Midnight theme 75% intensity, Slate blend 25%, 15% window transparency; factory reset agrees; saved themes unchanged.
