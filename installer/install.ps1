@@ -143,8 +143,7 @@ function Test-InstalledTool {
         $psi.Arguments=$Arguments
         $psi.UseShellExecute=$false
         $psi.CreateNoWindow=$true
-        $psi.RedirectStandardOutput=$true
-        $psi.RedirectStandardError=$true
+        # A probe only checks the exit code; never wait on unread redirected pipes.
         $process=[System.Diagnostics.Process]::Start($psi)
         if (-not $process.WaitForExit(8000)) { try { $process.Kill() } catch {}; return $false }
         return $process.ExitCode -eq 0
