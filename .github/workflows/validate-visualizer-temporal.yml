@@ -1,0 +1,35 @@
+name: Validate YOMI temporal visualizer analysis
+on:
+  push:
+    paths:
+      - "payload/app/music.lua"
+      - "tests/visualizer-temporal-analysis.py"
+      - ".github/workflows/validate-visualizer-temporal.yml"
+  pull_request:
+    paths:
+      - "payload/app/music.lua"
+      - "tests/visualizer-temporal-analysis.py"
+      - ".github/workflows/validate-visualizer-temporal.yml"
+permissions:
+  contents: read
+jobs:
+  peak-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install mpv-compatible Lua parser and validate full music.lua
+        run: |
+          python -m pip install --quiet lupa
+          python - <<'PY'
+          from lupa.lua51 import LuaRuntime
+          from pathlib import Path
+          source=Path('payload/app/music.lua').read_text(encoding='utf-8-sig')
+          lua=LuaRuntime()
+          lua.execute('assert(loadstring(...))',source)
+          print('PASS: whole production Lua engine parses')
+          PY
+      - name: Validate actual FFmpeg temporal filters, frame counts and timing
+        run: python tests/visualizer-temporal-analysis.py
