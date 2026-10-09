@@ -1,0 +1,21 @@
+name: Validate YOMI OBS A/V shared clock
+on:
+  push:
+    paths:
+      - "payload/app/YomiObsServerHost.cs"
+      - "tests/obs-av-sync-contract.cjs"
+      - ".github/workflows/validate-obs-av-clock.yml"
+  pull_request:
+    paths:
+      - "payload/app/YomiObsServerHost.cs"
+      - "tests/obs-av-sync-contract.cjs"
+      - ".github/workflows/validate-obs-av-clock.yml"
+permissions:
+  contents: read
+jobs:
+  browser-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate embedded OBS JavaScript and A/V geometry
+        run: node tests/obs-av-sync-contract.cjs
