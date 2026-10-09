@@ -292,7 +292,7 @@ function visualizer_render_dimensions()
     -- without decoding a larger frame rate or stretching columns into bars.
     -- Extra Chunky is intentionally coarser: 24x6 base cells at 1.0,
     -- compared with 40x10 previously. Both dimensions retain square cells.
-    local w,h=24,6
+    local w,h=24,8
     if preset=="Chunky" then w,h=64,16
     elseif preset=="Fine" then w,h=96,24
     elseif preset=="Extra Fine" then w,h=180,36 end
@@ -304,7 +304,7 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r6110621-real-length8-coarse-square-pixels",
+        "r6110622-neutral-mask-stable-colors-and-height8",
         tostring(visualizer_fps()),
         tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
@@ -313,10 +313,6 @@ function visualizer_profile()
         tostring(cfg.visualizer_frequency_scale or "Logarithmic"),
         tostring(cfg.visualizer_high_frequency_trim or 0),
         tostring(cfg.visualizer_high_frequency_lift_db or 0),
-        tostring(cfg.visualizer_color_mode or "Solid"),
-        tostring(cfg.visualizer_solid_color or "#8A8A84"),
-        tostring(cfg.visualizer_gradient_preset or "Sunset"),
-        tostring(cfg.visualizer_gradient_orientation or "Horizontal"),
         tostring(cfg.visualizer_shape or "Spectrum"),
         tostring(cfg.visualizer_bar_spacing or "None"),
         tostring(cfg.visualizer_direction or "Normal"),
@@ -2535,7 +2531,7 @@ end
 
 function visualizer_audio_prefix()
     local activity=tostring(cfg.visualizer_activity or "Active")
-    local gain=activity=="Subtle" and 1 or (activity=="Normal" and 3 or 5)
+    local gain=activity=="Subtle" and 1 or (activity=="Normal" and 5 or 9)
     local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
     if fill=="Aggressive" then gain=gain+3 elseif fill=="Off" then gain=math.max(0,gain-2) end
     local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 4))
@@ -2561,48 +2557,12 @@ function visualizer_hex_rgb(color,fr,fg,fb)
     return tonumber(color:sub(2,3),16) or fr,tonumber(color:sub(4,5),16) or fg,tonumber(color:sub(6,7),16) or fb
 end
 
-function visualizer_color()
-    local mode=tostring(cfg.visualizer_color_mode or "Solid")
-    if mode~="Solid" then return "0xFFFFFF" end
-    local color=tostring(cfg.visualizer_solid_color or "#8A8A84")
-    if not color:match("^#%x%x%x%x%x%x$") then color="#8A8A84" end
-    return "0x"..color:sub(2)
-end
-
-function visualizer_gradient_endpoints()
-    local preset=tostring(cfg.visualizer_gradient_preset or "Sunset")
-    if preset=="Ocean" then return "#00B4D8","#023E8A" end
-    if preset=="Pastel" then return "#FFAFCC","#BDE0FE" end
-    if preset=="Fire" then return "#FF3B30","#FFD60A" end
-    if preset=="Forest" then return "#2D6A4F","#B7E4C7" end
-    if preset=="Mono" then return "#6E6E68","#F2F0E8" end
-    return "#FF6B6B","#7B2CBF"
-end
-
+-- Cache contains only the visualization SHAPE, never a palette. Applying
+-- solid/gradient/rainbow at display time prevents songs in different cache
+-- generations from showing old colors while settings change.
+function visualizer_color() return '0xFFFFFF' end
 function visualizer_binary_filter()
-    local mode=tostring(cfg.visualizer_color_mode or "Solid")
-    local color=tostring(cfg.visualizer_solid_color or "#8A8A84")
-    if not color:match("^#%x%x%x%x%x%x$") then color="#8A8A84" end
-    local r,g,b=visualizer_hex_rgb(color,138,138,132)
-    if mode=="Solid" then
-        return ",format=rgb24,lutrgb=r='if(gt(val,3),"..r..",0)':g='if(gt(val,3),"..g..",0)':b='if(gt(val,3),"..b..",0)'"
-    end
-
-    -- Threshold to one white occupancy mask first. Spatial coloring then changes only
-    -- presentation hue; bar geometry/frequency energy remains identical across modes.
-    local orientation=tostring(cfg.visualizer_gradient_orientation or "Horizontal")
-    local pos=orientation=="Vertical" and "Y/H" or "X/W"
-    local mask=",format=gray,lutyuv=y='if(gt(val,3),255,0)',format=rgb24"
-    if mode=="Rainbow" then
-        local phase="2*PI*"..pos
-        return mask..",geq=r='r(X,Y)*(127.5+127.5*sin("..phase.."))/255':g='g(X,Y)*(127.5+127.5*sin("..phase.."-2.094395))/255':b='b(X,Y)*(127.5+127.5*sin("..phase.."+2.094395))/255'"
-    end
-
-    local c1,c2=visualizer_gradient_endpoints()
-    local r1,g1,b1=visualizer_hex_rgb(c1,255,107,107)
-    local r2,g2,b2=visualizer_hex_rgb(c2,123,44,191)
-    local function interp(a,z) return tostring(a).."+("..tostring(z-a)..")*"..pos end
-    return mask..",geq=r='r(X,Y)*("..interp(r1,r2)..")/255':g='g(X,Y)*("..interp(g1,g2)..")/255':b='b(X,Y)*("..interp(b1,b2)..")/255'"
+    return ",format=rgb24,lutrgb=r='if(gt(val,3),255,0)':g='if(gt(val,3),255,0)':b='if(gt(val,3),255,0)'"
 end
 
 function visualizer_frequency_trim_filter(w,h)
