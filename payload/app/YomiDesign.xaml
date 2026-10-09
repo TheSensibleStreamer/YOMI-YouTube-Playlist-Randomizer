@@ -60,7 +60,7 @@
     <Color x:Key="Color.Warning">#BEA66F</Color>
     <Color x:Key="Color.WarningSoft">#272218</Color>
     <Color x:Key="Color.Danger">#C47F7F</Color>
-    <Color x:Key="Color.DangerSoft">#2A1C1F</Color>
+    <Color x:Key="Color.DangerSoft">#372427</Color>
     <Color x:Key="Color.Info">#89A9B2</Color>
     <Color x:Key="Color.InfoSoft">#162126</Color>
     <Color x:Key="Color.BlackPanel">#050708</Color>
