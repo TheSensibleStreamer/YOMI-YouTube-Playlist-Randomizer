@@ -119,6 +119,91 @@ $stageFile = Join-Path $dataRoot 'install-stage.txt'
 $downloadCache = Join-Path $dataRoot 'installer-cache'
 New-Item -ItemType Directory -Path $downloadCache -Force | Out-Null
 
+# Reuse trusted, previously installed portable tools. Updates to YOMI's own app
+# never require extracting identical FFmpeg, mpv, Deno, or yt-dlp binaries again.
+# SHA-256 receipts guard against corruption and never authorize unrelated system tools.
+$runtimeReceiptPath = Join-Path $downloadCache 'installed-runtime.json'
+$previousRuntimeReceipt = $null
+try {
+    if (Test-Path -LiteralPath $runtimeReceiptPath -PathType Leaf) {
+        $previousRuntimeReceipt = Get-Content -LiteralPath $runtimeReceiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ([int]$previousRuntimeReceipt.schema -ne 1) { $previousRuntimeReceipt = $null }
+    }
+} catch { $previousRuntimeReceipt = $null }
+
+function Test-InstalledTool {
+    param([string]$RelativePath,[string]$Arguments)
+    $candidate=Join-Path $installRoot $RelativePath
+    $process=$null
+    try {
+        $file=Get-Item -LiteralPath $candidate -ErrorAction Stop
+        if ($file.Length -lt 65536) { return $false }
+        $psi=New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName=$file.FullName
+        $psi.Arguments=$Arguments
+        $psi.UseShellExecute=$false
+        $psi.CreateNoWindow=$true
+        $psi.RedirectStandardOutput=$true
+        $psi.RedirectStandardError=$true
+        $process=[System.Diagnostics.Process]::Start($psi)
+        if (-not $process.WaitForExit(8000)) { try { $process.Kill() } catch {}; return $false }
+        return $process.ExitCode -eq 0
+    } catch { return $false }
+    finally { if ($process) { $process.Dispose() } }
+}
+function Test-ReusableRuntime {
+    param([string]$Component,[int]$MaxAgeHours,[string[]]$Paths,[string[]]$ProbeArgs)
+    if (-not $existingInstallAtStart -or $null -eq $previousRuntimeReceipt) { return $false }
+    try {
+        $entry=$previousRuntimeReceipt.PSObject.Properties[$Component].Value
+        if ($null -eq $entry -or $null -eq $entry.files) { return $false }
+        $checked=[DateTime]::Parse([string]$entry.checked_utc,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind)
+        $age=([DateTime]::UtcNow-$checked.ToUniversalTime()).TotalHours
+        if ($age -lt 0 -or $age -gt $MaxAgeHours) { return $false }
+        for($n=0;$n -lt $Paths.Count;$n++){
+            $path=Join-Path $installRoot $Paths[$n]
+            if(-not(Test-Path -LiteralPath $path -PathType Leaf)){return $false}
+            $known=$entry.files.PSObject.Properties[$n.ToString()].Value
+            if([string]::IsNullOrWhiteSpace([string]$known)){return $false}
+            if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine [string]$known){return $false}
+            if(-not(Test-InstalledTool -RelativePath $Paths[$n] -Arguments $ProbeArgs[$n])){return $false}
+        }
+        Write-Host ('      '+$Component+': unchanged and verified; reusing installed runtime.') -ForegroundColor Green
+        return $true
+    } catch { return $false }
+}
+function Save-RuntimeReceipt {
+    param([hashtable]$Reused)
+    try {
+        $new=[ordered]@{schema=1}
+        $components=[ordered]@{
+            mpv=@('runtime\mpv\mpv.exe')
+            ffmpeg=@('runtime\ffmpeg\ffmpeg.exe','runtime\ffmpeg\ffprobe.exe')
+            deno=@('runtime\deno\deno.exe')
+            ytdlp=@('runtime\yt-dlp\yt-dlp.exe')
+        }
+        foreach($component in @($components.Keys)){
+            $when=[DateTime]::UtcNow.ToString('o')
+            if($Reused[$component] -and $previousRuntimeReceipt){
+                $entry=$previousRuntimeReceipt.PSObject.Properties[$component].Value
+                if($entry){$when=[string]$entry.checked_utc}
+            }
+            $checks=[ordered]@{}
+            $paths=@($components[$component])
+            for($n=0;$n -lt $paths.Count;$n++){
+                $file=Join-Path $installRoot $paths[$n]
+                $checks[$n.ToString()]=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+            $new[$component]=[ordered]@{checked_utc=$when;files=$checks}
+        }
+        $tempReceipt=$runtimeReceiptPath+'.tmp-'+[Guid]::NewGuid().ToString('N')
+        [IO.File]::WriteAllText($tempReceipt,($new|ConvertTo-Json -Depth 7),[Text.UTF8Encoding]::new($false))
+        Move-Item -LiteralPath $tempReceipt -Destination $runtimeReceiptPath -Force
+        Write-Host '      Portable-tool integrity receipt saved for faster subsequent updates.' -ForegroundColor Green
+    } catch { Write-Warning ('Runtime reuse receipt could not be saved; next update will refresh tools: '+$_.Exception.Message) }
+}
+
+
 function Write-InstallUpdateStatus([int]$Percent,[string]$State,[string]$Message) {
     if (-not $UpdateMode -or [string]::IsNullOrWhiteSpace($UpdateStatusFile)) { return }
     try {
@@ -385,77 +470,55 @@ try {
     Write-Host "      Profile: $profileName" -ForegroundColor Green
     Write-Host '      Defender performance protection: automatic for YOMI-owned files and processes' -ForegroundColor Green
 
-    Set-InstallStage 2 8 'Finding current mpv Windows release...'
+    # yt-dlp refreshes daily; mpv and Deno weekly; FFmpeg monthly.
+    # SHA receipts are written ONLY after the replacement installation verifies.
+    $reuseMpv=Test-ReusableRuntime 'mpv' 168 @('runtime\mpv\mpv.exe') @('--version')
+    $reuseFfmpeg=Test-ReusableRuntime 'ffmpeg' 720 @('runtime\ffmpeg\ffmpeg.exe','runtime\ffmpeg\ffprobe.exe') @('-version','-version')
+    $reuseDeno=Test-ReusableRuntime 'deno' 168 @('runtime\deno\deno.exe') @('--version')
+    $reuseYtdlp=Test-ReusableRuntime 'ytdlp' 24 @('runtime\yt-dlp\yt-dlp.exe') @('--version')
+    $reusedRuntime=@{mpv=$reuseMpv;ffmpeg=$reuseFfmpeg;deno=$reuseDeno;ytdlp=$reuseYtdlp}
 
-
-    $mpvAssetUrl = $null
-
-    foreach ($mpvApi in @(
-        'https://api.github.com/repos/mpv-player/mpv/releases/latest',
-        'https://api.github.com/repos/mpv-player/mpv/releases/tags/git-release'
-    )) {
-        if ($mpvAssetUrl) { break }
-
-        try {
-            $release = Invoke-RestMethod `
-                -Uri $mpvApi `
-                -Headers $headers `
-                -UseBasicParsing `
-                -TimeoutSec 30
-
-            $asset = $release.assets |
-                Where-Object {
-                    $_.name -match '^mpv-v.*-x86_64-pc-windows-msvc\.zip$'
-                } |
-                Select-Object -First 1
-
-            if ($asset) {
-                $mpvAssetUrl = $asset.browser_download_url
-            }
+    Set-InstallStage 2 8 'Checking mpv runtime...'
+    $mpvZip=Join-Path $tempRoot 'mpv.zip'
+    if (-not $reuseMpv) {
+        $mpvAssetUrl=$null
+        foreach ($mpvApi in @(
+            'https://api.github.com/repos/mpv-player/mpv/releases/latest',
+            'https://api.github.com/repos/mpv-player/mpv/releases/tags/git-release'
+        )) {
+            if ($mpvAssetUrl) { break }
+            try {
+                $release=Invoke-RestMethod -Uri $mpvApi -Headers $headers -UseBasicParsing -TimeoutSec 30
+                $asset=$release.assets | Where-Object { $_.name -match '^mpv-v.*-x86_64-pc-windows-msvc\.zip$' } | Select-Object -First 1
+                if ($asset) { $mpvAssetUrl=$asset.browser_download_url }
+            } catch { Write-Host '      mpv release lookup retrying fallback...' -ForegroundColor DarkYellow }
         }
-        catch {
-            Write-Host "      Release lookup failed on one endpoint; trying fallback..." -ForegroundColor DarkYellow
-        }
+        if (-not $mpvAssetUrl) { throw 'Could not locate a current official x86_64 Windows mpv build.' }
+        $mpvCache=Join-Path $downloadCache 'mpv-current.zip'
+        $mpvSource=Join-Path $downloadCache 'mpv-current.source'
+        $priorSource=''
+        try { if(Test-Path -LiteralPath $mpvSource){$priorSource=(Get-Content -LiteralPath $mpvSource -Raw).Trim()} } catch {}
+        if ($priorSource -ne $mpvAssetUrl) { Remove-Item -LiteralPath $mpvCache -Force -ErrorAction SilentlyContinue }
+        Set-InstallStage 3 8 'Preparing updated mpv runtime...'
+        Get-CachedDownload -Uri $mpvAssetUrl -CacheFile $mpvCache -OutFile $mpvZip -Label 'Downloading mpv' -Headers $headers
+        Set-Content -LiteralPath $mpvSource -Value $mpvAssetUrl -Encoding ASCII
+    } else { Set-InstallStage 3 8 'Reusing verified mpv runtime...' }
+
+    $ytdlpExe=Join-Path $tempRoot 'yt-dlp.exe'
+    if (-not $reuseYtdlp) {
+        Set-InstallStage 4 8 'Preparing current yt-dlp nightly...'
+        Get-CachedDownload -Uri 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe' -CacheFile (Join-Path $downloadCache 'yt-dlp-nightly-current.exe') -OutFile $ytdlpExe -Label 'Downloading yt-dlp nightly' -Headers $headers -MaxCacheAgeHours 24
+    } else { Set-InstallStage 4 8 'Reusing verified yt-dlp...' }
+
+    Set-InstallStage 5 8 'Preparing media tools...'
+    $ffmpegZip=Join-Path $tempRoot 'ffmpeg.zip'
+    $denoZip=Join-Path $tempRoot 'deno.zip'
+    if ($installFfmpeg -and -not $reuseFfmpeg) {
+        Get-CachedDownload -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -CacheFile (Join-Path $downloadCache 'ffmpeg-release-essentials.zip') -OutFile $ffmpegZip -Label 'Downloading FFmpeg Media Tools' -MaxCacheAgeHours 720
     }
-
-    if (-not $mpvAssetUrl) {
-        throw 'Could not locate a current official x86_64 Windows mpv build.'
+    if ($installDeno -and -not $reuseDeno) {
+        Get-CachedDownload -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -CacheFile (Join-Path $downloadCache 'deno-current.zip') -OutFile $denoZip -Label 'Downloading Deno' -Headers $headers -MaxCacheAgeHours 168
     }
-
-    Write-Host '      mpv release located.' -ForegroundColor Green
-
-    Set-InstallStage 3 8 'Downloading mpv...'
-    $mpvZip = Join-Path $tempRoot 'mpv.zip'
-    Get-CachedDownload `
-        -Uri $mpvAssetUrl `
-        -CacheFile (Join-Path $downloadCache 'mpv-current.zip') `
-        -OutFile $mpvZip `
-        -Label 'Downloading mpv' `
-        -Headers $headers
-
-    # yt-dlp's stable build can lag behind fixes for YouTube player API changes.
-    # Nightly is yt-dlp's officially recommended channel for unresolved site failures.
-    # Refresh its binary at least daily instead of replaying the old executable on
-    # every YOMI update. Keep one known-good cache for network-outage recovery.
-    Set-InstallStage 4 8 'Downloading current yt-dlp nightly...'
-    $ytdlpExe = Join-Path $tempRoot 'yt-dlp.exe'
-    Get-CachedDownload `
-        -Uri 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp.exe' `
-        -CacheFile (Join-Path $downloadCache 'yt-dlp-nightly-current.exe') `
-        -OutFile $ytdlpExe `
-        -Label 'Downloading yt-dlp nightly' `
-        -Headers $headers `
-        -MaxCacheAgeHours 24
-
-    Set-InstallStage 5 8 'Downloading selected optional components...'
-    $ffmpegZip = Join-Path $tempRoot 'ffmpeg.zip'
-    $denoZip = Join-Path $tempRoot 'deno.zip'
-    if ($installFfmpeg) {
-        Get-CachedDownload -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip' -CacheFile (Join-Path $downloadCache 'ffmpeg-release-essentials.zip') -OutFile $ffmpegZip -Label 'Downloading FFmpeg Media Tools'
-    } else { Write-Host '      FFmpeg Media Tools: skipped by profile' -ForegroundColor DarkGray }
-    if ($installDeno) {
-        Get-CachedDownload -Uri 'https://github.com/denoland/deno/releases/latest/download/deno-x86_64-pc-windows-msvc.zip' -CacheFile (Join-Path $downloadCache 'deno-current.zip') -OutFile $denoZip -Label 'Downloading Deno' -Headers $headers
-    } else { Write-Host '      Deno: skipped by profile' -ForegroundColor DarkGray }
 
     # A third-party, bounded on-demand fallback for videos where default
     # yt-dlp clients fail. It does NOT run a persistent server or require
@@ -515,45 +578,49 @@ try {
     Copy-Item (Join-Path $payload 'VERSION.txt') (Join-Path $stage 'VERSION.txt') -Force
     Copy-Item (Join-Path $payload 'Uninstall YOMI.cmd') (Join-Path $stage 'Uninstall YOMI.cmd') -Force
 
-    Set-InstallBuildProgress 81 'Extracting mpv runtime...'
-    Write-Host '      Extracting mpv...' -ForegroundColor DarkCyan
-    $mpvExtract = Join-Path $tempRoot 'mpv-extract'
-    Expand-Archive -Path $mpvZip -DestinationPath $mpvExtract -Force
-    $mpvFound = Get-ChildItem $mpvExtract -Filter 'mpv.exe' -File -Recurse | Select-Object -First 1
-    if (-not $mpvFound) { throw 'mpv.exe was not found in the downloaded mpv package.' }
-
-    # YOMI only needs the actual player. Do NOT install mpv.pdb
-    # (debug symbols), registration helpers, or other development baggage.
-    Copy-Item $mpvFound.FullName (Join-Path $mpvStage 'mpv.exe') -Force
-
-    Write-Host (
-        "      mpv runtime installed: {0:N1} MB" -f (
-            (Get-Item (Join-Path $mpvStage 'mpv.exe')).Length / 1MB
-        )
-    ) -ForegroundColor DarkGray
-
+    if ($reuseMpv) {
+        Set-InstallBuildProgress 81 'Reusing verified mpv...'
+        Copy-Item -LiteralPath (Join-Path $installRoot 'runtime\mpv\mpv.exe') -Destination (Join-Path $mpvStage 'mpv.exe') -Force
+    } else {
+        Set-InstallBuildProgress 81 'Extracting mpv runtime...'
+        $mpvExtract=Join-Path $tempRoot 'mpv-extract'
+        Expand-Archive -Path $mpvZip -DestinationPath $mpvExtract -Force
+        $mpvFound=Get-ChildItem $mpvExtract -Filter 'mpv.exe' -File -Recurse | Select-Object -First 1
+        if(-not $mpvFound){throw 'mpv.exe was not found in the downloaded mpv package.'}
+        Copy-Item $mpvFound.FullName (Join-Path $mpvStage 'mpv.exe') -Force
+    }
     if ($installFfmpeg) {
-        Set-InstallBuildProgress 83 'Extracting FFmpeg Media Tools...'
-        Write-Host '      Extracting FFmpeg Media Tools...' -ForegroundColor DarkCyan
-        $ffmpegExtract = Join-Path $tempRoot 'ffmpeg-extract'
-        Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
-        $ffmpegFound = Get-ChildItem $ffmpegExtract -Filter 'ffmpeg.exe' -File -Recurse | Select-Object -First 1
-        $ffprobeFound = Get-ChildItem $ffmpegExtract -Filter 'ffprobe.exe' -File -Recurse | Select-Object -First 1
-        if (-not $ffmpegFound -or -not $ffprobeFound) { throw 'FFmpeg/ffprobe were not found in the downloaded package.' }
-        Copy-Item $ffmpegFound.FullName (Join-Path $ffmpegStage 'ffmpeg.exe') -Force
-        Copy-Item $ffprobeFound.FullName (Join-Path $ffmpegStage 'ffprobe.exe') -Force
+        Set-InstallBuildProgress 83 'Preparing FFmpeg Media Tools...'
+        if ($reuseFfmpeg) {
+            Copy-Item -LiteralPath (Join-Path $installRoot 'runtime\ffmpeg\ffmpeg.exe') -Destination (Join-Path $ffmpegStage 'ffmpeg.exe') -Force
+            Copy-Item -LiteralPath (Join-Path $installRoot 'runtime\ffmpeg\ffprobe.exe') -Destination (Join-Path $ffmpegStage 'ffprobe.exe') -Force
+        } else {
+            $ffmpegExtract=Join-Path $tempRoot 'ffmpeg-extract'
+            Expand-Archive -Path $ffmpegZip -DestinationPath $ffmpegExtract -Force
+            $ffmpegFound=Get-ChildItem $ffmpegExtract -Filter 'ffmpeg.exe' -File -Recurse | Select-Object -First 1
+            $ffprobeFound=Get-ChildItem $ffmpegExtract -Filter 'ffprobe.exe' -File -Recurse | Select-Object -First 1
+            if(-not $ffmpegFound -or -not $ffprobeFound){throw 'FFmpeg/ffprobe were not found in the downloaded package.'}
+            Copy-Item $ffmpegFound.FullName (Join-Path $ffmpegStage 'ffmpeg.exe') -Force
+            Copy-Item $ffprobeFound.FullName (Join-Path $ffmpegStage 'ffprobe.exe') -Force
+        }
     }
     if ($installDeno) {
-        Set-InstallBuildProgress 84 'Extracting Deno...'
-        Write-Host '      Extracting Deno...' -ForegroundColor DarkCyan
-        $denoExtract = Join-Path $tempRoot 'deno-extract'
-        Expand-Archive -Path $denoZip -DestinationPath $denoExtract -Force
-        $denoFound = Get-ChildItem $denoExtract -Filter 'deno.exe' -File -Recurse | Select-Object -First 1
-        if (-not $denoFound) { throw 'deno.exe was not found in the downloaded package.' }
-        Copy-Item $denoFound.FullName (Join-Path $denoStage 'deno.exe') -Force
+        Set-InstallBuildProgress 84 'Preparing Deno...'
+        if($reuseDeno){
+            Copy-Item -LiteralPath (Join-Path $installRoot 'runtime\deno\deno.exe') -Destination (Join-Path $denoStage 'deno.exe') -Force
+        }else{
+            $denoExtract=Join-Path $tempRoot 'deno-extract'
+            Expand-Archive -Path $denoZip -DestinationPath $denoExtract -Force
+            $denoFound=Get-ChildItem $denoExtract -Filter 'deno.exe' -File -Recurse | Select-Object -First 1
+            if(-not $denoFound){throw 'deno.exe was not found in the downloaded package.'}
+            Copy-Item $denoFound.FullName (Join-Path $denoStage 'deno.exe') -Force
+        }
     }
-
-    Copy-Item $ytdlpExe (Join-Path $ytdlpStage 'yt-dlp.exe') -Force
+    if($reuseYtdlp){
+        Copy-Item -LiteralPath (Join-Path $installRoot 'runtime\yt-dlp\yt-dlp.exe') -Destination (Join-Path $ytdlpStage 'yt-dlp.exe') -Force
+    }else{
+        Copy-Item -LiteralPath $ytdlpExe -Destination (Join-Path $ytdlpStage 'yt-dlp.exe') -Force
+    }
 
     if ($potDownloadsReady) {
         try {
@@ -1093,6 +1160,8 @@ public static class YomiShellIconRefresh {
     if ($controllerSelfTest.ExitCode -ne 0) {
         throw ('Final verification failed: YomiControllerWpf install probe exit ' + $controllerSelfTest.ExitCode)
     }
+
+    Save-RuntimeReceipt -Reused $reusedRuntime
 
     # If this install bootstrapped itself by terminating the old updater, close the transaction here.
     $updateTxFile = Join-Path $dataRoot 'state\update-transaction.json'
