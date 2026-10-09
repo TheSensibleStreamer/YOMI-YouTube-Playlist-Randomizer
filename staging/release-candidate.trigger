@@ -7,3 +7,5 @@ Build and verify 9030 with correct corner transparency, exact visualizer media-e
 Verify YOMI 9031 subtle X-button hover red and unchanged pressed shade.
 
 Assemble 9032 native Windows candidate with a physical non-overdrawn rounded border, stable visualizer layout, browser-geometry diagnostic and visible close hover.
+
+Build YOMI 420.69.9033 with native 40x10 square visualizer samples, capped width, and a content-sized compact update window.
