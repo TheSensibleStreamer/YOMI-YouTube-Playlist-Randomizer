@@ -140,6 +140,7 @@ context.vizCanvas={width:0,height:0};
 context.vizSourceCanvas={width:0,height:0};
 context.vizEl={videoWidth:sw,videoHeight:sh};
 context.vizDisplayColumns=0;
+context.vizAutoMatchText=false;
 context.vizLengthMultiplier=4;
 context.vizColorMode='solid';context.vizSolidColor='#7F40F0';
 context.parseHexColor=()=>[127,64,240];
