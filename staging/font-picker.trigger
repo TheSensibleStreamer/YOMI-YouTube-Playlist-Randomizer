@@ -44,3 +44,5 @@ Final square-cell width regression: at 90px OBS height length 1 is 360px, length
 Check the existing automatic title/channel matching checkbox: equal overhang on left and right, dynamically selected longer visible line, native square pixels, and manual 1–8 length when off.
 
 Recheck dynamic title/channel width equal-overhang Chromium browser tests using DOM glyph geometry, plus Windows C# compilation.
+
+Final Windows and Chromium revalidation: automatic visible-title/channel matching, symmetrical overhang, high-frequency peak pooling, manual 1-8 length, native square cells.
