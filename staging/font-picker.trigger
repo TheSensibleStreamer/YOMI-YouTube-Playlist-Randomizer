@@ -12,3 +12,5 @@ Run browser pixels for nonoverlapping 4-corner media seams and visualizer edge; 
 Rerun updated CI for non-overlapping shared seam and visualizer exact media-edge offset.
 Extend Chromium tests to video-only and no-media layouts in addition to artwork+video and artwork-only.
 Verify YOMI 9031 subtle X-button hover red and unchanged pressed shade.
+
+Validate 9032 solid border containment, rendered real media, OBS CEF geometry telemetry, and visible muted-red X hover.
