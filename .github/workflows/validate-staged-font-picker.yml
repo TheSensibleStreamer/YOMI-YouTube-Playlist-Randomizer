@@ -186,7 +186,8 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           & './tests/controller-clock-contract.ps1'
-          if($LASTEXITCODE -ne 0){throw 'Actual WPF clock projection regression failed'}
+          # The script is PowerShell with terminating assertions and no native
+          # process; LASTEXITCODE may remain null even after a successful PASS.
 
       - name: Verify staged font rows, live wheel preview and focus state
         shell: powershell
