@@ -70,7 +70,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
                svg:getComputedStyle(document.getElementById('mediaPairSvg')).display};
     }""")
     image = Image.open(io.BytesIO(await page.screenshot(omit_background=True))).convert("RGBA")
-    if with_video and layout == "Reflow":
+    if with_video and with_art and layout == "Reflow":
         a,v=boxes["art"],boxes["vid"]
         # Zero image overlap is essential: otherwise artwork bleeds through
         # the transparent TOP/BOTTOM corners of the right media frame.
