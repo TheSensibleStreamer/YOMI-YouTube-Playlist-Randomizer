@@ -1,0 +1,1 @@
+Publish validated YOMI 420.69.9033. Compact the update window to content-height; render original visualizer source at 1:1 square pixel aspect, natural 40x10 length, with no full-screen stretch. Do not change already-fixed media borders or playback.
