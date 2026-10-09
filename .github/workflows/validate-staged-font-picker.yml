@@ -84,6 +84,37 @@ jobs:
             if(-not $controllerEvidence.Contains($necessary)){throw ('Controller playback/previous-ready contract missing: '+$necessary)}
           }
 
+          # Appearance defaults are stored in controller-ui.json (not
+          # default-config.json). Check all three entry paths: unsaved first
+          # launch, factory reset, and factory-reset Settings preview. Do NOT
+          # migrate or overwrite existing persisted appearance preferences.
+          $defaultsUi=Get-Content $controllerSource -Raw
+          foreach($required in @(
+            'private bool _appearanceManuallySelected = true;',
+            'private double _themeIntensityAmount = 0.75;',
+            'private bool _appearanceAccentEnabled = true;',
+            'private AppearancePreset _appearanceAccentPreset = AppearancePreset.Slate;',
+            'private double _themeBlendAmount = 0.25;',
+            'private double _windowTransparencyPercent = 15.0;',
+            'SetCombo(_settingsTheme, "Midnight");',
+            'SetCombo(_settingsThemeAccent, "Slate");',
+            '_settingsThemeIntensitySlider.Value = 75;',
+            '_settingsThemeBlendSlider.Value = 25;',
+            '_settingsWindowTransparencySlider.Value = 15;',
+            '_appearanceManuallySelected = true;',
+            '_appearancePreset = AppearancePreset.Midnight;',
+            'ApplyAppearancePreset(false);'
+          )){
+            if(-not $defaultsUi.Contains($required)){throw ('New Midnight/Slate factory default missing: '+$required)}
+          }
+          if($defaultsUi.Contains('SetCombo(_settingsTheme, "System Theme"); SetCombo(_settingsThemeIntensity, "Vivid"); SetCombo(_settingsThemeAccent, "None");')){
+            throw 'Factory reset still chooses Windows theme with no accent'
+          }
+          if(-not $defaultsUi.Contains('GetDouble(map, "theme_intensity_amount", legacyIntensityAmount)') -or
+             -not $defaultsUi.Contains('GetDouble(map, "window_transparency_percent", 10.0)')){
+            throw 'Existing persisted theme preference read path changed'
+          }
+
           $controller=Get-Content $controllerSource -Raw
           foreach($required in @('SettingsObsMediaScaling','FillCombo(_settingsObsMediaScaling, "Smooth", "Nearest")','VisualizerPixelSizeChoiceFromConfig','width = 40; height = 10','page.ScrollToVerticalOffset','"media_aspect_layout", "Reflow"','ComboText(_settingsMediaAspectLayout, "Reflow")','LaunchUnavailableTrackAudit','unavailable-track-audit.ps1','OpenSelectedQueueSource','Open source in browser','Unavailable track audit')){
             if(-not $controller.Contains($required)){throw ('Controller audit/settings repair missing: '+$required)}
