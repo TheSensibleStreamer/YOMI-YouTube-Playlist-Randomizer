@@ -18,3 +18,5 @@ Validate 9032 solid border containment, rendered real media, OBS CEF geometry te
 Test compact content-height updater, true 40x10 native pixels in 135px overlay, 540px visualizer cap, and correct half-length visualizer on Windows and Chromium.
 
 Repeat square-source render and updater geometry checks after fixing C# embedded-JavaScript comment quoting.
+
+Validate native pixel-square standalone visualizer with text and media disabled, in addition to the standard OBS routes.
