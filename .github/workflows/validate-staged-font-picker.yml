@@ -82,6 +82,12 @@ jobs:
           }
 
           $music=Get-Content (Join-Path $app 'music.lua') -Raw
+          foreach($required in @(
+            'local function confirm_playback_started(origin)',
+            'mp.observe_property("time-pos","number",function(_,seconds)',
+            'confirm_playback_started("advancing-transport-clock")',
+            'loaded_waiting_for_restart=0'
+          )){if(-not $music.Contains($required)){throw ('Prewarmed first track confirmation missing: '+$required)}}
           foreach($required in @('next_subset_transport_occurrence(base,direction,false)','next_occurrence(base,direction,false)','if known_bad(i) then return end','AUDIO QUARANTINE CLEARED track ','extractor-failed-v2|','web_embedded,default','android,default')){
             if(-not $music.Contains($required)){throw ('Playback quarantine repair missing: '+$required)}
           }
@@ -226,3 +232,8 @@ jobs:
       - name: Test real OBS overlay corner alpha and shared border thickness
         shell: bash
         run: python tests/obs-border-pixels.py
+      - name: Reproduce prewarmed first-track Play Pause Resume in actual Lua callbacks
+        shell: bash
+        run: |
+          python -m pip install --quiet lupa
+          python tests/startup-playback-contract.py
