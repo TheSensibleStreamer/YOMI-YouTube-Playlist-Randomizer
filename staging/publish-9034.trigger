@@ -1,0 +1,1 @@
+Release 420.69.9034 after completed Windows and Lua tests. Fix first-track audio already playing while controls show Play and zero time. Preserve validated borders, visualizer, Powaz playback, cache functionality.
