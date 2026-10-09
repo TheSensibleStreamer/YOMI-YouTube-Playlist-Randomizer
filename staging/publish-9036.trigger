@@ -1,0 +1,1 @@
+Publish emergency recovery YOMI 420.69.9036 after Windows updater ZIP checks, full mpv-compatible Lua 5.1 parse, browser presentation and controller behavior passed. Restore 9033 proven-working music.lua to recover music and OBS after 9034 startup failure. Preserve 9035 controller playback and READY improvements. Cache hygiene follows only after recovery confirmed.
