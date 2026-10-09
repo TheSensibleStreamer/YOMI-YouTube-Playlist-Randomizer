@@ -5,3 +5,5 @@ Rebuild using source-sealed 9027 baseline; no installer-generated file hashes ex
 Build 420.69.9029 and prove both the update ZIP and its contents match manifest before in-app rollout.
 Build and verify 9030 with correct corner transparency, exact visualizer media-edge origin, and strict current-next-previous cache priority.
 Verify YOMI 9031 subtle X-button hover red and unchanged pressed shade.
+
+Assemble 9032 native Windows candidate with a physical non-overdrawn rounded border, stable visualizer layout, browser-geometry diagnostic and visible close hover.
