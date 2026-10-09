@@ -50,3 +50,5 @@ Final Windows and Chromium revalidation: automatic visible-title/channel matchin
 9039 regression from 2026-10-09 diagnostic: NEXT skips source-bound exhausted-audio cooldowns but explicit Play retries; stop outgoing mpv clock for uncached target; preserve filtered and reverse navigation.
 
 Verify all live visualizer regressions from 9039: Auto title/channel length, manual 1-8 width stable vertical anchor, neutral cached palette, instant gradient/rainbow across songs, no false codec floor pixels, independent Solid/Gradient settings, no WPF/OBS geometry changes.
+
+Real Chromium retest with correct metadata height fallback, native eight-row aspect, and relayout on metadata; WPF controller status unchanged.
