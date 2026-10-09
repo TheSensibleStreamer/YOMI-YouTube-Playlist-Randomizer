@@ -1,0 +1,1 @@
+Release verified YOMI 420.69.9032: real clipped media borders, stable visualizer absolute layout, direct muted hover background, and live Browser Source pixel geometry in the standard diagnostic ZIP. Previous 9031 did not visibly correct the issues.
