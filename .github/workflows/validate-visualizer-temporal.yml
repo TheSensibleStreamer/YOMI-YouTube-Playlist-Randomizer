@@ -4,11 +4,15 @@ on:
     paths:
       - "payload/app/music.lua"
       - "tests/visualizer-temporal-analysis.py"
+      - "tests/yomi-default-volume-contract.py"
+      - "payload/app/YomiControllerWpf.cs"
       - ".github/workflows/validate-visualizer-temporal.yml"
   pull_request:
     paths:
       - "payload/app/music.lua"
       - "tests/visualizer-temporal-analysis.py"
+      - "tests/yomi-default-volume-contract.py"
+      - "payload/app/YomiControllerWpf.cs"
       - ".github/workflows/validate-visualizer-temporal.yml"
 permissions:
   contents: read
@@ -31,6 +35,8 @@ jobs:
           lua.execute('assert(loadstring(...))',source)
           print('PASS: whole production Lua engine parses')
           PY
+      - name: Check 50% first-launch and factory-reset volume against saved preferences
+        run: python tests/yomi-default-volume-contract.py
       - name: Install FFmpeg and ffprobe in CI runner
         run: |
           sudo apt-get update -qq
