@@ -769,7 +769,7 @@ namespace Yomi.Desktop
         private QueueTableResponsiveTier _queueTableResponsiveTier = QueueTableResponsiveTier.Wide;
         private QueueQueryKind _queueQueryKind = QueueQueryKind.None;
         private string _queueQueryText = "";
-        private readonly List<string> _queueQueryIncludes = new List<string>();
+        private readonly List<List<string>> _queueQueryIncludeGroups = new List<List<string>>();
         private readonly List<string> _queueQueryExcludes = new List<string>();
         private int _queueQueryA;
         private int _queueQueryB;
@@ -10023,7 +10023,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         {
             string q = (_queueSearchBox == null ? "" : (_queueSearchBox.Text ?? "")).Trim();
             _queueQueryText = q;
-            _queueQueryIncludes.Clear();
+            _queueQueryIncludeGroups.Clear();
             _queueQueryExcludes.Clear();
             _queueQueryA = 0; _queueQueryB = 0;
             _queueQueryKind = q.Length == 0 ? QueueQueryKind.None : QueueQueryKind.Text;
@@ -10106,7 +10106,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
         private void CompileQueueTextTerms(string query)
         {
             // R61.101: preserve legacy phrase-search when no structured syntax is used.
-            // Commas opt into AND clauses; a leading '-' clause excludes that phrase.
+            // Commas separate OR groups; terms within a group retain AND, and '-' exclusions apply to all groups.
             // Inline Google-style negatives are also accepted: "jazz live -remix".
             bool structured = query.IndexOf(',') >= 0;
             if (!structured)
@@ -10122,7 +10122,9 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             }
             if (!structured)
             {
-                AddQueueSearchTerm(_queueQueryIncludes, query);
+                var phraseGroup = new List<string>();
+                AddQueueSearchTerm(phraseGroup, query);
+                if (phraseGroup.Count > 0) _queueQueryIncludeGroups.Add(phraseGroup);
                 return;
             }
 
@@ -10130,6 +10132,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             {
                 string clause = (rawClause ?? "").Trim();
                 if (clause.Length == 0) continue;
+                var includeGroup = new List<string>();
                 if (clause[0] == '-')
                 {
                     AddQueueSearchTerm(_queueQueryExcludes, clause.Substring(1));
@@ -10144,7 +10147,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     if (ch == '"') { quoted = !quoted; continue; }
                     if (quoted || ch != '-' || (i > 0 && !Char.IsWhiteSpace(clause[i - 1]))) continue;
 
-                    AddQueueSearchTerm(_queueQueryIncludes, clause.Substring(positiveStart, i - positiveStart));
+                    AddQueueSearchTerm(includeGroup, clause.Substring(positiveStart, i - positiveStart));
                     int termStart = i + 1;
                     while (termStart < clause.Length && Char.IsWhiteSpace(clause[termStart])) termStart++;
                     if (termStart >= clause.Length) { positiveStart = clause.Length; break; }
@@ -10165,18 +10168,28 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     i = Math.Max(i, termEnd - 1);
                 }
                 if (positiveStart < clause.Length)
-                    AddQueueSearchTerm(_queueQueryIncludes, clause.Substring(positiveStart));
+                    AddQueueSearchTerm(includeGroup, clause.Substring(positiveStart));
+                if (includeGroup.Count > 0) _queueQueryIncludeGroups.Add(includeGroup);
             }
         }
 
         private bool QueueTextFilterMatches(QueueRow row)
         {
             string haystack = row == null ? "" : (row.SearchText ?? "");
-            foreach (string term in _queueQueryIncludes)
-                if (haystack.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0) return false;
+            // Each comma clause is one alternative; within a clause every positive term must match.
+            bool includeMatched = _queueQueryIncludeGroups.Count == 0;
+            foreach (List<string> group in _queueQueryIncludeGroups)
+            {
+                if (group.All(term => haystack.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0))
+                {
+                    includeMatched = true;
+                    break;
+                }
+            }
+            if (!includeMatched) return false;
             foreach (string term in _queueQueryExcludes)
                 if (haystack.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0) return false;
-            return _queueQueryIncludes.Count > 0 || _queueQueryExcludes.Count > 0;
+            return _queueQueryIncludeGroups.Count > 0 || _queueQueryExcludes.Count > 0;
         }
 
         private bool QueueFilter(object item)
