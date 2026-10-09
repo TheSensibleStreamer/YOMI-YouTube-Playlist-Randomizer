@@ -969,7 +969,7 @@ namespace Yomi.Desktop
         private int _controllerCadenceMs = 350;
         private bool _controllerWakeRefreshQueued;
         private bool _syncingVolume;
-        private double _volume = 100.0;
+        private double _volume = 50.0;
         private bool _muted;
         private bool _volumePreferenceLoaded;
         private bool _volumeAppliedToRuntime;
@@ -8845,10 +8845,10 @@ namespace Yomi.Desktop
                     _overlayHostMinWidth = FullPlayerMinWidth; _overlayHostMinHeight = FullPlayerMinHeight;
                 }
 
-                _volume = 100.0; _muted = false; _volumePreferenceLoaded = true; ApplyVolumeUi();
+                _volume = 50.0; _muted = false; _volumePreferenceLoaded = true; ApplyVolumeUi();
                 if (_running)
                 {
-                    SendMpv("set_property", "volume", "100");
+                    SendMpv("set_property", "volume", "50");
                     SendMpv("set_property", "mute", "false");
                 }
 
@@ -22572,7 +22572,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 _showTotalTime = GetBool(map, "time_display_total", false);
                 if (map.ContainsKey("volume") || map.ContainsKey("muted"))
                 {
-                    _volume = Math.Max(0, Math.Min(100, GetDouble(map, "volume", 100.0)));
+                    _volume = Math.Max(0, Math.Min(100, GetDouble(map, "volume", 50.0)));
                     _muted = GetBool(map, "muted", false);
                     _volumePreferenceLoaded = true;
                 }
