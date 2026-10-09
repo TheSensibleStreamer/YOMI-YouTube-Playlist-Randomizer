@@ -181,6 +181,13 @@ jobs:
           if(-not $updateHostText.Contains('detached restart relay owns the single post-update relaunch')){throw 'Single restart ownership marker missing'}
 
 
+      - name: Exercise actual controller mpv clock confirmation on simulated media samples
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          & './tests/controller-clock-contract.ps1'
+          if($LASTEXITCODE -ne 0){throw 'Actual WPF clock projection regression failed'}
+
       - name: Verify staged font rows, live wheel preview and focus state
         shell: powershell
         run: |
