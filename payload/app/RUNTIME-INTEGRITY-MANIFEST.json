@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9036",
+  "version": "420.69.9037",
   "seal": "DEV13.59",
-  "generated_utc": "2026-10-09T03:58:53.052860Z",
+  "generated_utc": "2026-10-09T04:04:40.686204Z",
   "file_count": 98,
   "files": [
     {
@@ -79,7 +79,7 @@
     {
       "path": "app/INSTALLATION-RECEIPT.json",
       "bytes": 4267,
-      "sha256": "49b0dcb94fe57dd90a23054ccaab2b43a5cfae11f61df22768fc0bd74cd05a4b"
+      "sha256": "444c3b54848e1a58f602b808eaa39973091c1f24193b556d754e61ecd7279219"
     },
     {
       "path": "app/lineage-registry.json",
@@ -239,7 +239,7 @@
     {
       "path": "app/YOMI-CAPABILITY-CONTRACT.json",
       "bytes": 15537,
-      "sha256": "a0408cb8ed7842b76f7bb0c7318d46c0e81cb5009ffe09411f2808017b430a78"
+      "sha256": "1c3051503952f99ce9956243fb98161ad3d6affdaca0d034515a842b75ba990c"
     },
     {
       "path": "app/YomiCausalGraphLab.cs",
@@ -273,8 +273,8 @@
     },
     {
       "path": "app/YomiControllerWpf.cs",
-      "bytes": 1794076,
-      "sha256": "b9cfeb4dd80ad390840b1615a740117fb769fc12a8437ae622b8a16f357b4e8f"
+      "bytes": 1794497,
+      "sha256": "93cbaf54841cab66f74f91e85909b22147745e385e6fc4f938e871bae1a0be56"
     },
     {
       "path": "app/YomiControllerWpf.exe.config",
@@ -494,7 +494,7 @@
     {
       "path": "VERSION.txt",
       "bytes": 12,
-      "sha256": "9f8d3d721e615486e08008ea9ae2dea3457d723a0ae99fe43035500cd796a255"
+      "sha256": "f8471b4bcb29b9a72356e5a1d2b40835467451e126e728badd3c41d6aa782abd"
     }
   ]
 }
