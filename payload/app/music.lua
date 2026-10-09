@@ -672,18 +672,38 @@ function audio_ready(i)
     return false
 end
 
+-- A bounded cooldown is not a permanent availability verdict. The marker
+-- is written only AFTER all six YouTube/YouTube Music extraction routes fail.
+-- The track stays in its original queue position; an explicit Listen/Play can
+-- immediately clear the marker and retry. Do not mark missing optional VIDEO
+-- as an audio failure, and do not quarantine a track whose audio is cached.
+function audio_failure_cooldown(i)
+    if not i or i<1 or i>#urls then return false end
+    if ensure_position_binding then ensure_position_binding(i) end
+    local marker=status_path(i,"audio.failed")
+    if not exists(marker) then return false end
+    local raw=tostring(read_all(marker) or "")
+    local source,stamp=raw:match("^extractor%-failed%-v2|(.-)|(%d+)$")
+    if not source or source~=source_identity(urls[i]) then
+        os.remove(marker)
+        return false
+    end
+    local age=os.time()-(tonumber(stamp) or 0)
+    return age>=0 and age<900
+end
+
 function known_bad(i)
-    -- No yt-dlp error is sufficient to establish permanent browser unavailability.
-    -- The extractor can report Video unavailable for an ordinary public Topic video
-    -- (confirmed for Maize). A historic quarantine must never silently remove a
-    -- track from transport or prefetch. Explicit attempts remain fully retryable.
+    -- No extractor rejection proves permanent browser unavailability. A
+    -- historic permanent quarantine is cleared, but a FRESH exhausted-audio
+    -- marker protects automatic transport from retry storms for 15 minutes.
+    -- Explicit Play/Listen/Jump calls explicit_audio_retry first.
     if ensure_position_binding then ensure_position_binding(i) end
     local marker=status_path(i,"audio.permanent")
     if exists(marker) then
         os.remove(marker)
         log("AUDIO QUARANTINE CLEARED track "..i.." reason=extractor-is-not-browser-authority")
     end
-    return false
+    return audio_failure_cooldown(i) and not audio_ready(i)
 end
 
 local pool_current=load_json(pool_file) or {}
@@ -1572,17 +1592,7 @@ local start_fast_stream
 -- the same broken source through background prefetch every time the cache horizon
 -- moves. Manual transport/jump removes this backoff immediately.
 function audio_prefetch_backoff(i)
-    local marker=status_path(i,"audio.failed")
-    if not exists(marker) then return false end
-    local raw=read_all(marker) or ""
-    local source,stamp=raw:match("^extractor%-failed%-v2|(.-)|(%d+)$")
-    if not source or source~=source_identity(urls[i]) then
-        os.remove(marker)
-        return false
-    end
-    local age=os.time()-(tonumber(stamp) or 0)
-    if age<0 then return false end
-    return age<900
+    return audio_failure_cooldown(i)
 end
 
 local function job_key(kind,i) return kind..":"..tostring(i) end
@@ -2887,7 +2897,22 @@ local function commit_pending_transport(serial)
     transport_pending_attempts=transport_pending_attempts+1
     desired_index=n;requested_index=0;work_generation=work_generation+1
     log("TRANSPORT COMMIT track "..n.." attempt "..transport_pending_attempts)
-    if exists(status_path(n,"audio.failed")) then explicit_audio_retry(n,"transport") end
+    -- A regular Next/Previous is NOT explicit consent to redo six already
+    -- exhausted extraction routes. If a marker arrived while the 150ms
+    -- transport settled, move ahead without resetting its cooldown.
+    if known_bad(n) then
+        local following=next_occurrence(n,1,false)
+        if not following or following==n then
+            cancel_pending_transport()
+            set_engine_status("error","No playable next track is ready; choose a track to retry.",n)
+            write_queue_runtime()
+            return
+        end
+        log("TRANSPORT BYPASS EXHAUSTED track "..n.." next="..following)
+        transport_pending_target=following
+        desired_index=following
+        n=following
+    end
     play_index(n)
 end
 
