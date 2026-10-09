@@ -77,28 +77,32 @@ assert.equal(video.paused,false); assert.equal(visualizer.paused,false);
 assert.equal(video.currentTime, visualizer.currentTime, 'same clock after pause and resume');
 
 const fit=context.fitVizPixelGrid;
-for(const [vw,vh,cols,rows,ew,eh] of [
- [2560,90,24,6,360,90],
- [2560,90,48,6,720,90],
- [2560,90,96,6,1440,90],
- [2200,90,192,6,2112,66],
- [2000,90,64,16,320,80],
- [2560,90,96,24,288,72],
- [180,90,40,10,160,40],
- [80,90,40,10,80,20]
+for(const [vw,vh,cols,rows,ew,eh,ec] of [
+ [2560,90,24,6,360,90,24],
+ [2560,90,48,6,720,90,48],
+ [2560,90,96,6,1440,90,96],
+ [2200,90,192,6,2196,72,183],
+ [2000,90,64,16,320,80,64],
+ [2560,90,96,24,288,72,96],
+ [180,90,40,10,180,50,36],
+ [80,90,40,10,80,20,40]
 ]) {
  const actual=fit(vw,vh,cols,rows);
  assert.equal(actual[0],ew,'width for ' + cols + ' x ' + rows);
  assert.equal(actual[1],eh,'height for ' + cols + ' x ' + rows);
- assert(Math.abs(actual[0]/cols-actual[1]/rows)<1e-8,'square output cells');
+ assert.equal(actual[2],ec,'displayed column count');
+ assert(Math.abs(actual[0]/actual[2]-actual[1]/rows)<1e-8,'square output cells');
 }
+
 const bins=context.visualizerColumns;
 for(const [maxColumns,length,expected] of [
  [192,1,24],[192,2,48],[192,4,96],[192,6,144],[192,8,192],
  [128,4,64],[128,8,128]
 ]) assert.equal(bins(maxColumns,length),expected,'length '+length+' maps correctly');
 assert.equal(fit(2560,90,bins(192,4),6)[0],1440,'length 4.0 uses 1440 pixels at 90 high');
-assert.equal(fit(2200,90,bins(192,8),6)[0],2112,'length 8.0 uses 2112 pixels at 2200 available width');
+assert.equal(fit(2200,90,bins(192,8),6)[0],2196,'length 8.0 fills 2196 of 2200 pixels with square cells');
+const widths=[1,2,4,8].map(n=>fit(880,135,bins(192,n),6)[0]);
+assert(widths.every((w,i)=>i===0||w>=widths[i-1]),'length must not get shorter in a narrow OBS source: '+widths);
 
 // Exercise actual production per-frame renderer: a peak in an odd-numbered
 // source column MUST remain visible when default length reduces 192 to 96.
@@ -121,6 +125,10 @@ let frame=put[0];assert.equal(frame.width,96);assert.equal(frame.height,6);
 let at=(2*96+6)*4;
 assert.deepEqual(Array.from(frame.data.slice(at,at+4)),[127,64,240,255],'odd source-column transient is preserved');
 context.vizLengthMultiplier=8;
+context.vizDisplayColumns=183; // Narrow OBS source requires peak pooling to integer square cells.
 context.renderVizFrame();
-assert.equal(put[1].width,192,'8.0 reads full frequency range with zero frequency skips');
+assert.equal(put[1].width,183,'8.0 fills narrow source without elongated cells or unused whitespace');
+context.vizDisplayColumns=0;
+context.renderVizFrame();
+assert.equal(put[2].width,192,'full-width OBS source uses all 8.0 units without skipped bins');
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
