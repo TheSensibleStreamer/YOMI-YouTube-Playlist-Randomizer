@@ -14,3 +14,5 @@ Extend Chromium tests to video-only and no-media layouts in addition to artwork+
 Verify YOMI 9031 subtle X-button hover red and unchanged pressed shade.
 
 Validate 9032 solid border containment, rendered real media, OBS CEF geometry telemetry, and visible muted-red X hover.
+
+Test compact content-height updater, true 40x10 native pixels in 135px overlay, 540px visualizer cap, and correct half-length visualizer on Windows and Chromium.
