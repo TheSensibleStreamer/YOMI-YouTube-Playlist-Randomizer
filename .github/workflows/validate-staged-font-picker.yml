@@ -65,6 +65,25 @@ jobs:
             if($obs.Contains($forbidden)){throw ('Obsolete OBS geometry/scaling path still present: '+$forbidden)}
           }
 
+          # Regression: the earlier-history row is not permanently PLAYED
+          # when mpv runtime says its audio is immediately transition-ready.
+          # Also prove a STARTING engine status cannot hide a demonstrably
+          # moving raw playback clock behind Play / 0:00 indefinitely.
+          $controllerEvidence=Get-Content $controllerSource -Raw
+          foreach($necessary in @(
+            'private bool ConfirmPlaybackFromSampledMpvClock(',
+            'raw - _clockEvidenceStart >= 0.18',
+            '_clockEvidenceSampleMs = stamp;',
+            'raw - _clockEvidenceLast > 2.0',
+            'if (phase == "starting" && clockIsAdvancing',
+            'phase = "playing";',
+            'MPV CLOCK PLAY CONFIRM occurrence=',
+            'if (runtime != null && runtime.TransitionReady)',
+            'ApplyRuntimeQueueStatus(row, runtime);'
+          )){
+            if(-not $controllerEvidence.Contains($necessary)){throw ('Controller playback/previous-ready contract missing: '+$necessary)}
+          }
+
           $controller=Get-Content $controllerSource -Raw
           foreach($required in @('SettingsObsMediaScaling','FillCombo(_settingsObsMediaScaling, "Smooth", "Nearest")','VisualizerPixelSizeChoiceFromConfig','width = 40; height = 10','page.ScrollToVerticalOffset','"media_aspect_layout", "Reflow"','ComboText(_settingsMediaAspectLayout, "Reflow")','LaunchUnavailableTrackAudit','unavailable-track-audit.ps1','OpenSelectedQueueSource','Open source in browser','Unavailable track audit')){
             if(-not $controller.Contains($required)){throw ('Controller audit/settings repair missing: '+$required)}
