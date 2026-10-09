@@ -23,7 +23,7 @@ def overlay_html():
     return html.replace('tick();\n})();',
                         'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\nwindow.__yomiPixelTestRenderViz=renderVizFrame;\ntick();\n})();')
 
-async def check(page, border, corner, layout, with_video=True, video_aspect=16/9, with_art=True):
+async def check(page, border, corner, layout, with_video=True, video_aspect=16/9, with_art=True, viz_length=4):
     config = {
         "app_mode": "Streamer / OBS", "overlay_width": 2560,
         "overlay_height": 135, "canvas_width": 2560, "canvas_height": 144,
@@ -33,7 +33,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         "artwork_enabled": with_art, "video_enabled": with_video,
         "title_enabled": True, "channel_enabled": True,
         "visualizer_enabled": True, "visualizer_match_text_overhang": True,
-        "overlay_text_gap_px": 8
+        "overlay_text_gap_px": 8, "visualizer_length_multiplier": viz_length
     }
     track = {
         "index": 1, "title": "Long title testing visualizer width",
@@ -62,7 +62,7 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         let box=vizCanvas.getBoundingClientRect();
         return {w:box.width,h:box.height,srcW:vizCanvas.width,srcH:vizCanvas.height};
     }""")
-    assert pixel_info["srcW"] > 0 and pixel_info["srcH"] == 10, pixel_info
+    assert pixel_info["srcW"] == (40 if viz_length==4 else 20) and pixel_info["srcH"] == 10, pixel_info
     physical_pixel_x=pixel_info["w"]/pixel_info["srcW"]
     physical_pixel_y=pixel_info["h"]/pixel_info["srcH"]
     assert abs(physical_pixel_x/physical_pixel_y-1) < 0.06, (pixel_info,physical_pixel_x,physical_pixel_y)
@@ -124,8 +124,11 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
             for x in (round(a["x"]),round(a["x"]+a["w"])-1):
                 for y in (round(a["y"]),round(a["y"]+a["h"])-1):
                     assert image.getpixel((x,y))[3]==0, (border,corner,layout,name,(x,y),image.getpixel((x,y)))
-    if with_video:
-        assert boxes["viz"]["w"]>=boxes["text"]["w"]-2, boxes
+    # Native visualizer samples fill at most their own square-pixel width,
+    # independent of a 1400px or 2560px OBS source or text-overhang setting.
+    assert abs(boxes["viz"]["w"]/boxes["viz"]["h"]-(pixel_info["srcW"]/pixel_info["srcH"])) < .045, (boxes,pixel_info)
+    assert boxes["viz"]["w"] <= 550, ("Visualizer stretched across OBS",boxes)
+    assert boxes["viz"]["w"] <= boxes["text"]["w"]+1, boxes
     visualizer_left=boxes["viz"]["x"]
     if visible:
         last_frame=boxes[visible[-1]]
@@ -155,7 +158,8 @@ async def main():
                          (2,"Soft","Reflow",False),(2,"Square","Reflow",True),
                          (2,"Soft","Reflow",True,4/3),(2,"Rounded","Fixed",True,4/3),
                          (2,"Soft","Reflow",True,16/9,False),
-                         (2,"Soft","Reflow",False,16/9,False)]:
+                         (2,"Soft","Reflow",False,16/9,False),
+                         (2,"Soft","Reflow",True,16/9,True,2)]:
                 await check(page,*args)
             assert not errors,errors
         finally:
