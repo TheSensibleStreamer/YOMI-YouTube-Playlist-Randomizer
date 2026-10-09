@@ -3523,7 +3523,7 @@ end)
 function apply_startup_volume()
     local ui=load_json(controller_ui_file) or {}
     local volume=tonumber(ui.volume)
-    if volume==nil then volume=100 end
+    if volume==nil then volume=50 end
     volume=math.max(0,math.min(130,volume))
     local muted=ui.muted==true
     local ok_max=pcall(mp.set_property_number,"volume-max",130)
