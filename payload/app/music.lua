@@ -970,7 +970,8 @@ local function optional_retention_set(anchor)
     if anchor<1 or anchor>#urls then return keep end
     keep[anchor]=true
     local cursor=anchor
-    for _=1,active_prefetch_ahead() do
+    -- Next is mandatory, not one of the configured prefetch-ahead slots.
+    for _=1,active_prefetch_ahead()+1 do
         local n=next_occurrence(cursor,1)
         if not n or keep[n] then break end
         keep[n]=true;cursor=n
@@ -1145,7 +1146,8 @@ function audio_retention_set(anchor)
     for _,job in pairs(active) do if job and job.kind=="audio" then pin(job.i) end end
     local cursor=math.floor(tonumber(anchor) or 0)
     local added_ahead=0
-    while added_ahead<ahead and cursor>=1 and cursor<=#urls do
+    -- Count only discretionary songs; the immediately next song is protected.
+    while added_ahead<ahead+1 and cursor>=1 and cursor<=#urls do
         local n=next_occurrence(cursor,1)
         if not n or n==anchor then break end
         if not keep[n] then keep[n]=true end
@@ -1581,9 +1583,21 @@ local function job_key(kind,i) return kind..":"..tostring(i) end
 
 local function enqueue(kind,i,priority)
     local key=job_key(kind,i)
-    if active[key] or queued[key] then return end
+    if active[key] then return end
+    local requestedPriority=tonumber(priority) or 100
+    if queued[key] then
+        -- Reprioritize an existing queued occurrence when it becomes current,
+        -- next, or previous. A stale far-ahead rank must never win the pump.
+        for _,job in ipairs(jobs) do
+            if job.key==key then
+                job.priority=math.min(tonumber(job.priority) or 100,requestedPriority)
+                return
+            end
+        end
+        queued[key]=nil
+    end
     queued[key]=true
-    table.insert(jobs,{key=key,kind=kind,i=i,priority=tonumber(priority) or 100,generation=work_generation})
+    table.insert(jobs,{key=key,kind=kind,i=i,priority=requestedPriority,generation=work_generation})
 end
 
 -- R61.63: loading media is itself a bounded transition. Deferring EOF handoff prevents
@@ -2719,24 +2733,35 @@ request_bundle=function(i,priority)
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
     if not audio_ready(i) and not audio_prefetch_backoff(i) then enqueue("audio",i,p) end
     local is_current=(i==playing_index or i==desired_index)
-    if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+(is_current and 4 or 35)) end
+    if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+10) end
     local video_profile_current=video_profile_ready(i)
     local video_migrate_ahead=(not is_current) and legacy_video_validation_ready(i) and video_profile_current
-    if (configured_video or controller_want_video) and (not video_profile_current or video_migrate_ahead) and not optional_failure_blocked("video",i) then enqueue("video",i,p+(is_current and 6 or 45)) end
+    if (configured_video or controller_want_video) and (not video_profile_current or video_migrate_ahead) and not optional_failure_blocked("video",i) then enqueue("video",i,p+20) end
     -- The visualizer is the only optional media lane that actually requires cached audio.
-    if audio_ready(i) and (configured_viz or controller_want_viz) and not visualizer_profile_ready(i) and not optional_failure_blocked("viz",i) then enqueue("viz",i,p+(is_current and 8 or 40)) end
+    if audio_ready(i) and (configured_viz or controller_want_viz) and not visualizer_profile_ready(i) and not optional_failure_blocked("viz",i) then enqueue("viz",i,p+30) end
 end
 
 local function schedule_ahead(i)
-    local cursor=i
-    local audio_tracks_ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
-    for n=1,audio_tracks_ahead do
-        local next_i=next_occurrence(cursor,1)
-        if not next_i or next_i==i then break end
-        request_bundle(next_i,n)
-        cursor=next_i
+    if not i or i<1 or i>#urls then return end
+    -- Absolute preparation order across ALL media kinds:
+    -- 1. Current, 2. Next, 3. Previous, 4. Next+1, 5. Next+2 ...
+    -- Each occurrence owns a 100-point lane: audio, artwork, video, visualizer.
+    -- This prevents track 10 from starting while track 4 remains queued.
+    request_bundle(i,0)
+    local next_i=next_occurrence(i,1)
+    if next_i and next_i~=i then request_bundle(next_i,100) end
+    local previous_i=next_occurrence(i,-1)
+    if previous_i and previous_i~=i and previous_i~=next_i then
+        request_bundle(previous_i,200)
     end
-    if i then request_bundle(i,0) end
+    local cursor=next_i or i
+    local extra_ahead=math.max(1,math.min(30,tonumber(prefetch_ahead) or 15))
+    for n=1,extra_ahead do
+        local following=next_occurrence(cursor,1)
+        if not following or following==i or following==next_i or following==previous_i then break end
+        request_bundle(following,200+n*100)
+        cursor=following
+    end
     pump()
 end
 
