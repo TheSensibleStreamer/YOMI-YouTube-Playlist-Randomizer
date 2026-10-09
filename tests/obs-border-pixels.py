@@ -21,7 +21,7 @@ def overlay_html():
     html = json.loads('"'+match.group(1)+'"') + json.loads('"'+match.group(2)+'"')
     assert html.count('tick();\n})();') == 1
     return html.replace('tick();\n})();',
-                        'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\nwindow.__yomiPixelTestRenderViz=renderVizFrame;\ntick();\n})();')
+                        'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\nwindow.__yomiPixelTestRenderViz=renderVizFrame;\nwindow.__yomiPixelTestAutoMatch=()=>vizAutoMatchText;\nwindow.__yomiPixelTestColumns=()=>vizDisplayColumns;\ntick();\n})();')
 
 async def check(page, border, corner, layout, with_video=True, video_aspect=16/9, with_art=True, viz_length=4):
     config = {
@@ -167,17 +167,17 @@ async def check_text_match(page):
                "visualizer":"unavailable"}
         output=await page.evaluate("""([config,track])=>{
             window.__yomiPixelTestApply(config,track,{});
-            const region=txt.getBoundingClientRect(),vr=viz.getBoundingClientRect();
-            const spans=[titleEl,channelEl].filter(x=>!x.classList.contains('hidden')).map(el=>{
+            const region=document.getElementById('text').getBoundingClientRect(),vr=document.getElementById('viz').getBoundingClientRect();
+            const spans=['title','channel'].map(id=>document.getElementById(id)).filter(x=>!x.classList.contains('hidden')).map(el=>{
                 const range=document.createRange();range.selectNodeContents(el);
                 const rect=range.getBoundingClientRect();
                 return {left:Math.max(region.left,rect.left),right:Math.min(region.right,rect.right)};
             });
             return {left:vr.left,right:vr.right,width:vr.width,height:vr.height,
-                    nativeColumns:vizDisplayColumns,rows:vizEl.videoHeight||6,
+                    nativeColumns:window.__yomiPixelTestColumns(),rows:vizEl.videoHeight||6,
                     textLeft:Math.min(...spans.map(x=>x.left)),
                     textRight:Math.max(...spans.map(x=>x.right)),
-                    auto:vizAutoMatchText};
+                    auto:window.__yomiPixelTestAutoMatch()};
         }""",[config,track])
         assert output["auto"], ("Auto length incorrectly disabled",output)
         assert output["width"] > 0 and output["width"] <= 1400, output
@@ -199,12 +199,12 @@ async def check_text_match(page):
     track["title"]="A much longer song title does not affect the manual length"
     short=await page.evaluate("""([c,t])=>{
         window.__yomiPixelTestApply(c,t,{});
-        return {w:viz.getBoundingClientRect().width,auto:vizAutoMatchText};
+        return {w:document.getElementById('viz').getBoundingClientRect().width,auto:window.__yomiPixelTestAutoMatch()};
     }""",[config,track])
     config["visualizer_length_multiplier"]=4
     long=await page.evaluate("""([c,t])=>{
         window.__yomiPixelTestApply(c,t,{});
-        return {w:viz.getBoundingClientRect().width,auto:vizAutoMatchText};
+        return {w:document.getElementById('viz').getBoundingClientRect().width,auto:window.__yomiPixelTestAutoMatch()};
     }""",[config,track])
     assert not short["auto"] and not long["auto"], (short,long)
     assert long["w"] > short["w"], (short,long)
