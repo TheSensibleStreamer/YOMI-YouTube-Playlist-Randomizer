@@ -80,6 +80,8 @@ const fit=context.fitVizPixelGrid;
 for(const [vw,vh,cols,rows,ew,eh] of [
  [2560,90,24,6,360,90],
  [2560,90,48,6,720,90],
+ [2560,90,96,6,1440,90],
+ [2200,90,192,6,2112,66],
  [2000,90,64,16,320,80],
  [2560,90,96,24,288,72],
  [180,90,40,10,160,40],
@@ -92,15 +94,15 @@ for(const [vw,vh,cols,rows,ew,eh] of [
 }
 const bins=context.visualizerColumns;
 for(const [maxColumns,length,expected] of [
- [48,1,6],[48,2,12],[48,4,24],[48,6,36],[48,8,48],
+ [192,1,24],[192,2,48],[192,4,96],[192,6,144],[192,8,192],
  [128,4,64],[128,8,128]
 ]) assert.equal(bins(maxColumns,length),expected,'length '+length+' maps correctly');
-assert.equal(fit(2560,90,bins(48,4),6)[0],360,'length 4.0 uses 360 pixels at 90 high');
-assert.equal(fit(2560,90,bins(48,8),6)[0],720,'length 8.0 uses 720 pixels at 90 high');
+assert.equal(fit(2560,90,bins(192,4),6)[0],1440,'length 4.0 uses 1440 pixels at 90 high');
+assert.equal(fit(2200,90,bins(192,8),6)[0],2112,'length 8.0 uses 2112 pixels at 2200 available width');
 
 // Exercise actual production per-frame renderer: a peak in an odd-numbered
-// source column MUST remain visible when default length reduces 48 to 24.
-const sw=48,sh=6;
+// source column MUST remain visible when default length reduces 192 to 96.
+const sw=192,sh=6;
 const raw=new Uint8ClampedArray(sw*sh*4);
 let brightAt=(2*sw+13)*4;raw[brightAt]=180;raw[brightAt+1]=110;raw[brightAt+2]=60;raw[brightAt+3]=255;
 const put=[];
@@ -115,10 +117,10 @@ context.parseHexColor=()=>[127,64,240];
 vm.runInContext(vizRenderer,context);
 context.renderVizFrame();
 assert.equal(put.length,1);
-let frame=put[0];assert.equal(frame.width,24);assert.equal(frame.height,6);
-let at=(2*24+6)*4;
+let frame=put[0];assert.equal(frame.width,96);assert.equal(frame.height,6);
+let at=(2*96+6)*4;
 assert.deepEqual(Array.from(frame.data.slice(at,at+4)),[127,64,240,255],'odd source-column transient is preserved');
 context.vizLengthMultiplier=8;
 context.renderVizFrame();
-assert.equal(put[1].width,48,'8.0 reads full frequency range with zero frequency skips');
+assert.equal(put[1].width,192,'8.0 reads full frequency range with zero frequency skips');
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
