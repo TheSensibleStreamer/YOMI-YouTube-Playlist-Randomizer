@@ -267,7 +267,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install --quiet lupa
-          python -c "from lupa import LuaRuntime; LuaRuntime().execute(\"assert(loadfile('payload/app/music.lua'))\"); print('PASS whole Lua source compiles')"
+          python -c "from lupa.lua51 import LuaRuntime; LuaRuntime().execute(\"assert(loadfile('payload/app/music.lua'))\"); print('PASS complete music.lua parses in mpv-compatible Lua 5.1')"
           python - <<'PY'
           from pathlib import Path
           s=Path('payload/app/music.lua').read_text(encoding='utf-8-sig')
