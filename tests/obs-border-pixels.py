@@ -45,6 +45,12 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     await page.evaluate("ratio => window.__yomiPixelTestAspect(ratio)", video_aspect)
     await page.evaluate("""([config,track])=>{
         window.__yomiPixelTestApply(config,track,{});
+        // Exercise REAL media pixels, not only colored frame backgrounds.
+        // A 1px tall photo/video strip that escapes the border is a regression.
+        const solid=(color)=>'data:image/svg+xml,'+encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="144"><rect width="256" height="144" fill="'+color+'"/></svg>');
+        artImg.src=solid('#ff0000');
+        videoFullArt.src=solid('#0000ff');
         document.getElementById('artFrame').style.backgroundColor='red';
         document.getElementById('vidFrame').style.backgroundColor='blue';
     }""", [config,track])
@@ -69,6 +75,16 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
                text:box('text'),viz:box('viz'),
                svg:getComputedStyle(document.getElementById('mediaPairSvg')).display};
     }""")
+    # The border must occupy real layout pixels, with no ::after painted
+    # over the content. In CEF that layering had allowed art to bleed into it.
+    border_info=await page.evaluate("""()=>({
+        art:getComputedStyle(artFrame).borderTopWidth,
+        vid:getComputedStyle(vidFrame).borderTopWidth,
+        overlayContent:getComputedStyle(vidFrame,'::after').content
+    })""")
+    assert border_info["overlayContent"] in ("none","normal"), border_info
+    if border:
+        assert float(border_info["art"].removesuffix('px'))>=1, border_info
     image = Image.open(io.BytesIO(await page.screenshot(omit_background=True))).convert("RGBA")
     if with_video and with_art and layout == "Reflow":
         a,v=boxes["art"],boxes["vid"]
