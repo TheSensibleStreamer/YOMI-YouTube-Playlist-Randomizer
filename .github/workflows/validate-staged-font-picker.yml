@@ -58,7 +58,7 @@ jobs:
           if(-not(Test-Path $obsOut)){throw 'OBS server compile produced no executable'}
 
           $obs=Get-Content (Join-Path $app 'YomiObsServerHost.cs') -Raw
-          foreach($required in @("artCanvas=document.getElementById('artCanvas')","videoCanvas=document.getElementById('videoCanvas')","imageSmoothingEnabled=false","mediaResampleMode=nearestScale?'nearest':'smooth'","c.obs_media_scaling||'Smooth'","c.media_aspect_layout||'Reflow'","mediaPairSvg=document.getElementById('mediaPairSvg')","mediaPairRect=document.getElementById('mediaPairRect')","mediaPairLine=document.getElementById('mediaPairLine')","function layoutMediaPair(active,vertical,bp,color,radiusPx)","mediaPairRect.setAttribute('stroke',color)","mediaPairLine.setAttribute('stroke-linecap','round')","function parseHexColor(v)","vizCtx.imageSmoothingEnabled=false","forceSolid=vizColorMode==='solid'","let mr=(showVid?vid:art).getBoundingClientRect()")){
+          foreach($required in @("artCanvas=document.getElementById('artCanvas')","videoCanvas=document.getElementById('videoCanvas')","imageSmoothingEnabled=false","mediaResampleMode=nearestScale?'nearest':'smooth'","c.obs_media_scaling||'Smooth'","c.media_aspect_layout||'Reflow'","mediaPairSvg=document.getElementById('mediaPairSvg')","mediaPairRect=document.getElementById('mediaPairRect')","mediaPairLine=document.getElementById('mediaPairLine')","function layoutMediaPair(active,vertical,bp,color,radiusPx)","mediaPairRect.setAttribute('stroke',color)","mediaPairLine.setAttribute('stroke-linecap','round')","function parseHexColor(v)","vizCtx.imageSmoothingEnabled=false","forceSolid=vizColorMode==='solid'","artFrame.getBoundingClientRect().right","vidFrame.getBoundingClientRect().right")){
             if(-not $obs.Contains($required)){throw ('OBS media/layout repair missing: '+$required)}
           }
           foreach($forbidden in @('mediaPairOutline','mediaSeam',"pixelScale?'pixelated':'auto'")){
@@ -87,6 +87,20 @@ jobs:
           }
           if(-not $music.Contains('reason="priorityrun-spawn-failure"')){
             throw 'Music endpoint diagnostic classification missing'
+          }
+
+          # Mandatory playback reserve: current, next and previous each outrank
+          # discretionary ahead tracks across audio and optional media kinds.
+          foreach($required in @(
+            'request_bundle(i,0)',
+            'request_bundle(next_i,100)',
+            'request_bundle(previous_i,200)',
+            'request_bundle(following,200+n*100)',
+            'while added_ahead<ahead+1',
+            'for _=1,active_prefetch_ahead()+1 do',
+            'job.priority=math.min(tonumber(job.priority) or 100,requestedPriority)'
+          )){
+            if(-not $music.Contains($required)){throw ('Priority queue / cache reserve missing: '+$required)}
           }
 
           $audit=Get-Content (Join-Path $app 'unavailable-track-audit.ps1') -Raw
