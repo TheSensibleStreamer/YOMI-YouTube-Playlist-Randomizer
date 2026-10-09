@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9031",
+  "version": "420.69.9032",
   "seal": "DEV13.59",
-  "generated_utc": "2026-10-09T01:06:41.834263Z",
+  "generated_utc": "2026-10-09T01:42:23.235049Z",
   "file_count": 98,
   "files": [
     {
@@ -79,7 +79,7 @@
     {
       "path": "app/INSTALLATION-RECEIPT.json",
       "bytes": 4267,
-      "sha256": "88d34c8e8f12df6240c85020ea18cc6137e65cdd2b3633ef47934f5878002966"
+      "sha256": "8c3409d5018828b903cb03896b154a0016c257b21313d968f26e4c06bb4077d6"
     },
     {
       "path": "app/lineage-registry.json",
@@ -239,7 +239,7 @@
     {
       "path": "app/YOMI-CAPABILITY-CONTRACT.json",
       "bytes": 15537,
-      "sha256": "c4ac79455e14ae57cefe4c6b62a56891abe81cb1cbbbe7507ce8412228abf558"
+      "sha256": "ac2b7fdf418df791861b5810c0ecaf8da339cf4b30b20c6cbcded3108079d58a"
     },
     {
       "path": "app/YomiCausalGraphLab.cs",
@@ -328,8 +328,8 @@
     },
     {
       "path": "app/YomiDesign.xaml",
-      "bytes": 105527,
-      "sha256": "196110da6f1500ae60d48300e584715534b1067b578cc6745d1f49981e8326a5"
+      "bytes": 105485,
+      "sha256": "84f74d38929690cb092b70879fe596f77360918633f422d786f0510489e470ac"
     },
     {
       "path": "app/YomiDistributedSystemsKernel.cs",
@@ -494,7 +494,7 @@
     {
       "path": "VERSION.txt",
       "bytes": 12,
-      "sha256": "ea7173800f3192bd0b83aa89acfe52e7f032649d87add876593e6f2e33483767"
+      "sha256": "9766c27d033b82601de919d2c0a46fa08994b5fc217842dc3cf21bba36a80b0b"
     }
   ]
 }
