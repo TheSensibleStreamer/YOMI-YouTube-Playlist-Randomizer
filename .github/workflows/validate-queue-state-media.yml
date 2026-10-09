@@ -1,0 +1,24 @@
+name: Validate YOMI queue state and media truth
+on:
+  push:
+    paths:
+      - "payload/app/YomiControllerWpf.cs"
+      - "payload/app/YomiControllerWpf.xaml"
+      - "tests/queue-state-media-contract.ps1"
+      - ".github/workflows/validate-queue-state-media.yml"
+  pull_request:
+    paths:
+      - "payload/app/YomiControllerWpf.cs"
+      - "payload/app/YomiControllerWpf.xaml"
+      - "tests/queue-state-media-contract.ps1"
+      - ".github/workflows/validate-queue-state-media.yml"
+permissions:
+  contents: read
+jobs:
+  actual-wpf-functions:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and exercise real production queue truth helpers
+        shell: powershell
+        run: ./tests/queue-state-media-contract.ps1
