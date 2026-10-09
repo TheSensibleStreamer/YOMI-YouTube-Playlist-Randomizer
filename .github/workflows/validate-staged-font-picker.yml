@@ -208,7 +208,7 @@ jobs:
             'size=fitVizTextGrid(desired,tr.height,sampleW,sampleH);',
             'let textBounds=visibleVizTextBounds(tr);',
             'vizAutoMatchText=true;',
-            'if(scale>=1)scale=Math.floor(scale);',
+            'let largestCell=Math.max(1,Math.floor(capacityH/rows));',
             'vizSourceCtx.drawImage(vizEl,0,0,sw,sh);',
             'for(let sx=lo;sx<hi;sx++){',
             'function syncAV(el,kind,frame){',
