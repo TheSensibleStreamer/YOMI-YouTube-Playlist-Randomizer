@@ -1,0 +1,1 @@
+Publish verified 420.69.9030: non-overlapping rounded shared borders, visualizer exactly at visible media edge, mandatory current/next/previous cache exemption and ranked preparation. Operator tests in OBS and uploads diagnostic ZIP.
