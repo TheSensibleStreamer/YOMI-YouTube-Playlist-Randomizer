@@ -1,7 +1,7 @@
 {
-  "version": "v420.69.9033",
+  "version": "v420.69.9034",
   "product": "YOMI - YouTube OBS Music Interface",
-  "release": "R61.106.53.33.1",
+  "release": "R61.106.53.34.1",
   "update_compatibility": "one-hop-latest",
   "files": {
     "INSTALL YOMI.cmd": {
@@ -10,7 +10,7 @@
     },
     "installer/install.ps1": {
       "bytes": 56482,
-      "sha256": "12ebf94c6a1539a3773d64ebbb1f95daaa6ef8078c3faaae8aa368b567b69c2b"
+      "sha256": "a8d3777147813722eb8af2f4fefa863d32558b9562a588bb515cb8519a3dfaca"
     },
     "payload/app/aegis-repair.ps1": {
       "bytes": 9623,
@@ -66,7 +66,7 @@
     },
     "payload/app/FOCUSED-BUILD.txt": {
       "bytes": 54,
-      "sha256": "994a7d526606294ef121760cbdf5d8c3ec308647722b5926b476683459f15fbf"
+      "sha256": "829f8128dc573cfafee746ffc10e1b190db1518bafe387536655a8d04a03dd45"
     },
     "payload/app/GRAND-CONSOLIDATION-LINEAGE.txt": {
       "bytes": 10676,
@@ -78,15 +78,15 @@
     },
     "payload/app/INSTALLATION-RECEIPT.json": {
       "bytes": 4267,
-      "sha256": "e2f8aa3456e71ad8ea49c2b4df583b3be10a4937d416e4e2034ecc88c962ab6d"
+      "sha256": "32f5c5a75459110841cb2c4106d7612909661ad17beb971eb7b7e030ed1f5788"
     },
     "payload/app/lineage-registry.json": {
       "bytes": 5197,
       "sha256": "d3dc2ab2b47caf1fc9bb32bab9ce5953c860fba5225371918ca16c7448e64fd9"
     },
     "payload/app/music.lua": {
-      "bytes": 181681,
-      "sha256": "c8a60116dc57faef9e0b5f712da5f924000685addb3f8e7aa8729ff50f93627d"
+      "bytes": 183326,
+      "sha256": "c41791ba1d4aa3aff668f35f9adc2daf58f58dae709df1f6c54c21d4967ea7aa"
     },
     "payload/app/NO-GAPS-CONSOLIDATION-LEDGER.json": {
       "bytes": 22601,
@@ -138,7 +138,7 @@
     },
     "payload/app/RUNTIME-INTEGRITY-MANIFEST.json": {
       "bytes": 16723,
-      "sha256": "f9b8ab098e1f8d8b19d1a6398649131d99592f5d8d0ebbbbb11f36ca2ccb21ed"
+      "sha256": "dccd22d08634c82380181caf039fc7bcbcb6ac7ea6cb4113921179f21dcab1cf"
     },
     "payload/app/self-test.ps1": {
       "bytes": 8525,
@@ -198,7 +198,7 @@
     },
     "payload/app/YOMI-CAPABILITY-CONTRACT.json": {
       "bytes": 15537,
-      "sha256": "09e681bdbe07ab8f485adf9890ae19931be5aef8c939758931965d6c82d0a198"
+      "sha256": "2b4919dd84544072107f3be9dd60e83ad326e47ffa11044dad1b8a43577435f5"
     },
     "payload/app/yomi.ico": {
       "bytes": 28249,
@@ -486,7 +486,7 @@
     },
     "payload/VERSION.txt": {
       "bytes": 12,
-      "sha256": "002f6cfb3190f2dd186fa078a78e51c945429c19b4825776e0a11e649a26f04a"
+      "sha256": "c79b2414fa7d0e9f3c9356f12c522d4303b010f81b0c728afe7acc7d2765c80b"
     }
   }
 }
