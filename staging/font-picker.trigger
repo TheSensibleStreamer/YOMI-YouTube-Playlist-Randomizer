@@ -30,3 +30,5 @@ Run compiled Windows controller tests: first sampled playback, Pause/Resume, swi
 Rerun both Windows compile and passing WPF clock behavioral tests after correcting the CI exit-code check.
 
 Recovery 9036: use last working 9033 engine; compile full production Lua; preserve 9035 controller UI and OBS output. Path staging/font-picker.trigger.
+
+Revalidate entire audio engine against real mpv-compatible Lua 5.1 grammar instead of Lua 5.5.
