@@ -10,8 +10,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ORIGINAL_VERSION = "420.69.9038"
-ORIGINAL_BUILD = "R61.106.53.38.1"
+ORIGINAL_VERSION = "420.69.9039"
+ORIGINAL_BUILD = "R61.106.53.39.1"
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -31,11 +31,11 @@ def replace_version(path, old, new):
     return count
 
 def create_candidate(version, output):
-    if version != "420.69.9039":
-        raise ValueError("This script is limited to the staged 9039 candidate; review changes before reuse.")
+    if version != "420.69.9040":
+        raise ValueError("This script is limited to the staged 9040 candidate; review changes before reuse.")
     output.mkdir(parents=True, exist_ok=True)
     timestamp = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
-    build_name = "R61.106.53.39.1"
+    build_name = "R61.106.53.40.1"
 
     with tempfile.TemporaryDirectory(prefix="yomi-candidate-") as tmp:
         package = Path(tmp) / "package"
@@ -159,7 +159,7 @@ def create_candidate(version, output):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", default="420.69.9039")
-    parser.add_argument("--output", type=Path, default=Path("dist/9039"))
+    parser.add_argument("--version", default="420.69.9040")
+    parser.add_argument("--output", type=Path, default=Path("dist/9040"))
     args = parser.parse_args()
     create_candidate(args.version, args.output.resolve())
