@@ -40,3 +40,5 @@ Integration 9038: verify square OBS pixels, synchronized video+visualizer to aud
 Revalidate manual visualizer length 1.0-8.0, full-width native frequency frame at 48 kHz, and Extra Chunky 192x6 source with 24x6 base units.
 
 Final square-cell width regression: at 90px OBS height length 1 is 360px, length 4 is 1440px, length 8 fills the viewport with integer-size pixels; Extra Chunky base 24x6.
+
+Check the existing automatic title/channel matching checkbox: equal overhang on left and right, dynamically selected longer visible line, native square pixels, and manual 1–8 length when off.
