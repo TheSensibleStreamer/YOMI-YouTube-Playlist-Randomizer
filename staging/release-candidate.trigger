@@ -2,3 +2,4 @@ Build unpublished YOMI 420.69.9027 release candidate from staging, test updater 
 Rerun with source-only integrity seal for nine installer-created files and pre-install source verification.
 Build YOMI 420.69.9028 unpublished with fitted borders, square visualizer pixels, and metadata-assisted Powaz recovery.
 Rebuild using source-sealed 9027 baseline; no installer-generated file hashes expected in ZIP.
+Build 420.69.9029 and prove both the update ZIP and its contents match manifest before in-app rollout.
