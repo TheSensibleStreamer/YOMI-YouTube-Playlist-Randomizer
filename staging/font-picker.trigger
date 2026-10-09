@@ -34,3 +34,5 @@ Recovery 9036: use last working 9033 engine; compile full production Lua; preser
 Revalidate entire audio engine against real mpv-compatible Lua 5.1 grammar instead of Lua 5.5.
 
 9037 appearance defaults: first-run Midnight theme 75% intensity, Slate blend 25%, 15% window transparency; factory reset agrees; saved themes unchanged.
+
+Integration 9038: verify square OBS pixels, synchronized video+visualizer to audio, 48 kHz 2x spectral analysis, runtime reuse.
