@@ -90,7 +90,9 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
             seconds = float(info["duration"])
             assert abs(frames - fps * 3) <= 1, (sr, fps, shape, frames)
             assert abs(seconds - 3) <= 1/fps + 0.001, (sr, fps, shape, seconds)
-            assert (int(info["width"]), int(info["height"])) == (40, 10)
+            # Existing Center Mirror stacks two even-height half-rasters (6 + 6).
+            expected_height = 12 if shape == "Center Mirror" else 10
+            assert (int(info["width"]), int(info["height"])) == (40, expected_height), (shape, info)
             print(f"PASS enhanced {shape} {sr} Hz, {fps} FPS: {frames} frames, {seconds:.3f}s, render {time.monotonic()-start:.3f}s")
 
     for fps in (30, 60):
