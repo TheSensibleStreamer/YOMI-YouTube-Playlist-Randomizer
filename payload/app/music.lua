@@ -870,6 +870,7 @@ playback_subset_restore_token=""
 -- Pending transport is declared before lane helpers so late file-loaded events can never
 -- drag the filtered intent cursor backward to an older occurrence.
 local transport_pending_target=0
+transport_pending_direction=1 -- Global to avoid LuaJIT top-level local-slot exhaustion.
 -- Queue work ownership lives here so the runtime publisher can expose the active
 -- listening lane's QUEUED/PREPARING state instead of only the main-order neighborhood.
 local jobs={}
@@ -2871,6 +2872,7 @@ cancel_pending_transport=function()
     transport_serial=transport_serial+1
     transport_pending_target=0
     transport_pending_attempts=0
+    transport_pending_direction=1
     if transport_timer then transport_timer:kill();transport_timer=nil end
 end
 
@@ -2901,14 +2903,15 @@ local function commit_pending_transport(serial)
     -- exhausted extraction routes. If a marker arrived while the 150ms
     -- transport settled, move ahead without resetting its cooldown.
     if known_bad(n) then
-        local following=next_occurrence(n,1,false)
+        local direction=tonumber(transport_pending_direction) or 1
+        local following=playback_subset_active and next_subset_transport_occurrence(n,direction,false) or next_occurrence(n,direction,false)
         if not following or following==n then
             cancel_pending_transport()
             set_engine_status("error","No playable next track is ready; choose a track to retry.",n)
             write_queue_runtime()
             return
         end
-        log("TRANSPORT BYPASS EXHAUSTED track "..n.." next="..following)
+        log("TRANSPORT BYPASS EXHAUSTED track "..n.." direction="..direction.." following="..following)
         transport_pending_target=following
         desired_index=following
         n=following
@@ -2935,6 +2938,7 @@ local function advance(step)
     end
     desired_index=n
     transport_pending_target=n
+    transport_pending_direction=direction
     transport_pending_attempts=0
     transport_serial=transport_serial+1
     local serial=transport_serial
