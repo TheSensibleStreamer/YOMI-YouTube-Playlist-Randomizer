@@ -130,6 +130,8 @@ context.vizDisplayColumns=0;
 context.vizAutoMatchText=false;
 context.vizLengthMultiplier=4;
 context.vizColorMode='solid';context.vizSolidColor='#7F40F0';
+context.vizGradientPreset='Sunset';context.vizGradientOrientation='Horizontal';
+context.vizPaletteCache=null;context.vizPaletteCacheKey='';
 
 vm.runInContext(vizRenderer,context);
 context.renderVizFrame();
