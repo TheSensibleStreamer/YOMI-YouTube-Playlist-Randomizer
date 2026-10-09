@@ -202,15 +202,16 @@ jobs:
           }
           $obsSquare=Get-Content (Join-Path $app 'YomiObsServerHost.cs') -Raw
           foreach($required in @(
-            'let w=Math.max(1,Math.round(sw*fraction));',
-            'let selectedColumns=Math.max(1,Math.round(sampleW*Math.max(.25,Math.min(1,vizLengthMultiplier/4))));',
+            'function visualizerColumns(sourceWidth,length){',
+            'let selectedColumns=visualizerColumns(sampleW,vizLengthMultiplier);',
             'let size=fitVizPixelGrid(available,tr.height,selectedColumns,sampleH),width=size[0],height=size[1];',
             'if(scale>=1)scale=Math.floor(scale);',
-            'vizCtx.drawImage(vizEl,0,0,w,sh,0,0,w,h);',
+            'vizSourceCtx.drawImage(vizEl,0,0,sw,sh);',
+            'for(let sx=lo;sx<hi;sx++){',
             'function syncAV(el,kind,frame){',
             "syncAV(videoEl,'video',null);syncAV(vizEl,'viz',null);"
           )){if(-not $obsSquare.Contains($required)){throw ('Square visualizer source-grid rule missing: '+$required)}}
-          if($obsSquare.Contains('viz.style.width=(matchText?available:')){
+          if($obsSquare.Contains('vizLengthMultiplier/4') -or $obsSquare.Contains('viz.style.width=(matchText?available:')){
             throw 'Visualizer still stretches to entire text area'
           }
 
