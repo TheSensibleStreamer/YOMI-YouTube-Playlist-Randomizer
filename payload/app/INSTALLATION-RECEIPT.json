@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9035",
+  "version": "420.69.9036",
   "seal": "DEV13.59",
   "status": "SEALED",
-  "generated_utc": "2026-10-09T03:53:21.647407Z",
+  "generated_utc": "2026-10-09T03:58:53.052860Z",
   "public_base": {
     "version": "4.2.0.7",
     "commit": "9b7104e2743b9fc02697ce5bbb2d4f6787a257cc",
