@@ -71,6 +71,16 @@ jobs:
           }
           if($controller.Contains('combo.SelectedIndex = next')){throw 'Settings wheel can still mutate closed combo boxes'}
 
+          # Keep normal and pressed window chrome unchanged. Only soften the
+          # Close/X hover background by a modest amount relative to #2A1C1F.
+          $design=Get-Content 'payload/app/YomiDesign.xaml' -Raw
+          if(-not $design.Contains('<Color x:Key="Color.DangerSoft">#372427</Color>')){
+            throw 'Close-button hover color is not the agreed subtle red'
+          }
+          if(-not $design.Contains('<Color x:Key="Color.Danger">#C47F7F</Color>')){
+            throw 'Pressed close-button red was changed unintentionally'
+          }
+
           $music=Get-Content (Join-Path $app 'music.lua') -Raw
           foreach($required in @('next_subset_transport_occurrence(base,direction,false)','next_occurrence(base,direction,false)','if known_bad(i) then return end','AUDIO QUARANTINE CLEARED track ','extractor-failed-v2|','web_embedded,default','android,default')){
             if(-not $music.Contains($required)){throw ('Playback quarantine repair missing: '+$required)}
