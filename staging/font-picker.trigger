@@ -10,3 +10,4 @@ Validate revised Music search helper syntax, OBS fitted corners, and square-pixe
 Check PowerShell launch bypass for Powaz replacement search after PriorityRun status 3, and run OBS Chromium geometry regression.
 Run browser pixels for nonoverlapping 4-corner media seams and visualizer edge; validate playback reserve and priority queue.
 Rerun updated CI for non-overlapping shared seam and visualizer exact media-edge offset.
+Extend Chromium tests to video-only and no-media layouts in addition to artwork+video and artwork-only.
