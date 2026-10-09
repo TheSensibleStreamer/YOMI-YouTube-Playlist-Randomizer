@@ -299,8 +299,9 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r6110620-restored-pixel-density",
+        "r6110620-temporal-peaks",
         tostring(visualizer_fps()),
+        tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
         tostring(cfg.visualizer_activity or "Active"),
         tostring(cfg.visualizer_adaptive_fill or "Off"),
@@ -2604,6 +2605,21 @@ function visualizer_spacing_filter(shape,spacing,w)
     return ",drawgrid=w="..tostring(cell)..":h=100000:t=1:c=black:replace=1"
 end
 
+-- Higher-cadence spectral measurements without higher-rate encoded video.
+-- Peak union captures short attacks across each 60/30 FPS display interval.
+-- Only offline FFmpeg preprocessing increases, not OBS playback work.
+function visualizer_temporal_rate(fps,win)
+    if tostring(cfg.visualizer_temporal_detail or "Enhanced")=="Standard" then return fps,"","" end
+    local analysis_fps=fps*2
+    -- Exactly 400 samples per 120 Hz FFT hop at 48 kHz, 800 at 60 Hz.
+    local overlap=math.max(0,math.min(0.95,1-(48000/analysis_fps)/win))
+    local frequency_options=":overlap="..string.format("%.8f",overlap)
+    -- Normalize timestamps: showfreqs PTS can otherwise create massive
+    -- CFR duplication when combined with the temporal peak filter.
+    local combine=",setpts=N/("..analysis_fps.."*TB),tblend=all_mode=lighten,fps="..fps
+    return analysis_fps,frequency_options,combine
+end
+
 function viz_filter()
     local w,h=visualizer_render_dimensions()
     local fps=visualizer_fps()
@@ -2613,10 +2629,12 @@ function viz_filter()
     local anchor=tostring(cfg.visualizer_vertical_anchor or "Source")
     local averaging,win,ascale,fscale=visualizer_frequency_parameters()
     local color=visualizer_color()
+    local analysis_fps,overlap_option,temporal_downsample=visualizer_temporal_rate(fps,win)
     local render_w=w
     if spacing=="Light" then render_w=math.max(8,math.floor(w/1.5)) elseif spacing=="Wide" then render_w=math.max(8,math.floor(w/2.5)) end
     if render_w%2==1 then render_w=render_w+1 end
     local audio=visualizer_audio_prefix()
+    if temporal_downsample~="" and shape~="Oscilloscope" then audio=audio..",aresample=48000" end
     local tail=""
     if render_w~=w then tail=tail..",scale="..w..":"..h..":flags=neighbor" end
     if direction=="Mirrored" then tail=tail..",hflip" end
@@ -2634,7 +2652,7 @@ function viz_filter()
     local mirror=(shape=="Center Mirror" or shape=="Twin Rails" or anchor=="Center")
     if mirror then
         local half=math.max(2,math.floor(h/2));if half%2==1 then half=half+1 end
-        local base="[0:a]"..audio..",showfreqs=s="..render_w.."x"..half..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..fps..":colors="..color..":averaging="..averaging..":win_size="..win.."[base];"
+        local base="[0:a]"..audio..",showfreqs=s="..render_w.."x"..half..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..analysis_fps..":colors="..color..":averaging="..averaging..":win_size="..win..overlap_option..temporal_downsample.."[base];"
         local post="[base]split=2[up][down];[up]vflip[top];[top][down]vstack=inputs=2"
         if render_w~=w then post=post..",scale="..w..":"..h..":flags=neighbor" end
         post=post..visualizer_frequency_trim_filter(w,h)
@@ -2643,7 +2661,7 @@ function viz_filter()
         return base..post..visualizer_binary_filter()..",format=yuv420p[v]"
     end
 
-    local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..h..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..fps..":colors="..color..":averaging="..averaging..":win_size="..win
+    local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..h..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..analysis_fps..":colors="..color..":averaging="..averaging..":win_size="..win..overlap_option..temporal_downsample
     if render_w~=w then out=out..",scale="..w..":"..h..":flags=neighbor" end
     out=out..visualizer_frequency_trim_filter(w,h)
     if anchor=="Top" then out=out..",vflip" end
