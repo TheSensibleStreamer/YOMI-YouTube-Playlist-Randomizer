@@ -72,11 +72,20 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
     image = Image.open(io.BytesIO(await page.screenshot(omit_background=True))).convert("RGBA")
     if with_video and layout == "Reflow":
         a,v=boxes["art"],boxes["vid"]
-        assert round(a["x"]+a["w"]-v["x"]) == border, (border,boxes)
+        # Zero image overlap is essential: otherwise artwork bleeds through
+        # the transparent TOP/BOTTOM corners of the right media frame.
+        assert abs(a["x"]+a["w"]-v["x"]) < 0.6, (border,boxes)
         assert boxes["svg"]=="none", "Shared SVG hides transparent inner corners"
         y=round(a["y"]+a["h"]/2)
-        seam=[image.getpixel((x,y)) for x in range(round(v["x"]),round(a["x"]+a["w"]))]
-        assert len(seam)==border and all(px==(37,37,37,255) for px in seam), seam
+        seam_x=round(v["x"])
+        seam=[image.getpixel((x,y)) for x in range(seam_x-border,seam_x+border)]
+        assert sum(px==(37,37,37,255) for px in seam)==border, (border,seam)
+        if corner != "Square":
+            # Inner top corner pixels must show pure transparent OBS background.
+            for frame in (a,v):
+                xx=round(frame["x"]+frame["w"])-1 if frame is a else round(frame["x"])
+                assert image.getpixel((xx,round(frame["y"])))[3]==0, (frame,(xx,round(frame["y"])))
+                assert image.getpixel((xx,round(frame["y"]+frame["h"])-1))[3]==0, (frame,(xx,round(frame["y"]+frame["h"])-1))
     for name in (["art","vid"] if with_video else ["art"]):
         assert boxes[name]["h"] <= 135.1, ("Rounded border clipped by browser height",name,boxes[name])
     for radii in boxes['radii'][:2 if with_video else 1]:
@@ -100,6 +109,14 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
                     assert image.getpixel((x,y))[3]==0, (border,corner,layout,name,(x,y),image.getpixel((x,y)))
     if with_video:
         assert boxes["viz"]["w"]>=boxes["text"]["w"]-2, boxes
+    last_frame=boxes["vid"] if with_video else boxes["art"]
+    visualizer_left=boxes["viz"]["x"]
+    last_visible_pixel=last_frame["x"]+last_frame["w"]
+    assert abs(visualizer_left-last_visible_pixel)<1, ("visualizer behind media",boxes)
+    # In the normal 16:9 reflow case, text starts exactly the configured
+    # moduleGap after the visualizer's first pixel, not 100s of pixels away.
+    if layout=="Reflow" and abs(video_aspect-16/9)<0.025:
+        assert abs((boxes["text"]["x"]-visualizer_left)-8)<1.1, boxes
     print(f"PASS {border}px {corner} {layout} video={with_video}, video_ratio={video_aspect:.3f}, text={boxes['text']['w']:.0f}px viz={boxes['viz']['w']:.0f}px")
 
 async def main():
@@ -112,11 +129,11 @@ async def main():
             page.on("pageerror",lambda e:errors.append(str(e)))
             await page.set_content(overlay_html(),wait_until="domcontentloaded")
             await page.wait_for_function("window.__yomiPixelTestApply != null")
-            for args in [(2,"Soft","Reflow",True),(4,"Soft","Reflow",True),
-                         (8,"Soft","Reflow",True),(2,"Rounded","Reflow",True),
-                         (2,"Soft","Fixed",True),(2,"Soft","Reflow",False),
-                         (2,"Square","Reflow",True),(2,"Soft","Reflow",True,4/3),
-                         (2,"Rounded","Fixed",True,4/3)]:
+            for args in [(1,"Soft","Reflow",True),(2,"Soft","Reflow",True),
+                         (4,"Soft","Reflow",True),(8,"Soft","Reflow",True),
+                         (2,"Rounded","Reflow",True),(2,"Soft","Fixed",True),
+                         (2,"Soft","Reflow",False),(2,"Square","Reflow",True),
+                         (2,"Soft","Reflow",True,4/3),(2,"Rounded","Fixed",True,4/3)]:
                 await check(page,*args)
             assert not errors,errors
         finally:
