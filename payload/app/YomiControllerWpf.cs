@@ -922,14 +922,14 @@ namespace Yomi.Desktop
         private WorkspaceProfile _previousFullWorkspaceProfile = WorkspaceProfile.Player;
         private WorkspaceProfile _compactQueueReturnProfile = WorkspaceProfile.Custom;
         private AppearancePreset _appearancePreset = AppearancePreset.Midnight;
-        private bool _appearanceManuallySelected;
+        private bool _appearanceManuallySelected = true;
         private ThemeIntensity _themeIntensity = ThemeIntensity.Vivid;
-        private double _themeIntensityAmount = 1.0;
-        private bool _appearanceAccentEnabled;
-        private AppearancePreset _appearanceAccentPreset = AppearancePreset.Dusk;
-        private ThemeBlendStrength _themeBlendStrength = ThemeBlendStrength.Balanced;
-        private double _themeBlendAmount = 0.60;
-        private double _windowTransparencyPercent = 10.0;
+        private double _themeIntensityAmount = 0.75;
+        private bool _appearanceAccentEnabled = true;
+        private AppearancePreset _appearanceAccentPreset = AppearancePreset.Slate;
+        private ThemeBlendStrength _themeBlendStrength = ThemeBlendStrength.Subtle;
+        private double _themeBlendAmount = 0.25;
+        private double _windowTransparencyPercent = 15.0;
         private InformationDensity _informationDensity = InformationDensity.Clean;
         private bool _quietSurface = true;
         private bool _menuBarVisible;
@@ -8612,7 +8612,7 @@ namespace Yomi.Desktop
                     SetComboPreserve(_settingsTextAlignment, DefaultOverlayTextAlignment);
                     SetComboPreserve(_settingsTextSpacing, DefaultOverlayTextSpacing);
                     _settingsTextGlow.IsChecked = false;
-                    SetCombo(_settingsWorkspace, "Player"); SetCombo(_settingsTheme, "System Theme"); SetCombo(_settingsThemeIntensity, "Vivid"); SetCombo(_settingsThemeAccent, "None"); SetCombo(_settingsThemeBlend, "Balanced"); if (_settingsThemeIntensitySlider != null) _settingsThemeIntensitySlider.Value = 100; if (_settingsThemeBlendSlider != null) _settingsThemeBlendSlider.Value = 60; if (_settingsWindowTransparencySlider != null) _settingsWindowTransparencySlider.Value = 10; SetCombo(_settingsDetail, "Simple"); _settingsClassicMenu.IsChecked = true; if (_settingsReduceMotion != null) _settingsReduceMotion.IsChecked = false;
+                    SetCombo(_settingsWorkspace, "Player"); SetCombo(_settingsTheme, "Midnight"); SetCombo(_settingsThemeIntensity, "Vivid"); SetCombo(_settingsThemeAccent, "Slate"); SetCombo(_settingsThemeBlend, "Subtle"); if (_settingsThemeIntensitySlider != null) _settingsThemeIntensitySlider.Value = 75; if (_settingsThemeBlendSlider != null) _settingsThemeBlendSlider.Value = 25; if (_settingsWindowTransparencySlider != null) _settingsWindowTransparencySlider.Value = 15; SetCombo(_settingsDetail, "Simple"); _settingsClassicMenu.IsChecked = true; if (_settingsReduceMotion != null) _settingsReduceMotion.IsChecked = false;
                 }
                 else
                 {
@@ -8838,8 +8838,11 @@ namespace Yomi.Desktop
                     SendMpv("set_property", "mute", "false");
                 }
 
-                _themeIntensity = ThemeIntensity.Vivid; _themeIntensityAmount = 1.0; _appearanceAccentEnabled = false; _appearanceAccentPreset = AppearancePreset.Dusk; _themeBlendStrength = ThemeBlendStrength.Balanced; _themeBlendAmount = 0.60; _windowTransparencyPercent = 10.0; if (_window != null) _window.Opacity = 1.0;
-                SetSystemAppearanceMode(false);
+                _themeIntensity = ThemeIntensity.Vivid; _themeIntensityAmount = 0.75; _appearanceAccentEnabled = true; _appearanceAccentPreset = AppearancePreset.Slate; _themeBlendStrength = ThemeBlendStrength.Subtle; _themeBlendAmount = 0.25; _windowTransparencyPercent = 15.0; if (_window != null) _window.Opacity = 1.0;
+                // Factory reset selects YOMI Midnight explicitly, regardless of Windows light/dark theme.
+                _appearanceManuallySelected = true;
+                _appearancePreset = AppearancePreset.Midnight;
+                ApplyAppearancePreset(false);
                 SetInformationDensity(InformationDensity.Clean, false);
                 SetQuietSurface(true, false);
                 SetMenuBarVisible(true, false);
@@ -22348,8 +22351,10 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     _window.Width = FullPlayerDefaultWidth;
                     _window.Height = FullPlayerDefaultHeight;
                     _orientationNeedsIntro = true;
-                    _appearanceManuallySelected = false;
-                    _appearancePreset = ResolveSystemAppearancePreset();
+                    // First run: explicitly choose YOMI Midnight rather than following Windows.
+                    // Existing controller-ui.json files retain all user-chosen appearance values.
+                    _appearanceManuallySelected = true;
+                    _appearancePreset = AppearancePreset.Midnight;
                     return;
                 }
                 var map = AsMap(_json.DeserializeObject(File.ReadAllText(path, Encoding.UTF8)));
