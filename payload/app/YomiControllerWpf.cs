@@ -7995,8 +7995,23 @@ namespace Yomi.Desktop
                 var fallback = new RuntimeQueueItem { Audio="READY", Artwork="READY", Video="READY", Visualizer="READY", TransitionReady=true, PresentationComplete=true, VideoFallback=true, VideoActualHeight=360 };
                 string fallbackNote = QueueConfidenceNote("READY", "FULL READY", fallback, 2);
                 if (fallbackNote.IndexOf("360p", StringComparison.OrdinalIgnoreCase) < 0) return SelfTestFail("SelfTestQueueConfidence assertion 5: actual='" + fallbackNote + "'");
-                string playedNote = QueueConfidenceNote("PLAYED", "", late, -1);
-                if (!String.IsNullOrWhiteSpace(playedNote)) return SelfTestFail("SelfTestQueueConfidence assertion 6: expected empty note; actual='" + playedNote + "'");
+                // The earlier occurrence remains READY if its audio is cached:
+                // its past position never overrides the authoritative audio state.
+                if (QueueAudioStatus(audioReady) != "READY" || QueueAudioStatus(full) != "READY")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 6: optional presentation demoted ready audio");
+                if (QueueOptionalMediaSummary(full) != "3/3 ready" || QueueOptionalMediaSummary(audioReady) != "0/1 ready")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 7: media counts failed for prepared / pending visuals");
+                if (QueueOptionalMediaSummary(new RuntimeQueueItem { Audio="READY", Artwork="NOT_REQUIRED", Video="NOT_REQUIRED", Visualizer="NOT_REQUIRED" }) != "Off")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 8: unrequested visuals should say Off");
+                if (QueueOptionalMediaSummary(null) != "—")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 9: unknown media is not known to be unready");
+                if (QueueAudioStatus(new RuntimeQueueItem { Audio="UNAVAILABLE" }) != "RETRY")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 10: temporary extraction failure became permanent unavailability");
+                if (!QueueHasOptionalMediaIssue(audioReady) || QueueHasOptionalMediaIssue(full))
+                    return SelfTestFail("SelfTestQueueConfidence assertion 11: Issues filter must preserve optional presentation issues");
+                string priorNote = QueueConfidenceNote("READY", "", late, -1);
+                if (!String.IsNullOrWhiteSpace(priorNote))
+                    return SelfTestFail("SelfTestQueueConfidence assertion 12: previous song should have no predictive slack note");
                 return true;
             }
             catch (Exception ex) { return SelfTestFail("SelfTestQueueConfidence assertion 7 exception: " + ex.GetType().Name + ": " + ex.Message); }
@@ -10192,7 +10207,10 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 case QueueScope.Ready:
                     return row.Status == "READY" || row.Status == "AUDIO READY" || row.Status == "POLICY READY" || row.Status == "ISOLATED READY" || row.Status == "PLAYING" || row.Status == "PAUSED";
                 case QueueScope.Issues:
-                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "RETRY" || row.Status == "FAILED" || row.Status == "AUDIO READY" || row.Status == "POLICY READY" || row.Status == "ISOLATED READY";
+                    RuntimeQueueItem issueRuntime;
+                    _runtimeQueue.TryGetValue(row.OccurrenceId, out issueRuntime);
+                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "RETRY" || row.Status == "FAILED" ||
+                           QueueHasOptionalMediaIssue(issueRuntime);
                 case QueueScope.History:
                     return _currentSlot > 0 && row.Slot < _currentSlot;
                 case QueueScope.NextTen:
@@ -18208,6 +18226,21 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             if (audio == "UNAVAILABLE") return "RETRY";
             if (audio == "ACTIVE" || audio == "QUEUED") return "BUILDING";
             return "WAITING";
+        }
+
+        // Issues must continue showing delayed/failed optional presentation
+        // even when the AUDIO state correctly says READY. Read the same three
+        // authoritative fields as Media; never infer from row history or text.
+        private static bool QueueHasOptionalMediaIssue(RuntimeQueueItem runtime)
+        {
+            if (runtime == null) return false;
+            foreach (string raw in new[] { runtime.Artwork, runtime.Video, runtime.Visualizer })
+            {
+                string stage = (raw ?? "").Trim().ToUpperInvariant();
+                if (stage.Length != 0 && stage != "NOT_REQUIRED" && stage != "READY")
+                    return true;
+            }
+            return false;
         }
 
         // Media never duplicates the audio status or invents a state for an
