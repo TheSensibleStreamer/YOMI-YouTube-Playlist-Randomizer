@@ -1,0 +1,57 @@
+name: Validate YOMI runtime reuse
+on:
+  push:
+    paths:
+      - "installer/install.ps1"
+      - ".github/workflows/validate-runtime-reuse.yml"
+  pull_request:
+    paths:
+      - "installer/install.ps1"
+      - ".github/workflows/validate-runtime-reuse.yml"
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse full Windows PowerShell installer
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $tokens=$null;$parseErrors=$null
+          $script=Join-Path (Get-Location) 'installer/install.ps1'
+          $ast=[Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$parseErrors)
+          if($parseErrors.Count -ne 0){throw ('Installer parse failed: '+(($parseErrors|ForEach-Object {$_.Message}) -join '; '))}
+          if($null -eq $ast){throw 'Installer AST missing'}
+          Write-Host 'PASS: Windows PowerShell 5.1 parses the complete installer.'
+      - name: Exercise receipt match, stale age and tamper rejection
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $tokens=$null;$parseErrors=$null
+          $ast=[Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'installer/install.ps1').Path,[ref]$tokens,[ref]$parseErrors)
+          foreach($name in @('Test-InstalledTool','Test-ReusableRuntime')){
+            $fn=$ast.FindAll({param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst]},$true)|Where-Object {$_.Name -eq $name}|Select-Object -First 1
+            if(-not $fn){throw ('Missing installer reuse function: '+$name)}
+            Invoke-Expression $fn.Extent.Text
+          }
+          $installRoot=Join-Path $env:RUNNER_TEMP 'YOMI-test-install'
+          $relative='runtime\mpv\mpv.exe'
+          $target=Join-Path $installRoot $relative
+          New-Item -ItemType Directory (Split-Path $target -Parent) -Force | Out-Null
+          Copy-Item "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" $target
+          $existingInstallAtStart=$true
+          $previousRuntimeReceipt=$null
+          $args=@('-NoProfile -Command "exit 0"')
+          if(Test-ReusableRuntime 'mpv' 168 @($relative) $args){throw 'Unreceipted binary was incorrectly reused'}
+          $hash=(Get-FileHash $target -Algorithm SHA256).Hash
+          $previousRuntimeReceipt=[pscustomobject]@{mpv=[pscustomobject]@{checked_utc=[DateTime]::UtcNow.ToString('o');files=[pscustomobject]@{'0'=$hash}}}
+          if(-not (Test-ReusableRuntime 'mpv' 168 @($relative) $args)){throw 'Valid existing runtime not reused'}
+          $previousRuntimeReceipt.mpv.checked_utc=([DateTime]::UtcNow.AddDays(-12)).ToString('o')
+          if(Test-ReusableRuntime 'mpv' 168 @($relative) $args){throw 'Stale runtime was reused'}
+          $previousRuntimeReceipt.mpv.checked_utc=[DateTime]::UtcNow.ToString('o')
+          Add-Content -LiteralPath $target -Value 'hash-tamper'
+          if(Test-ReusableRuntime 'mpv' 168 @($relative) $args){throw 'Tampered runtime was reused'}
+          Write-Host 'PASS: absent, valid, stale, and tampered runtime paths.'
