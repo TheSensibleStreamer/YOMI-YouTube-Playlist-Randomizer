@@ -79,6 +79,16 @@ jobs:
             if($music.Contains($forbidden)){throw ('Unavailable-track resurrection path still present: '+$forbidden)}
           }
 
+          # Track 255's 9028 diagnostic exposed PriorityRun error code 3 before
+          # the resolver even started. Never wrap a short metadata lookup in the
+          # Windows Job-based media producer helper.
+          if(-not $music.Contains('22,true,function(ok,result,error_text,timed_out)')){
+            throw 'Music endpoint resolver still launches through PriorityRun'
+          }
+          if(-not $music.Contains('reason="priorityrun-spawn-failure"')){
+            throw 'Music endpoint diagnostic classification missing'
+          }
+
           $audit=Get-Content (Join-Path $app 'unavailable-track-audit.ps1') -Raw
           foreach($required in @('controller-library.json','state\session.json','pool-current.json','web_embedded,default','android,default','YOMI UNAVAILABLE TRACK AUDIT','Export-Csv')){
             if(-not $audit.Contains($required)){throw ('Unavailable-track audit missing: '+$required)}
