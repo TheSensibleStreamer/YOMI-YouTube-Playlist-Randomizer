@@ -1,0 +1,1 @@
+Unpublished 9040 candidate from live 9039, visualizer manual/auto stable square geometry, grayscale mask and instant palette including Rainbow gradient, 50% default startup volume. No public release yet.
