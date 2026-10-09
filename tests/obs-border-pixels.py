@@ -23,14 +23,14 @@ def overlay_html():
     return html.replace('tick();\n})();',
                         'window.__yomiPixelTestApply=apply;\nwindow.__yomiPixelTestAspect=(ratio)=>{videoAspect=ratio;};\nwindow.__yomiPixelTestRenderViz=renderVizFrame;\ntick();\n})();')
 
-async def check(page, border, corner, layout, with_video=True, video_aspect=16/9):
+async def check(page, border, corner, layout, with_video=True, video_aspect=16/9, with_art=True):
     config = {
         "app_mode": "Streamer / OBS", "overlay_width": 2560,
         "overlay_height": 135, "canvas_width": 2560, "canvas_height": 144,
         "media_width": 256, "media_height": 144, "media_border_enabled": True,
         "media_border_color": "#252525", "media_border_px": border,
         "media_corner_style": corner, "media_aspect_layout": layout,
-        "artwork_enabled": True, "video_enabled": with_video,
+        "artwork_enabled": with_art, "video_enabled": with_video,
         "title_enabled": True, "channel_enabled": True,
         "visualizer_enabled": True, "visualizer_match_text_overhang": True,
         "overlay_text_gap_px": 8
@@ -86,7 +86,8 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
                 xx=round(frame["x"]+frame["w"])-1 if frame is a else round(frame["x"])
                 assert image.getpixel((xx,round(frame["y"])))[3]==0, (frame,(xx,round(frame["y"])))
                 assert image.getpixel((xx,round(frame["y"]+frame["h"])-1))[3]==0, (frame,(xx,round(frame["y"]+frame["h"])-1))
-    for name in (["art","vid"] if with_video else ["art"]):
+    visible = (["art"] if with_art else []) + (["vid"] if with_video else [])
+    for name in visible:
         assert boxes[name]["h"] <= 135.1, ("Rounded border clipped by browser height",name,boxes[name])
     for radii in boxes['radii'][:2 if with_video else 1]:
         values=[float(v.removesuffix('px')) for v in radii]
@@ -102,20 +103,23 @@ async def check(page, border, corner, layout, with_video=True, video_aspect=16/9
         else:
             assert abs(boxes['vidModule']['w']-boxes['vid']['w']) < 1, boxes
     if corner != "Square":
-        for name in (["art","vid"] if with_video else ["art"]):
+        for name in visible:
             a=boxes[name]
             for x in (round(a["x"]),round(a["x"]+a["w"])-1):
                 for y in (round(a["y"]),round(a["y"]+a["h"])-1):
                     assert image.getpixel((x,y))[3]==0, (border,corner,layout,name,(x,y),image.getpixel((x,y)))
     if with_video:
         assert boxes["viz"]["w"]>=boxes["text"]["w"]-2, boxes
-    last_frame=boxes["vid"] if with_video else boxes["art"]
     visualizer_left=boxes["viz"]["x"]
-    last_visible_pixel=last_frame["x"]+last_frame["w"]
+    if visible:
+        last_frame=boxes[visible[-1]]
+        last_visible_pixel=last_frame["x"]+last_frame["w"]
+    else:
+        last_visible_pixel=boxes["text"]["x"]
     assert abs(visualizer_left-last_visible_pixel)<1, ("visualizer behind media",boxes)
     # In the normal 16:9 reflow case, text starts exactly the configured
     # moduleGap after the visualizer's first pixel, not 100s of pixels away.
-    if layout=="Reflow" and abs(video_aspect-16/9)<0.025:
+    if layout=="Reflow" and abs(video_aspect-16/9)<0.025 and visible:
         assert abs((boxes["text"]["x"]-visualizer_left)-8)<1.1, boxes
     print(f"PASS {border}px {corner} {layout} video={with_video}, video_ratio={video_aspect:.3f}, text={boxes['text']['w']:.0f}px viz={boxes['viz']['w']:.0f}px")
 
@@ -133,7 +137,9 @@ async def main():
                          (4,"Soft","Reflow",True),(8,"Soft","Reflow",True),
                          (2,"Rounded","Reflow",True),(2,"Soft","Fixed",True),
                          (2,"Soft","Reflow",False),(2,"Square","Reflow",True),
-                         (2,"Soft","Reflow",True,4/3),(2,"Rounded","Fixed",True,4/3)]:
+                         (2,"Soft","Reflow",True,4/3),(2,"Rounded","Fixed",True,4/3),
+                         (2,"Soft","Reflow",True,16/9,False),
+                         (2,"Soft","Reflow",False,16/9,False)]:
                 await check(page,*args)
             assert not errors,errors
         finally:
