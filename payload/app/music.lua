@@ -2913,6 +2913,15 @@ local function commit_pending_transport(serial)
         desired_index=following
         n=following
     end
+    -- Just like direct Jump/filtered Listen: retire the old mpv audio when
+    -- Next/Previous selects an uncached track. Otherwise its advancing clock
+    -- can falsely convince the controller that the NEW track is playing.
+    if playing_index>0 and playing_index~=n and not audio_ready(n) then
+        pcall(function() mp.commandv("stop") end)
+        playing_index=0
+        loaded_waiting_for_restart=0
+        log("TRANSPORT STOP outgoing audio; uncached target "..n.." is preparing")
+    end
     play_index(n)
 end
 
