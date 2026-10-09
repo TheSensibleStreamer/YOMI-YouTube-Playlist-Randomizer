@@ -26,3 +26,5 @@ Validate 9034 prewarmed startup clock progressing to PLAYING after 180ms, no sta
 Validate Windows WPF controller compilation with actual raw-mpv-clock confirmation for late STARTING and ready-status previous tracks.
 
 Run compiled Windows controller tests: first sampled playback, Pause/Resume, switching occurrences, engine stopping, and ready prior rows.
+
+Rerun both Windows compile and passing WPF clock behavioral tests after correcting the CI exit-code check.
