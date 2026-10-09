@@ -11,3 +11,5 @@ Assemble 9032 native Windows candidate with a physical non-overdrawn rounded bor
 Build YOMI 420.69.9033 with native 40x10 square visualizer samples, capped width, and a content-sized compact update window.
 
 Build sealed YOMI 420.69.9034 from released 9033. Fix prewarmed startup playing audio stuck at time zero and false Play icon via verified advancing transport clock.
+
+Build and verify YOMI 420.69.9035 with honest moving-clock playback mode and READY labels for cached previous tracks.
