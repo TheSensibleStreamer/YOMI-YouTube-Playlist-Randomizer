@@ -1,0 +1,76 @@
+name: Publish YOMI 9029 test update after package verification
+on:
+  push:
+    paths:
+      - "staging/publish-9029.trigger"
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify staged branch descends from live release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          if($LASTEXITCODE -ne 0){throw "Main has changed. Refusing non-fast-forward release."}
+      - name: Build and audit exact 9029 update package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python tools/build_release_candidate.py --version 420.69.9029 --output dist/9029
+          if($LASTEXITCODE -ne 0){throw "Candidate build failed."}
+          $manifest = Get-Content 'dist/9029/update.json' -Raw | ConvertFrom-Json
+          $package = Join-Path (Resolve-Path 'dist/9029').Path $manifest.package_name
+          $sha = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne $manifest.sha256){throw "Outer package SHA-256 mismatch."}
+          $extracted = Join-Path $env:RUNNER_TEMP 'YOMI-9029-publish-verify'
+          $data = Join-Path $env:RUNNER_TEMP 'YOMI-9029-verify-data'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $package -ExtractRoot $extracted -ExpectedVersion '420.69.9029' -ExpectedPackageHash $sha -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $data
+          if($LASTEXITCODE -ne 0){throw "Updater verification failed."}
+          $c = Get-Content (Join-Path $extracted 'payload/app/YOMI-CAPABILITY-CONTRACT.json') -Raw | ConvertFrom-Json
+          $v = (Get-Content (Join-Path $extracted 'payload/VERSION.txt') -Raw).Trim()
+          if($c.version -ne $v -or $v -ne $manifest.version){throw "Release identity mismatch."}
+          Write-Host "PASS: actual updater verified candidate and version."
+      - name: Publish 9029 to main for one-click in-app updates
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'dist/9029/YOMI-v420.69.9029.zip'
+          $tmp = Join-Path $env:RUNNER_TEMP 'YOMI-9029-live-content'
+          Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+          if(-not (Test-Path (Join-Path $tmp 'payload/app/music.lua'))){throw "Missing release payload."}
+          Copy-Item -LiteralPath (Join-Path $tmp 'INSTALL YOMI.cmd') -Destination 'INSTALL YOMI.cmd' -Force
+          Copy-Item -Path (Join-Path $tmp 'installer/*') -Destination 'installer' -Recurse -Force
+          Copy-Item -Path (Join-Path $tmp 'payload/*') -Destination 'payload' -Recurse -Force
+          Copy-Item -LiteralPath $zip -Destination 'YOMI-v420.69.9029.zip' -Force
+          Copy-Item -LiteralPath $zip -Destination 'YOMI-Windows.zip' -Force
+          Copy-Item -LiteralPath 'dist/9029/update.json' -Destination 'update.json' -Force
+          if(Test-Path 'YOMI-v420.69.9028.zip'){Remove-Item 'YOMI-v420.69.9028.zip' -Force}
+          $readme = [IO.File]::ReadAllText((Resolve-Path 'README.md').Path)
+          if(-not $readme.Contains('Version: 420.69.9028')){throw "README version unexpected."}
+          [IO.File]::WriteAllText((Resolve-Path 'README.md').Path,$readme.Replace('Version: 420.69.9028','Version: 420.69.9029'),(New-Object System.Text.UTF8Encoding($false)))
+          $meta = Get-Content 'update.json' -Raw | ConvertFrom-Json
+          if($meta.version -ne '420.69.9029'){throw "Refusing to release bad update metadata."}
+          $hash = (Get-FileHash 'YOMI-v420.69.9029.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($meta.sha256 -ne $hash){throw "Refusing to release mismatched update ZIP."}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A INSTALL* README.md installer payload update.json YOMI-Windows.zip YOMI-v420.69.9028.zip YOMI-v420.69.9029.zip
+          git diff --cached --quiet
+          if($LASTEXITCODE -eq 0){throw "No release changes staged."}
+          git commit -m "Release YOMI 420.69.9029 staged OBS border and music recovery update"
+          if($LASTEXITCODE -ne 0){throw "Release commit failed."}
+          git push origin HEAD:main
+          if($LASTEXITCODE -ne 0){throw "Release push rejected; live update is unchanged."}
+          Write-Host "YOMI 420.69.9029 published to main."
