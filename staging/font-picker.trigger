@@ -48,3 +48,7 @@ Recheck dynamic title/channel width equal-overhang Chromium browser tests using 
 Final Windows and Chromium revalidation: automatic visible-title/channel matching, symmetrical overhang, high-frequency peak pooling, manual 1-8 length, native square cells.
 
 9039 regression from 2026-10-09 diagnostic: NEXT skips source-bound exhausted-audio cooldowns but explicit Play retries; stop outgoing mpv clock for uncached target; preserve filtered and reverse navigation.
+
+Queue status truth audit: previous READY, no PLAYED status masking cache, distinct optional media counts across entire runtime horizon, existing WPF queue geometry unchanged. Run controller compile and Chromium.
+
+Validate WPF 9039 queue readiness semantics: previous cached audio READY, no PLAYED masking, optional media progress at any distance, legacy geometry unchanged, unknown snapshots remain unprofiled.

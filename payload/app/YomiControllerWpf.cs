@@ -7995,8 +7995,23 @@ namespace Yomi.Desktop
                 var fallback = new RuntimeQueueItem { Audio="READY", Artwork="READY", Video="READY", Visualizer="READY", TransitionReady=true, PresentationComplete=true, VideoFallback=true, VideoActualHeight=360 };
                 string fallbackNote = QueueConfidenceNote("READY", "FULL READY", fallback, 2);
                 if (fallbackNote.IndexOf("360p", StringComparison.OrdinalIgnoreCase) < 0) return SelfTestFail("SelfTestQueueConfidence assertion 5: actual='" + fallbackNote + "'");
-                string playedNote = QueueConfidenceNote("PLAYED", "", late, -1);
-                if (!String.IsNullOrWhiteSpace(playedNote)) return SelfTestFail("SelfTestQueueConfidence assertion 6: expected empty note; actual='" + playedNote + "'");
+                // The earlier occurrence remains READY if its audio is cached:
+                // its past position never overrides the authoritative audio state.
+                if (QueueAudioStatus(audioReady) != "READY" || QueueAudioStatus(full) != "READY")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 6: optional presentation demoted ready audio");
+                if (QueueOptionalMediaSummary(full) != "3/3 ready" || QueueOptionalMediaSummary(audioReady) != "0/1 ready")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 7: media counts failed for prepared / pending visuals");
+                if (QueueOptionalMediaSummary(new RuntimeQueueItem { Audio="READY", Artwork="NOT_REQUIRED", Video="NOT_REQUIRED", Visualizer="NOT_REQUIRED" }) != "Off")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 8: unrequested visuals should say Off");
+                if (QueueOptionalMediaSummary(null) != "—")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 9: unknown media is not known to be unready");
+                if (QueueAudioStatus(new RuntimeQueueItem { Audio="UNAVAILABLE" }) != "RETRY")
+                    return SelfTestFail("SelfTestQueueConfidence assertion 10: temporary extraction failure became permanent unavailability");
+                if (!QueueHasOptionalMediaIssue(audioReady) || QueueHasOptionalMediaIssue(full))
+                    return SelfTestFail("SelfTestQueueConfidence assertion 11: Issues filter must preserve optional presentation issues");
+                string priorNote = QueueConfidenceNote("READY", "", late, -1);
+                if (!String.IsNullOrWhiteSpace(priorNote))
+                    return SelfTestFail("SelfTestQueueConfidence assertion 12: previous song should have no predictive slack note");
                 return true;
             }
             catch (Exception ex) { return SelfTestFail("SelfTestQueueConfidence assertion 7 exception: " + ex.GetType().Name + ": " + ex.Message); }
@@ -10186,17 +10201,22 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             switch (_queueScope)
             {
                 case QueueScope.Upcoming:
-                    return row.Status != "PLAYED";
+                    // History is a position, not an audio/cache status. An earlier
+                    // occurrence may be immediately ready to replay.
+                    return _currentSlot <= 0 || row.Slot >= _currentSlot;
                 case QueueScope.Ready:
                     return row.Status == "READY" || row.Status == "AUDIO READY" || row.Status == "POLICY READY" || row.Status == "ISOLATED READY" || row.Status == "PLAYING" || row.Status == "PAUSED";
                 case QueueScope.Issues:
-                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "FAILED" || row.Status == "AUDIO READY" || row.Status == "POLICY READY" || row.Status == "ISOLATED READY";
+                    RuntimeQueueItem issueRuntime;
+                    _runtimeQueue.TryGetValue(row.OccurrenceId, out issueRuntime);
+                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "RETRY" || row.Status == "FAILED" ||
+                           QueueHasOptionalMediaIssue(issueRuntime);
                 case QueueScope.History:
-                    return row.Status == "PLAYED";
+                    return _currentSlot > 0 && row.Slot < _currentSlot;
                 case QueueScope.NextTen:
                     return row.Slot > _currentSlot && row.Slot <= _currentSlot + 10;
                 case QueueScope.Unready:
-                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "QUEUED" || row.Status == "FAILED";
+                    return row.Status == "BUILDING" || row.Status == "WAITING" || row.Status == "QUEUED" || row.Status == "RETRY" || row.Status == "FAILED";
                 case QueueScope.Favorites:
                     return row.IsFavorite;
                 case QueueScope.Unheard:
@@ -17800,15 +17820,18 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     row.QuickPrimaryLabel = "PLAY";
                     row.QuickSecondaryLabel = "AGAIN";
                     row.QuickPrimaryTip = "Play this occurrence now";
-                    row.QuickSecondaryTip = "Queue this played occurrence directly after the current track";
-                    // Playback history is not cache readiness. Previous items
-                    // remain playable and their cached audio is mandatory.
-                    // Show READY (or AUDIO READY) when runtime confirms cache.
-                    if (runtime != null && runtime.TransitionReady)
+                    row.QuickSecondaryTip = "Queue this earlier occurrence directly after the current track";
+                    // Relative position is already visible in the # / Position
+                    // columns. Never substitute PLAYED for the audio/cache truth:
+                    // an earlier occurrence can be READY, PREPARING or WAITING.
+                    if (runtime != null)
                         ApplyRuntimeQueueStatus(row, runtime);
                     else
                     {
-                        row.Status = "PLAYED";
+                        // No nearby mpv snapshot is UNKNOWN cache state, not
+                        // proof of missing audio. Match the unprofiled upcoming
+                        // case instead of pretending the old song is unready.
+                        row.Status = "QUEUED";
                         row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextMuted"));
                     }
                     row.PositionBrush = Brush("TextMuted");
@@ -17909,24 +17932,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             row.VideoStageBrush = QueueStageBrush(runtime != null ? runtime.Video : "", false);
             row.VisualizerStageBrush = QueueStageBrush(runtime != null ? runtime.Visualizer : "", false);
 
-            if (delta < 0)
-            {
-                Brush historyBrush = new SolidColorBrush(Color.FromRgb(35, 43, 48));
-                row.AudioStageBrush = historyBrush;
-                row.ArtworkStageBrush = historyBrush;
-                row.VideoStageBrush = historyBrush;
-                row.VisualizerStageBrush = historyBrush;
-                row.ReadinessSummary = "PLAYBACK HISTORY";
-                row.MediaSummary = "";
-                row.SafetyLabel = "";
-                row.SafetyBrush = Brush("TextMuted");
-                return;
-            }
-
             if (runtime == null)
             {
-                row.ReadinessSummary = "Audio: waiting · Thumbnail: waiting · Video: waiting · Visuals: waiting";
-                row.MediaSummary = delta >= 0 && delta <= 3 ? "Checking" : "";
+                // No snapshot is not the same thing as an uncached or missing file.
+                row.ReadinessSummary = "No recent media-cache snapshot for this row";
+                row.MediaSummary = "—";
                 row.SafetyLabel = "NOT PROFILED";
                 row.SafetyBrush = Brush("TextMuted");
                 return;
@@ -17945,11 +17955,9 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             if (!String.IsNullOrWhiteSpace(runtime.Visualizer) && !String.Equals(runtime.Visualizer, "NOT_REQUIRED", StringComparison.OrdinalIgnoreCase))
                 stages.Add("Visuals: " + StageDisplay(runtime.Visualizer).ToLowerInvariant());
             row.ReadinessSummary = String.Join(" · ", stages.ToArray());
-            if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase)) row.MediaSummary = "Audio failed";
-            else if (delta == 0 && runtime.PresentationComplete) row.MediaSummary = "Ready";
-            else if (delta >= 0 && delta <= 3 && runtime.TransitionReady) row.MediaSummary = "Audio ready";
-            else if (delta >= 0 && delta <= 3 && !runtime.PresentationComplete) row.MediaSummary = "Preparing";
-            else row.MediaSummary = "";
+            // State owns audio playback readiness. Media reports *only* the
+            // requested art/video/visualizer assets, at any queue distance.
+            row.MediaSummary = QueueOptionalMediaSummary(runtime);
 
             if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase))
             {
@@ -18208,35 +18216,75 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             _queueHorizonText.ToolTip = "Confidence " + confidence.ToLowerInvariant() + ": " + String.Join("; ", why.ToArray()) + ".";
         }
 
+        // Exactly one source of truth for the State column: audible playback
+        // readiness. Optional artwork, video and visualizer cannot demote READY.
+        private static string QueueAudioStatus(RuntimeQueueItem runtime)
+        {
+            if (runtime == null) return "WAITING";
+            string audio = (runtime.Audio ?? "").Trim().ToUpperInvariant();
+            if (audio == "READY" || runtime.TransitionReady) return "READY";
+            if (audio == "FAILED_PERMANENT") return "FAILED";
+            // A 9039 audio-extraction cooldown is retryable; it is NOT a
+            // permanent verdict about the availability of the YouTube video.
+            if (audio == "UNAVAILABLE") return "RETRY";
+            if (audio == "ACTIVE" || audio == "QUEUED") return "BUILDING";
+            return "WAITING";
+        }
+
+        // Issues must continue showing delayed/failed optional presentation
+        // even when the AUDIO state correctly says READY. Read the same three
+        // authoritative fields as Media; never infer from row history or text.
+        private static bool QueueHasOptionalMediaIssue(RuntimeQueueItem runtime)
+        {
+            if (runtime == null) return false;
+            foreach (string raw in new[] { runtime.Artwork, runtime.Video, runtime.Visualizer })
+            {
+                string stage = (raw ?? "").Trim().ToUpperInvariant();
+                if (stage.Length != 0 && stage != "NOT_REQUIRED" && stage != "READY")
+                    return true;
+            }
+            return false;
+        }
+
+        // Media never duplicates the audio status or invents a state for an
+        // unobserved row. Counts include only requested optional presentation
+        // assets, so 2/3 ready means precisely two of art/video/visualizer.
+        private static string QueueOptionalMediaSummary(RuntimeQueueItem runtime)
+        {
+            if (runtime == null) return "—";
+            int required = 0, ready = 0;
+            foreach (string raw in new[] { runtime.Artwork, runtime.Video, runtime.Visualizer })
+            {
+                string stage = (raw ?? "").Trim().ToUpperInvariant();
+                if (stage.Length == 0 || stage == "NOT_REQUIRED") continue;
+                required++;
+                if (stage == "READY") ready++;
+            }
+            return required == 0 ? "Off" : ready.ToString(CultureInfo.InvariantCulture) +
+                "/" + required.ToString(CultureInfo.InvariantCulture) + " ready";
+        }
+
         private void ApplyRuntimeQueueStatus(QueueRow row, RuntimeQueueItem runtime)
         {
-            if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase))
+            string status = QueueAudioStatus(runtime);
+            row.Status = status;
+            switch (status)
             {
-                row.Status = "FAILED";
-                row.SetStatus(Brush("DangerSoft"), Brush("Danger"), Brush("Danger"));
-            }
-            else if (runtime.PresentationComplete)
-            {
-                bool faultIsolated = IsFaultIsolated(runtime.Artwork) || IsFaultIsolated(runtime.Video) || IsFaultIsolated(runtime.Visualizer);
-                bool admissionDeferred = IsAdmissionDeferred(runtime.AdmissionArtwork) || IsAdmissionDeferred(runtime.AdmissionVideo) || IsAdmissionDeferred(runtime.AdmissionVisualizer);
-                row.Status = faultIsolated ? "ISOLATED READY" : (admissionDeferred ? "POLICY READY" : "READY");
-                bool degraded = faultIsolated || admissionDeferred;
-                row.SetStatus(degraded ? Brush("InfoSoft") : Brush("AccentSoft"), degraded ? Brush("Info") : Brush("AccentBorder"), degraded ? Brush("Info") : Brush("Accent"));
-            }
-            else if (runtime.TransitionReady)
-            {
-                row.Status = "AUDIO READY";
-                row.SetStatus(Brush("InfoSoft"), Brush("Info"), Brush("Info"));
-            }
-            else if (runtime.HasActiveWork)
-            {
-                row.Status = "BUILDING";
-                row.SetStatus(Brush("WarningSoft"), Brush("Warning"), Brush("Warning"));
-            }
-            else
-            {
-                row.Status = "WAITING";
-                row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextSecondary"));
+                case "READY":
+                    row.SetStatus(Brush("AccentSoft"), Brush("AccentBorder"), Brush("Accent"));
+                    break;
+                case "FAILED":
+                    row.SetStatus(Brush("DangerSoft"), Brush("Danger"), Brush("Danger"));
+                    break;
+                case "RETRY":
+                    row.SetStatus(Brush("WarningSoft"), Brush("Warning"), Brush("Warning"));
+                    break;
+                case "BUILDING":
+                    row.SetStatus(Brush("WarningSoft"), Brush("Warning"), Brush("Warning"));
+                    break;
+                default:
+                    row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextSecondary"));
+                    break;
             }
         }
 
@@ -25630,7 +25678,8 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             {
                 case "PLAYING": explanation = "This occurrence is playing now."; break;
                 case "PAUSED": explanation = "This occurrence is current and playback is paused."; break;
-                case "READY": explanation = "Audio and the requested presentation media are ready."; break;
+                case "READY": explanation = "This track's audio is cached and ready to play. The Media column independently reports optional visual assets."; break;
+                case "RETRY": explanation = "Automatic extraction attempts were exhausted recently. This track remains in the queue and can be explicitly retried."; break;
                 case "AUDIO READY": explanation = "Audio can play on time. Optional presentation media is still catching up."; break;
                 case "POLICY READY": explanation = "Playback is ready. Optional presentation work was deliberately deferred to protect the configured resource budget."; break;
                 case "ISOLATED READY": explanation = "Playback is ready. An optional presentation component was isolated after a fault so it cannot disrupt healthy audio."; break;
@@ -29501,6 +29550,7 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 case "ISOLATED READY": return "Ready · contained";
                 case "BUILDING": return "PREPARING";
                 case "FAILED": return "AUDIO FAILED";
+                case "RETRY": return "RETRY";
                 default: return value ?? "";
             }
         }

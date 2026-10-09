@@ -65,7 +65,7 @@ jobs:
             if($obs.Contains($forbidden)){throw ('Obsolete OBS geometry/scaling path still present: '+$forbidden)}
           }
 
-          # Regression: the earlier-history row is not permanently PLAYED
+          # Regression: a previous row reflects actual cached audio readiness, not history
           # when mpv runtime says its audio is immediately transition-ready.
           # Also prove a STARTING engine status cannot hide a demonstrably
           # moving raw playback clock behind Play / 0:00 indefinitely.
@@ -78,7 +78,9 @@ jobs:
             'if (phase == "starting" && clockIsAdvancing',
             'phase = "playing";',
             'MPV CLOCK PLAY CONFIRM occurrence=',
-            'if (runtime != null && runtime.TransitionReady)',
+            'if (runtime != null)',
+            'row.MediaSummary = QueueOptionalMediaSummary(runtime);',
+            'private static string QueueAudioStatus(RuntimeQueueItem runtime)',
             'ApplyRuntimeQueueStatus(row, runtime);'
           )){
             if(-not $controllerEvidence.Contains($necessary)){throw ('Controller playback/previous-ready contract missing: '+$necessary)}

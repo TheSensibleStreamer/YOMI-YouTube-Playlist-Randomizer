@@ -872,7 +872,7 @@
                             <TextBlock Grid.Column="3" Text="Channel" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="7,0,0,0"/>
                             <TextBlock Grid.Column="4" Text="Time" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,7,0"/>
                             <TextBlock Grid.Column="5" Text="State" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="7,0,0,0"/>
-                            <TextBlock Grid.Column="6" Text="Media" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="7,0,0,0" ToolTip="Audio / artwork / video / visualizer readiness"/>
+                            <TextBlock Grid.Column="6" Text="Media" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="7,0,0,0" ToolTip="Requested optional media: artwork, video and visualizer. 2/3 ready means two of three are ready; audio playback readiness is shown under State."/>
                             <TextBlock Grid.Column="7" Text="Plays" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13.5" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,7,0"/>
                             
                         </Grid>
