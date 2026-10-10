@@ -56,7 +56,7 @@
   "visualizer_internal_width": 40,
   "visualizer_internal_height": 10,
   "visualizer_opacity": 0.3,
-  "visualizer_activity": "Active",
+  "visualizer_activity": "Automatic",
   "visualizer_length_multiplier": 4,
   "visualizer_color_mode": "Solid",
   "visualizer_solid_color": "#8A8A84",
