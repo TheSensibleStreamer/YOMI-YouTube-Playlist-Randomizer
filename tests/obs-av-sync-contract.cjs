@@ -88,7 +88,7 @@ assert(js.includes('document.fonts.ready.then(queueVizTextGeometryRefresh)'),
   'Async font loading must refresh dynamic spectrum without waiting for a new track');
 assert(js.includes('new ResizeObserver(queueVizTextGeometryRefresh)'),
   'Actual media/text resize must refresh dynamic spectrum without per-frame polling');
-const fitTextGrid=context.fitVizTextGrid;
+
 for(const [w,h,cols,rows,ew,eh,n] of [
  [720,90,192,8,715,88,65],
  [300,90,192,8,297,88,27],
