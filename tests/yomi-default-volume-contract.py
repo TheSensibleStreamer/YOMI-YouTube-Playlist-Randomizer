@@ -46,7 +46,12 @@ assert 'SendMpv("set_property", "volume", "100");' not in controller
 # 100 is a normal mpv percentage; keep separate audio gain policy unchanged.
 assert 'mp.set_property_number("volume-gain",gain)' in music
 assert 'write_all(gain_path(i),"0")' in music
-assert 'if gain>0 then table.insert(chain,"volume="..tostring(gain).."dB") end' in music
+# YOMI 9042: visualizer loudness normalization replaces hard-coded gain,
+# strictly within the separately prepared visualizer audio path.
+analysis=music.split("function visualizer_audio_prefix()",1)[1].split("\nend",1)[0]
+assert "dynaudnorm=f=700:g=15:p=" in analysis
+assert "volume=" not in analysis, "Visualizer analysis must not introduce fixed gain clipping"
+assert "mp.set_property_number" not in analysis and "mp.set_property_native" not in analysis
 
 print("PASS: first launch and factory reset start at 50%")
 print("PASS: saved 0/27/50/100% and saved mute remain untouched")
