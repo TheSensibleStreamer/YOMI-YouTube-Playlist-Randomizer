@@ -112,8 +112,9 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
 
     # Reproduce the operator's permanently lit bottom rows from production
     # showfreqs, rather than passing a synthetic image through a test-only path.
-    # Silence must generate zero visualizer occupancy; a normal nonzero signal
-    # must be lively without a full-width compulsory lower band.
+    # Silence must generate zero visualizer occupancy; a narrow-band tone must
+    # not fabricate a full-width bottom row. Broadband noise is intentionally
+    # NOT used here: it genuinely contains energy across the entire spectrum.
     expr = call_filter(60, shape="Spectrum", activity="Active")
     assert "showfreqs=s=192x16" in expr, "Analyze double the visible vertical resolution"
     assert "crop=192:14:0:0,scale=192:8:flags=area" in expr, "Preserve sub-pixel spectral peaks without lit silence floor"
@@ -121,7 +122,7 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     assert "ascale=log" in expr, "Normal and Active must reveal spectral detail beyond the bottom cells"
     for source, definition in (
         ("silence", "anullsrc=channel_layout=stereo:sample_rate=48000"),
-        ("music", "anoisesrc=color=pink:sample_rate=48000:amplitude=0.25"),
+        ("music", "sine=frequency=440:sample_rate=48000:duration=1"),
     ):
         target = tmp / (source + "-occupancy.rgb")
         run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
