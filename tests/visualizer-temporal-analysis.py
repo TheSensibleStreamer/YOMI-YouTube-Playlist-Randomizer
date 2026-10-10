@@ -45,6 +45,7 @@ assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse 
 assert lua.globals().visualizer_color() == "0xFFFFFF", "Every cached clip must use a neutral color"
 assert "255,0" in lua.globals().visualizer_binary_filter(), "Cached FFmpeg frames must contain neutral white occupancy"
 profile_before = str(lua.globals().visualizer_profile())
+assert profile_before.startswith("r61106541-floor-corrected-dynamic-bars|"), "Old pre-rendered clips must not bypass the repaired spectrum"
 lua.globals().cfg.visualizer_color_mode = "Gradient"
 lua.globals().cfg.visualizer_gradient_preset = "Rainbow"
 lua.globals().cfg.visualizer_solid_color = "#AABBCC"
