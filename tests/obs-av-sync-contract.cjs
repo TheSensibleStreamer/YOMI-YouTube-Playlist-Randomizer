@@ -191,4 +191,10 @@ assert.equal(context.viz.style.left,'320px','dynamic spectrum stays flush with l
 assert.equal(context.vizAutoMatchText,true,'dynamic length is available after metadata finishes');
 const vizRight=320+parseFloat(context.viz.style.width);
 assert(Math.abs(vizRight-803)<=11,'dynamic size includes symmetrical 16px media-to-glyph overhang');
+context.vizLengthMultiplier=8;
+context.layoutViz(true,true,'Behind text',false,1,false,true,true,false);
+const manualRight=320+parseFloat(context.viz.style.width);
+assert(manualRight>1350 && manualRight<=1392,
+  'manual 8.0 should span nearly the full usable OBS overlay with square frequency pixels');
+
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
