@@ -1,0 +1,99 @@
+name: Validate unpublished YOMI 9041 Windows candidate
+on:
+  push:
+    paths:
+      - "staging/release-candidate-9041.trigger"
+permissions:
+  contents: read
+
+jobs:
+  windows-candidate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Validate the actual Queue and OBS source contracts
+        shell: pwsh
+        run: |
+          python tests/queue-readiness-contract.py
+          if($LASTEXITCODE -ne 0){throw "Queue display contract failed"}
+          python tests/queue-search-or-contract.py
+          if($LASTEXITCODE -ne 0){throw "Queue comma-OR behavior failed"}
+          node tests/obs-av-sync-contract.cjs
+          if($LASTEXITCODE -ne 0){throw "OBS visualizer startup, square pixels, or A/V sync failed"}
+      - name: Compile real .NET Framework WPF controller and OBS server
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          [xml](Get-Content 'payload/app/YomiControllerWpf.xaml' -Raw) | Out-Null
+          [xml](Get-Content 'payload/app/YomiDesign.xaml' -Raw) | Out-Null
+          foreach($s in @('installer/install.ps1','payload/app/update-deployment.ps1','payload/app/YomiPublicUpdateHost.ps1')){
+            $tok=$null;$errs=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $s),[ref]$tok,[ref]$errs)
+            if($errs.Count){throw ($s+': '+$errs[0].Message)}
+          }
+          function Find-FrameworkRef([string]$Name) {
+            $dirs=@()
+            $runtime=[Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+            if($runtime){$dirs+=$runtime;$dirs+=(Join-Path $runtime 'WPF')}
+            foreach($root in @((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319'))){
+              $dirs+=$root;$dirs+=(Join-Path $root 'WPF')
+            }
+            $pf86=[Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+            if($pf86){
+              $refRoot=Join-Path $pf86 'Reference Assemblies\Microsoft\Framework\.NETFramework'
+              if(Test-Path $refRoot){
+                foreach($v in @(Get-ChildItem $refRoot -Directory | Where-Object {$_.Name -like 'v4*'} | Sort-Object Name -Descending)){
+                  $dirs+=$v.FullName;$dirs+=(Join-Path $v.FullName 'Facades')
+                }
+              }
+            }
+            foreach($dir in @($dirs | Where-Object {$_} | Select-Object -Unique)){
+              $candidate=Join-Path $dir ($Name+'.dll')
+              if(Test-Path $candidate){return $candidate}
+            }
+            throw ('Required .NET Framework assembly unavailable: '+$Name)
+          }
+          $csc=@((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'))|Where-Object {Test-Path $_}|Select-Object -First 1
+          if(-not $csc){throw 'No Windows .NET Framework compiler'}
+          $app=(Resolve-Path 'payload/app').Path
+          $exe=Join-Path $env:RUNNER_TEMP 'YomiControllerWpf.exe'
+          $refs=@('PresentationFramework','PresentationCore','WindowsBase','System.Xaml','WindowsFormsIntegration','System.Windows.Forms','System.Drawing','System.Web.Extensions','System.Xml','System','System.Core')
+          $args=@('/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',('/win32manifest:"'+(Join-Path $app 'YomiControllerWpf.manifest')+'"'),('/out:"'+$exe+'"'))
+          foreach($name in $refs){$args+=('/reference:"'+(Find-FrameworkRef $name)+'"')}
+          $args+=('"'+(Join-Path $app 'YomiControllerWpf.cs')+'"')
+          $compile=& $csc @args 2>&1
+          if($LASTEXITCODE -ne 0){throw ('Controller compile failed: '+($compile -join [Environment]::NewLine))}
+          if(-not(Test-Path $exe)){throw 'Missing compiled WPF controller'}
+          $obsOut=Join-Path $env:RUNNER_TEMP 'YomiObsServer.exe'
+          $obsArgs=@('/nologo','/noconfig','/codepage:65001','/target:exe','/platform:anycpu','/optimize+','/debug-',('/out:"'+$obsOut+'"'),('/reference:"'+(Find-FrameworkRef 'System')+'"'),('/reference:"'+(Find-FrameworkRef 'System.Core')+'"'),('"'+(Join-Path $app 'YomiObsServerHost.cs')+'"'))
+          $compile=& $csc @obsArgs 2>&1
+          if($LASTEXITCODE -ne 0){throw ('OBS C# compile failed: '+($compile -join [Environment]::NewLine))}
+          Write-Host 'PASS: WPF, XAML, updater parser and OBS host compile'
+      - name: Create hash-verified 9041 ZIP without changing the public updater
+        shell: pwsh
+        run: |
+          python tools/build_release_candidate_9041.py --version 420.69.9041 --output dist/9041
+          if($LASTEXITCODE -ne 0){throw "9041 candidate failed to build"}
+          $m=Get-Content 'dist/9041/update.json' -Raw|ConvertFrom-Json
+          if($m.version -ne '420.69.9041'){throw "Wrong candidate version"}
+          $zip=Join-Path (Resolve-Path 'dist/9041').Path $m.package_name
+          $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne $m.sha256){throw "Bad package hash"}
+          $dest=Join-Path $env:RUNNER_TEMP 'YOMI-9041-staged'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $dest -ExpectedVersion '420.69.9041' -ExpectedPackageHash $sha -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot (Join-Path $env:RUNNER_TEMP 'YOMI-9041-dryrun')
+          if($LASTEXITCODE -ne 0){throw "Actual updater rejected 9041"}
+          Write-Host 'PASS: 9041 ZIP, identity and updater dry-run verified; not published'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YOMI-420.69.9041-UNPUBLISHED-WINDOWS-CANDIDATE
+          path: |
+            dist/9041/YOMI-v420.69.9041.zip
+            dist/9041/update.json
+          if-no-files-found: error
+          retention-days: 7
