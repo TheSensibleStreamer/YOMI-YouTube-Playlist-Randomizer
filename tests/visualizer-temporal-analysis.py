@@ -34,12 +34,11 @@ function visualizer_frequency_parameters()
   if cfg.visualizer_activity=='Subtle' then return 4,2048,'sqrt','log' end
   return 1,1024,'sqrt','log'
 end
-function visualizer_audio_prefix() return 'highpass=f=30' end
 function visualizer_frequency_trim_filter() return '' end
 function visualizer_spacing_filter() return '' end
 """
 )
-for name in ("visualizer_render_dimensions", "visualizer_color", "visualizer_binary_filter", "visualizer_profile", "visualizer_temporal_rate", "viz_filter"):
+for name in ("visualizer_audio_prefix", "visualizer_spectrum_floor_filter", "visualizer_render_dimensions", "visualizer_color", "visualizer_binary_filter", "visualizer_profile", "visualizer_temporal_rate", "viz_filter"):
     lua.execute(lua_function(name))
 
 assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse source has eight vertical cells and eight selectable frequency units"
@@ -114,4 +113,33 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     assert "showwaves=" in scope and "tblend=" not in scope
     assert "aresample=48000" not in scope
 
-print("PASS: guarded standard mode, untouched oscilloscope, no output FPS increase")
+    # Reproduce the operator's permanently lit bottom rows from production
+    # showfreqs, rather than passing a synthetic image through a test-only path.
+    # Silence must generate zero visualizer occupancy; a normal nonzero signal
+    # must be lively without a full-width compulsory lower band.
+    expr = call_filter(60, shape="Spectrum", activity="Active")
+    assert "crop=192:6:0:0,pad=192:8:0:2:color=black" in expr
+    for source, definition in (
+        ("silence", "anullsrc=channel_layout=stereo:sample_rate=48000"),
+        ("music", "anoisesrc=color=pink:sample_rate=48000:amplitude=0.25"),
+    ):
+        target = tmp / (source + "-occupancy.rgb")
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+             "-f", "lavfi", "-i", definition, "-t", "1",
+             "-filter_complex", expr, "-map", "[v]", "-an",
+             "-pix_fmt", "rgb24", "-f", "rawvideo", str(target)])
+        rgb = target.read_bytes()
+        stride = 192 * 8 * 3
+        assert len(rgb) >= stride * 40 and len(rgb) % stride == 0
+        frames = len(rgb) // stride
+        occupied = sum(rgb[i] > 128 for i in range(0, len(rgb), 3))
+        low_row = sum(rgb[(f * 8 * 192 + 7 * 192 + x) * 3] > 128
+                      for f in range(frames) for x in range(192))
+        if source == "silence":
+            assert occupied == 0, ("Silent sound must never illuminate a raster baseline", occupied)
+        else:
+            assert occupied > 0, "Normal music-level input must move the spectrum"
+            assert 0 < low_row < frames * 192, "Permanent lower spectrum row returned"
+        print(f"PASS {source}: {occupied} lit frequency cells across {frames} FFmpeg frames")
+
+print("PASS: guarded standard mode, untouched oscilloscope, real silence floor and living spectrum")
