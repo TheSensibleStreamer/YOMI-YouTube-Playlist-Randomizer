@@ -1,0 +1,28 @@
+name: Prove 9044 OBS physical-square pixels with real Chrome screenshots
+on:
+  push:
+    paths:
+      - "staging/render-squares-9044.trigger"
+permissions:
+  contents: read
+jobs:
+  raster-screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Prepare independent screenshot validation
+        run: |
+          python -m pip install --quiet pillow
+          command -v google-chrome || command -v chromium || command -v chromium-browser
+      - name: Screenshot OBS pixel grid at 100, 125, 150, 200 percent DPI
+        run: python tests/obs-rendered-squares.py
+      - name: Retain screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: yomi-9044-physical-square-pixel-proof
+          path: dist/pixel-screenshots/*.png
+          if-no-files-found: ignore
