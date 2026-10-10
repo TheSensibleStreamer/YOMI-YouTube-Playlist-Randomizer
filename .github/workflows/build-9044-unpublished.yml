@@ -83,11 +83,11 @@ jobs:
           node tests/obs-av-sync-contract.cjs
           if($LASTEXITCODE -ne 0){throw "Dynamic width and font-reflow contract failed"}
           $music=Get-Content 'payload/app/music.lua' -Raw
-          foreach($required in @('dynaudnorm=f=700:g=15:p=','spectrum_height=shape=="Spectrum" and h*2 or h','flags=area','r61106544-automatic-musical-detail')){
+          foreach($required in @('dynaudnorm=f=700:g=15:p=','spectrum_height=shape=="Spectrum" and math.max(64,math.min(144,h*4)) or h','flags=area','r61106544-automatic-musical-detail')){
             if(-not $music.Contains($required)){throw ('9044 spectral contract missing: '+$required)}
           }
           if($music.Contains('if gain>0 then table.insert(chain,"volume="')){throw 'Old blunt visualizer gain returned'}
-          Write-Host 'PASS: Normal activity now self-adapts during optional offline preparation only'
+          Write-Host 'PASS: One Automatic response uses bounded 8x offline musical detail only'
       - name: Verify Automatic-only visualizer controls and untouched presentation geometry
         shell: pwsh
         run: |
