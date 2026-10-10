@@ -130,7 +130,9 @@ function Test-YomiControllerRunning {
 }
 function Queue-DetachedRelaunch {
     try{
-        if(Test-YomiControllerRunning){Write-RestartLog 'controller already running before relay';return $true}
+        # Always queue the detached post-verify check. A controller that is
+        # momentarily running can crash while this updater host is closing.
+        # The detached relay alone owns relaunch after install verification.
         $powershell=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $relayName='YOMI-restart-'+([Guid]::NewGuid().ToString('N'))+'.ps1'
         $relayPath=Join-Path $env:TEMP $relayName
@@ -168,9 +170,16 @@ for($i=0;$i -lt 200;$i++){
 }
 Start-Sleep -Milliseconds 500
 if(Controller-Running){
-    Log 'controller already running after updater host exit'
-    try{Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force}catch{}
-    exit 0
+    # A merely present process is not a successful restart. Give WPF rendering
+    # and startup a short stability window, then recover if it died.
+    Log 'controller found after updater exit; checking 3-second stability'
+    Start-Sleep -Milliseconds 3000
+    if(Controller-Running){
+        Log 'controller remained running after startup stability check'
+        try{Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force}catch{}
+        exit 0
+    }
+    Log 'controller disappeared during startup stability check; trying recovery'
 }
 $appDir=Join-Path $InstallRoot 'app'
 $controller=Join-Path $appDir 'YomiControllerWpf.exe'
