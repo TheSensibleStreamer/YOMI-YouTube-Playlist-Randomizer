@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9040",
+  "version": "420.69.9041",
   "seal": "DEV13.59",
-  "generated_utc": "2026-10-10T00:37:37.218392Z",
+  "generated_utc": "2026-10-10T03:02:50.593188Z",
   "file_count": 98,
   "files": [
     {
@@ -79,7 +79,7 @@
     {
       "path": "app/INSTALLATION-RECEIPT.json",
       "bytes": 4267,
-      "sha256": "617564ac7a0c25eed6b33317ef1bf58a0bfc57cb9c6fb8a3c8003f0a9b82a73d"
+      "sha256": "6179bd0344a86e42d1ab8daa5d6df11b3fe5809f56b6e29d925fd2d0e5bc4a7d"
     },
     {
       "path": "app/lineage-registry.json",
@@ -88,8 +88,8 @@
     },
     {
       "path": "app/music.lua",
-      "bytes": 183339,
-      "sha256": "bb24032ec83b13abed08c29a1d814636f005b6fb651d1ed2a84941645175e242"
+      "bytes": 184268,
+      "sha256": "e356030aa330217b982d66c0521f338fe0ca6fc225bac0a8b8b67280b9d0aba6"
     },
     {
       "path": "app/NO-GAPS-CONSOLIDATION-LEDGER.json",
@@ -239,7 +239,7 @@
     {
       "path": "app/YOMI-CAPABILITY-CONTRACT.json",
       "bytes": 15537,
-      "sha256": "6808ab2a188db3a53a3ed87441b8ccacf5b37694237e66a3eb13b519e9a02c5f"
+      "sha256": "83821ea00df7a07df77df962567f164e383f48a2add31d7c050584bac839ecf2"
     },
     {
       "path": "app/YomiCausalGraphLab.cs",
@@ -273,8 +273,8 @@
     },
     {
       "path": "app/YomiControllerWpf.cs",
-      "bytes": 1798607,
-      "sha256": "9a6b2bb35c685cfcbb604195bf9f6f5e2fae9868bb6c7df7a63c879f20df7efe"
+      "bytes": 1798468,
+      "sha256": "5d838e37d60321fa75d088cd53bd2d43dda24ca705e471ea1177ddf94d74fc28"
     },
     {
       "path": "app/YomiControllerWpf.exe.config",
@@ -288,8 +288,8 @@
     },
     {
       "path": "app/YomiControllerWpf.xaml",
-      "bytes": 226951,
-      "sha256": "34e788f9d75dad2747eeac5a2925052bb2c61ecc96a46ca2ac1885544f82db92"
+      "bytes": 226945,
+      "sha256": "32b67e626864339cd3abf07b712c675500c7f11847cb3c7ba9ed293af9a47bcc"
     },
     {
       "path": "app/YomiCounterfactualStrategyKernel.cs",
@@ -494,7 +494,7 @@
     {
       "path": "VERSION.txt",
       "bytes": 12,
-      "sha256": "2a54a9e6d129415f97ab812475234974455828331cae11163882bd773363ba62"
+      "sha256": "be751a16620758fb2a0a79d50d51fb33033c735f5193392fb8406f1599acb5f1"
     }
   ]
 }
