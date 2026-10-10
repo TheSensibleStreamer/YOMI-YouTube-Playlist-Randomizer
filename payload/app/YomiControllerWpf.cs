@@ -17830,14 +17830,14 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     row.QuickSecondaryLabel = "AGAIN";
                     row.QuickPrimaryTip = "Play this occurrence now";
                     row.QuickSecondaryTip = "Queue this played occurrence directly after the current track";
-                    // Playback history is not cache readiness. Previous items
-                    // remain playable and their cached audio is mandatory.
-                    // Show READY (or AUDIO READY) when runtime confirms cache.
-                    if (runtime != null && runtime.TransitionReady)
+                    // A previous occurrence is not a status. Respect live cache
+                    // evidence when available; never replace unknown readiness with
+                    // playback history or claim READY from an unchecked cache path.
+                    if (runtime != null)
                         ApplyRuntimeQueueStatus(row, runtime);
                     else
                     {
-                        row.Status = "PLAYED";
+                        row.Status = "";
                         row.SetStatus(Brush("SurfaceRaised"), Brush("Border"), Brush("TextMuted"));
                     }
                     row.PositionBrush = Brush("TextMuted");
@@ -17938,25 +17938,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             row.VideoStageBrush = QueueStageBrush(runtime != null ? runtime.Video : "", false);
             row.VisualizerStageBrush = QueueStageBrush(runtime != null ? runtime.Visualizer : "", false);
 
-            if (delta < 0)
-            {
-                Brush historyBrush = new SolidColorBrush(Color.FromRgb(35, 43, 48));
-                row.AudioStageBrush = historyBrush;
-                row.ArtworkStageBrush = historyBrush;
-                row.VideoStageBrush = historyBrush;
-                row.VisualizerStageBrush = historyBrush;
-                row.ReadinessSummary = "PLAYBACK HISTORY";
-                row.MediaSummary = "";
-                row.SafetyLabel = "";
-                row.SafetyBrush = Brush("TextMuted");
-                return;
-            }
-
             if (runtime == null)
             {
-                row.ReadinessSummary = "Audio: waiting · Thumbnail: waiting · Video: waiting · Visuals: waiting";
+                // An unprofiled previous item is not necessarily uncached.
+                row.ReadinessSummary = "";
                 row.MediaSummary = delta >= 0 && delta <= 3 ? "Checking" : "";
-                row.SafetyLabel = "NOT PROFILED";
+                row.SafetyLabel = "";
                 row.SafetyBrush = Brush("TextMuted");
                 return;
             }
@@ -17974,10 +17961,20 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             if (!String.IsNullOrWhiteSpace(runtime.Visualizer) && !String.Equals(runtime.Visualizer, "NOT_REQUIRED", StringComparison.OrdinalIgnoreCase))
                 stages.Add("Visuals: " + StageDisplay(runtime.Visualizer).ToLowerInvariant());
             row.ReadinessSummary = String.Join(" · ", stages.ToArray());
-            if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase)) row.MediaSummary = "Audio failed";
-            else if (delta == 0 && runtime.PresentationComplete) row.MediaSummary = "Ready";
-            else if (delta >= 0 && delta <= 3 && runtime.TransitionReady) row.MediaSummary = "Audio ready";
-            else if (delta >= 0 && delta <= 3 && !runtime.PresentationComplete) row.MediaSummary = "Preparing";
+            // State owns audio/playback readiness. Media tells the operator only
+            // which optional assets are still pending, without echoing READY.
+            if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase))
+                row.MediaSummary = "Audio failed";
+            else if (runtime.TransitionReady && !runtime.PresentationComplete)
+            {
+                var pending = new List<string>();
+                if (runtime.Artwork != "READY" && runtime.Artwork != "NOT_REQUIRED") pending.Add("artwork");
+                if (runtime.Video != "READY" && runtime.Video != "NOT_REQUIRED") pending.Add("video");
+                if (runtime.Visualizer != "READY" && runtime.Visualizer != "NOT_REQUIRED") pending.Add("visualizer");
+                row.MediaSummary = pending.Count > 0 ? "Preparing " + String.Join(", ", pending.ToArray()) : "";
+            }
+            else if (!runtime.TransitionReady && delta >= 0 && delta <= 3 && runtime.HasActiveWork)
+                row.MediaSummary = "Preparing";
             else row.MediaSummary = "";
 
             if (String.Equals(runtime.Audio, "FAILED_PERMANENT", StringComparison.OrdinalIgnoreCase))
@@ -18244,18 +18241,12 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 row.Status = "FAILED";
                 row.SetStatus(Brush("DangerSoft"), Brush("Danger"), Brush("Danger"));
             }
-            else if (runtime.PresentationComplete)
-            {
-                bool faultIsolated = IsFaultIsolated(runtime.Artwork) || IsFaultIsolated(runtime.Video) || IsFaultIsolated(runtime.Visualizer);
-                bool admissionDeferred = IsAdmissionDeferred(runtime.AdmissionArtwork) || IsAdmissionDeferred(runtime.AdmissionVideo) || IsAdmissionDeferred(runtime.AdmissionVisualizer);
-                row.Status = faultIsolated ? "ISOLATED READY" : (admissionDeferred ? "POLICY READY" : "READY");
-                bool degraded = faultIsolated || admissionDeferred;
-                row.SetStatus(degraded ? Brush("InfoSoft") : Brush("AccentSoft"), degraded ? Brush("Info") : Brush("AccentBorder"), degraded ? Brush("Info") : Brush("Accent"));
-            }
             else if (runtime.TransitionReady)
             {
-                row.Status = "AUDIO READY";
-                row.SetStatus(Brush("InfoSoft"), Brush("Info"), Brush("Info"));
+                // READY is strictly playable audio, independent of optional OBS
+                // visual assets. Extra detail belongs to Media and tooltips.
+                row.Status = "READY";
+                row.SetStatus(Brush("AccentSoft"), Brush("AccentBorder"), Brush("Accent"));
             }
             else if (runtime.HasActiveWork)
             {
