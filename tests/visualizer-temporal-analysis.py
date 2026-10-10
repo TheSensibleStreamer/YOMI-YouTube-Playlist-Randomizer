@@ -30,15 +30,11 @@ cfg={visualizer_temporal_detail='Enhanced',visualizer_shape='Spectrum',
      visualizer_color_mode='Solid',visualizer_activity='Active',
      visualizer_vertical_anchor='Source',visualizer_direction='Normal'}
 function visualizer_fps() return cfg.visualizer_fps=='30 FPS' and 30 or 60 end
-function visualizer_frequency_parameters()
-  if cfg.visualizer_activity=='Subtle' then return 4,2048,'sqrt','log' end
-  return 1,1024,'sqrt','log'
-end
 function visualizer_frequency_trim_filter() return '' end
 function visualizer_spacing_filter() return '' end
 """
 )
-for name in ("visualizer_audio_prefix", "visualizer_spectrum_floor_filter", "visualizer_render_dimensions", "visualizer_color", "visualizer_binary_filter", "visualizer_profile", "visualizer_temporal_rate", "viz_filter"):
+for name in ("visualizer_frequency_parameters", "visualizer_audio_prefix", "visualizer_spectrum_floor_filter", "visualizer_render_dimensions", "visualizer_color", "visualizer_binary_filter", "visualizer_profile", "visualizer_temporal_rate", "viz_filter"):
     lua.execute(lua_function(name))
 
 assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse source has eight vertical cells and eight selectable frequency units"
