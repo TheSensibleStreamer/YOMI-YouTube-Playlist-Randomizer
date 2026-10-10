@@ -1230,13 +1230,13 @@
                                         <CheckBox x:Name="SettingsVisualizerMatchText" Content="OBS: automatically match the longer title/channel" Style="{StaticResource SettingsCheck}" Margin="0,8,0,0"/>
                                         <TextBlock Text="OBS Browser Source only: match the longer visible text line with equal space past the words on each side. Pixels stay square. Turn off to use manual length. Controller visualizer is unchanged." Style="{StaticResource SettingsHelp}" Margin="24,4,0,0" TextWrapping="Wrap"/>
                                         <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                            <StackPanel><TextBlock Text="Activity" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerActivity" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
+                                            <StackPanel><TextBlock Text="Music response" Style="{StaticResource SettingsLabel}"/><TextBlock Text="Automatic. One musically balanced response for every song." Style="{StaticResource SettingsHelp}" Margin="0,6,0,0" TextWrapping="Wrap"/><ComboBox x:Name="SettingsVisualizerActivity" Visibility="Collapsed" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Opacity" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerOpacity" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                         </Grid>
                                         <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="Color mode" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerColorMode" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="Color" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerSolidColor" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
-                                            <StackPanel Grid.Column="4"><TextBlock Text="Frequency scale" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerFrequencyScale" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
+                                            <StackPanel Grid.Column="4" Visibility="Collapsed"><TextBlock Text="Frequency scale" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerFrequencyScale" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                         </Grid>
                                         <Grid Margin="0,12,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="Gradient preset" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerGradientPreset" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
@@ -1246,9 +1246,9 @@
                                         <ComboBox x:Name="SettingsVisualizerPixelSize" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
                                         <TextBlock Text="Extra Chunky and Chunky keep the controller/OBS spectrum deliberately blocky. Fine modes use more analysis pixels but still scale with nearest-neighbor edges." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                                         <TextBlock Text="Solid uses the chosen color. Gradient uses the preset and direction. Rainbow spans the spectrum. These same settings drive OBS and the controller backdrop." Style="{StaticResource SettingsHelp}" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                        <TextBlock Text="Fill quiet frequency ranges" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
-                                        <ComboBox x:Name="SettingsVisualizerFill" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
-                                        <Grid Margin="0,12,0,0">
+                                        <TextBlock Text="Fill quiet frequency ranges" Visibility="Collapsed" Style="{StaticResource SettingsLabel}" Margin="0,12,0,0"/>
+                                        <ComboBox x:Name="SettingsVisualizerFill" Visibility="Collapsed" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/>
+                                        <Grid Visibility="Collapsed" Margin="0,12,0,0">
                                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                                             <StackPanel><TextBlock Text="High-frequency trim %" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerTrim" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
                                             <StackPanel Grid.Column="2"><TextBlock Text="High-frequency visual lift dB" Style="{StaticResource SettingsLabel}"/><ComboBox x:Name="SettingsVisualizerLift" Style="{StaticResource SettingsCombo}" Margin="0,6,0,0"/></StackPanel>
