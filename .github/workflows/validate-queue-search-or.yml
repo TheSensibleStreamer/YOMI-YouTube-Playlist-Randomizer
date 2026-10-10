@@ -4,11 +4,13 @@ on:
     paths:
       - "payload/app/YomiControllerWpf.cs"
       - "tests/queue-search-or-contract.py"
+      - "tests/queue-readiness-contract.py"
       - ".github/workflows/validate-queue-search-or.yml"
   pull_request:
     paths:
       - "payload/app/YomiControllerWpf.cs"
       - "tests/queue-search-or-contract.py"
+      - "tests/queue-readiness-contract.py"
       - ".github/workflows/validate-queue-search-or.yml"
 permissions:
   contents: read
@@ -25,3 +27,5 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Compile and test YOMI's actual Queue search methods
         run: python tests/queue-search-or-contract.py
+      - name: Guard previous-song READY and State/Media semantic separation
+        run: python tests/queue-readiness-contract.py
