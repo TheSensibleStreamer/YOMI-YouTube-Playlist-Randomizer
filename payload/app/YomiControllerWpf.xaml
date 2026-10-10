@@ -184,7 +184,7 @@
                 </Border>
 
                 <!-- Now Playing -->
-                <Border x:Name="NowPlayingSurface" Grid.Row="0" Background="{DynamicResource PlayerAtmosphere}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="0,0,0,1" CornerRadius="0" Padding="6,2,6,2">
+                <Border x:Name="NowPlayingSurface" Grid.Row="0" Background="{DynamicResource PlayerAtmosphere}" BorderBrush="{DynamicResource BorderStrong}" BorderThickness="0,0,0,1" CornerRadius="0" Padding="6,6,6,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="NowPlayingMediaColumn" Width="164"/>
@@ -264,7 +264,7 @@
 
 
 
-                        <Grid Grid.Column="2" Margin="0,1,0,0">
+                        <Grid Grid.Column="2" Margin="0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
