@@ -2,7 +2,7 @@
 $ErrorActionPreference='Stop'
 $code=Get-Content 'payload/app/YomiDiagnosticBundle.ps1' -Raw
 $begin=$code.IndexOf('# Create a real, readable ZIP.')
-$end=$code.IndexOf("`nif ($zipValid) {",$begin)
+$end=$code.IndexOf("`nif (`$zipValid) {",$begin)
 if($begin -lt 0 -or $end -le $begin){throw 'Missing production ZIP implementation'}
 $implementation=$code.Substring($begin,$end-$begin)
 $script=[scriptblock]::Create($implementation)
