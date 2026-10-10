@@ -80,7 +80,10 @@ public class Program {
         checks++;
         mixed.SetQuery("midnite, dezarie, -live");
         selected = rows.Where(mixed.Matches).ToArray();
-        if (selected.Length != 4 || selected.Contains(rows[5]))
+        // 'Live' in the first title also matches -live by design (substring
+        // search), so both first and final rows are excluded consistently.
+        if (selected.Length != 3 || selected.Contains(rows[0]) || selected.Contains(rows[5]) ||
+            !selected.SequenceEqual(new[] { rows[1], rows[2], rows[4] }))
             throw new Exception("Global negative clause incorrectly crossed OR groups");
         checks++;
         Check("midnite, dezarie", "Steel Pulse - Your House", false);
