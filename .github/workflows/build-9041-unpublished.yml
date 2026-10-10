@@ -20,6 +20,8 @@ jobs:
       - name: Validate the actual Queue and OBS source contracts
         shell: pwsh
         run: |
+          python tests/compact-update-dialog-contract.py
+          if($LASTEXITCODE -ne 0){throw "No-update dialog still uses oversized geometry"}
           python tests/queue-readiness-contract.py
           if($LASTEXITCODE -ne 0){throw "Queue display contract failed"}
           python tests/queue-search-or-contract.py
