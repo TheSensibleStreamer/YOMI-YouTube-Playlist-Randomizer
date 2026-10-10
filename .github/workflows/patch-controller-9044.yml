@@ -1,0 +1,42 @@
+name: Patch YOMI 9044 controller Automatic profile on isolated branch
+on:
+  push:
+    paths:
+      - "staging/patch-controller-9044.trigger"
+permissions:
+  contents: write
+jobs:
+  controller-auto:
+    if: github.ref == 'refs/heads/dev/9044-one-auto-activity-pixel-integrity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev/9044-one-auto-activity-pixel-integrity
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Migrate controller's 1.8 MB C# source without touching any other file
+        run: |
+          python tools/patch_controller_auto_9044.py
+          python - <<'PY'
+          from pathlib import Path
+          c=Path("payload/app/YomiControllerWpf.cs").read_text()
+          x=Path("payload/app/YomiControllerWpf.xaml").read_text()
+          assert 'FillCombo(_settingsVisualizerActivity, "Automatic");' in c
+          assert 'c["visualizer_activity"] = "Automatic";' in c
+          assert 'config["visualizer_activity"] = "Automatic";' in c
+          assert 'x:Name="SettingsVisualizerActivity" Visibility="Collapsed"' in x
+          print("PASS Automatic-only WPF settings, preview and context menu")
+          PY
+      - name: Commit only the guarded controller change to development
+        run: |
+          git config user.name "YOMI Development Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add payload/app/YomiControllerWpf.cs
+          if ! git diff --cached --quiet; then
+            git commit -m "Wire 9044 one Automatic musical-response mode throughout controller"
+            git push origin HEAD:refs/heads/dev/9044-one-auto-activity-pixel-integrity
+          fi
