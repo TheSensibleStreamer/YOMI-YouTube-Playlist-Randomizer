@@ -41,7 +41,7 @@ assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse 
 assert lua.globals().visualizer_color() == "0xFFFFFF", "Every cached clip must use a neutral color"
 assert "255,0" in lua.globals().visualizer_binary_filter(), "Cached FFmpeg frames must contain neutral white occupancy"
 profile_before = str(lua.globals().visualizer_profile())
-assert profile_before.startswith("r61106542-self-adapting-fine-spectrum|"), "Old pre-rendered clips must not bypass finer frequency preparation"
+assert profile_before.startswith("r61106543-musically-expressive-amplitude|"), "Old pre-rendered clips must not bypass finer frequency preparation"
 lua.globals().cfg.visualizer_color_mode = "Gradient"
 lua.globals().cfg.visualizer_gradient_preset = "Rainbow"
 lua.globals().cfg.visualizer_solid_color = "#AABBCC"
@@ -118,7 +118,7 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     assert "showfreqs=s=192x16" in expr, "Analyze double the visible vertical resolution"
     assert "crop=192:14:0:0,scale=192:8:flags=area" in expr, "Preserve sub-pixel spectral peaks without lit silence floor"
     assert "dynaudnorm=f=700:g=15:p=0.95:m=16" in expr, "Bound auto-level adaptation during offline preparation"
-    assert "ascale=cbrt" in expr, "Use full activity range with adaptive fill disabled"
+    assert "ascale=log" in expr, "Normal and Active must reveal spectral detail beyond the bottom cells"
     for source, definition in (
         ("silence", "anullsrc=channel_layout=stereo:sample_rate=48000"),
         ("music", "anoisesrc=color=pink:sample_rate=48000:amplitude=0.25"),
@@ -149,6 +149,9 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     lua.globals().cfg.visualizer_shape = "Spectrum"
     stable = str(lua.globals().viz_filter())
     assert "dynaudnorm=f=700:g=15:p=0.85:m=16" in stable
+    assert "ascale=log" in stable, "Normal activity reveals mids/highs with log amplitude mapping"
+    subtle = call_filter(60, shape="Spectrum", activity="Subtle")
+    assert "ascale=cbrt" in subtle, "Subtle remains a genuinely calmer choice"
     assert "volume=" not in stable, "No fixed post-normalizer gain or output clipping"
     assert "highpass=f=30" in stable
     for amplitude in (0.002, 0.02, 0.2):
