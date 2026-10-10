@@ -6078,7 +6078,8 @@ namespace Yomi.Desktop
         {
             var dialog = new Window
             {
-                Title = "YOMI 420.69.9026 - " + (titleText ?? "Status"), Width = 480, Height = 220, MinWidth = 420, MinHeight = 190,
+                Title = "YOMI " + InstalledVersionText() + " - " + (titleText ?? "Status"), Width = 480, MinWidth = 420, MinHeight = 114, MaxHeight = 430,
+                SizeToContent = SizeToContent.Height,
                 WindowStyle = WindowStyle.None, AllowsTransparency = true, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = Brushes.Transparent, FontFamily = _window.FontFamily, FontSize = _window.FontSize,
                 SnapsToDevicePixels = true, UseLayoutRounding = true, Owner = _window
@@ -6090,15 +6091,19 @@ namespace Yomi.Desktop
             });
             var root = new Grid(); root.SetResourceReference(Panel.BackgroundProperty, "WorkbenchAtmosphere");
             root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(25) });
-            root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            // The short "no newer update" case must not occupy a fixed-height dialog.
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var frame = new Border { BorderThickness = new Thickness(2), Background = Brushes.Transparent, IsHitTestVisible = false }; frame.SetResourceReference(Border.BorderBrushProperty, "BorderStrong"); Grid.SetRowSpan(frame, 2); Panel.SetZIndex(frame, 50); root.Children.Add(frame);
             var title = new Border { BorderThickness = new Thickness(0,0,0,1) }; title.SetResourceReference(Border.BackgroundProperty, "ChromeAtmosphere"); title.SetResourceReference(Border.BorderBrushProperty, "Border");
             var tg = new Grid { Margin = new Thickness(9,0,4,0) }; tg.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1,GridUnitType.Star) }); tg.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var label = new TextBlock { Text = "YOMI 420.69.9026   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
+            var label = new TextBlock { Text = "YOMI " + InstalledVersionText() + "   " + (titleText ?? "Status"), FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center }; tg.Children.Add(label);
             var close = CreateSettingsWindowButton(true); close.Content = SettingsWindowGlyph("close"); close.ToolTip = "Close"; Grid.SetColumn(close,1); tg.Children.Add(close); title.Child=tg; root.Children.Add(title);
-            var content = new Grid { Margin = new Thickness(18,16,18,16) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1,GridUnitType.Star) }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary"); content.Children.Add(body);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,14,0,0) }; Grid.SetRow(buttons,1);
+            var content = new Grid { Margin = new Thickness(18,10,18,10) }; Grid.SetRow(content,1); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            var body = new TextBlock { Text = bodyText ?? "", TextWrapping = TextWrapping.Wrap, FontSize = 14, VerticalAlignment = VerticalAlignment.Top }; body.SetResourceReference(TextBlock.ForegroundProperty,"TextSecondary");
+            // Short update checks fit their text. Long diagnostic errors stay scrollable.
+            var messageScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, MaxHeight = 275, Content = body };
+            content.Children.Add(messageScroll);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0,9,0,0) }; Grid.SetRow(buttons,1);
             if (!String.IsNullOrWhiteSpace(primaryLabel) && primaryAction != null)
             {
                 var primary = new Button { Content = primaryLabel, MinWidth = 104, Height = 30, Margin = new Thickness(0,0,7,0) }; object ps = _app.TryFindResource("SettingsActionButton"); if (ps is Style) primary.Style=(Style)ps;
@@ -6209,7 +6214,7 @@ namespace Yomi.Desktop
                     {
                         if (comparison <= 0)
                         {
-                            if (!automatic) BuildYomiStatusDialog("Updates", "YOMI " + currentText + " is current.\r\n\r\nNo newer public build is available.", null, null).ShowDialog();
+                            if (!automatic) BuildYomiStatusDialog("Updates", "YOMI " + currentText + " is up to date.\r\nNo newer public build is available.", null, null).ShowDialog();
                         }
                         else
                             ShowPublicUpdateHost(latestText, currentText);
