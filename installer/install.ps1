@@ -54,10 +54,13 @@ if (-not $isAdmin) {
             -PassThru
 
         $elevatedExitCode = [int]$elevated.ExitCode
-        if ($UpdateMode -and $elevatedExitCode -eq 0) {
-            # This non-elevated wrapper survives the elevated Program Files replacement.
-            # Launch the newly installed YOMI here so even an older public updater can
-            # complete the very first update that carries the new restart architecture.
+        if ($UpdateMode -and $elevatedExitCode -eq 0 -and [string]::IsNullOrWhiteSpace($UpdateStatusFile)) {
+            # LEGACY updater compatibility only: clients without a progress-status
+            # handoff cannot complete a detached restart themselves.
+            # Current YOMI passes UpdateStatusFile and MUST wait for the outer
+            # updater's post-install verification and single supervised relaunch.
+            # Opening a second controller here races verification and can leave
+            # the outer host believing a short-lived, crashed process succeeded.
             $restartLog = Join-Path (Join-Path $env:LOCALAPPDATA 'YOMI') 'update-restart.log'
             try {
                 $installedRoot = Join-Path $env:ProgramFiles 'YOMI'
