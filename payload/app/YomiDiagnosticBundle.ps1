@@ -498,45 +498,122 @@ try {
 $collected | Sort-Object -Unique |
     Out-File (Join-Path $out "05-collected-file-list.txt") -Encoding utf8
 
-# Robust ZIP creation.
+# Create a real, readable ZIP. Do not mistake a half-written archive for
+# success, and never delete the diagnostic folder unless its ZIP is verified.
 $zipError = $null
-if (Test-Path $zip) { Remove-Item -LiteralPath $zip -Force }
+if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue }
+
+function Test-YomiDiagnosticZip([string]$ArchivePath) {
+    $result = @{ Valid = $false; Entries = 0; Error = '' }
+    $archive = $null
+    try {
+        if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) { return $result }
+        Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        $result.Entries = $archive.Entries.Count
+        if ($result.Entries -lt 1) { throw "Archive has zero files" }
+        # Reading every entry also detects truncated compressed streams which
+        # OpenRead alone would miss. Stream rather than holding logs in RAM.
+        $buffer = New-Object byte[] 65536
+        foreach ($entry in $archive.Entries) {
+            if ($entry.FullName.EndsWith('/')) { continue }
+            $stream = $null
+            try {
+                $stream = $entry.Open()
+                [long]$readBytes = 0
+                while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    $readBytes += $read
+                }
+                if ($readBytes -ne $entry.Length) {
+                    throw ("Uncompressed length mismatch for " + $entry.FullName)
+                }
+            } finally {
+                if ($null -ne $stream) { $stream.Dispose() }
+            }
+        }
+        $result.Valid = $true
+    } catch {
+        $result.Error = $_ | Out-String
+    } finally {
+        if ($null -ne $archive) { $archive.Dispose() }
+    }
+    return $result
+}
 
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
     [System.IO.Compression.ZipFile]::CreateFromDirectory(
-        $out,
-        $zip,
-        [System.IO.Compression.CompressionLevel]::Optimal,
-        $false
+        $out, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false
     )
 } catch {
     $zipError = $_ | Out-String
+    # ZipFile may leave behind an incomplete, corrupt ZIP on any copy error.
+    # Always remove it before retrying, or the fallback never gets a chance.
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
 }
 
-if (-not (Test-Path $zip)) {
+$zipCheck = Test-YomiDiagnosticZip $zip
+if (-not $zipCheck.Valid) {
+    if ($zipCheck.Error) { $zipError = ($zipError + "`r`n--- VALIDATION ---`r`n" + $zipCheck.Error).Trim() }
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
     try {
-        Compress-Archive -Path (Join-Path $out "*") -DestinationPath $zip -CompressionLevel Optimal -Force -ErrorAction Stop
-        $zipError = $null
+        Compress-Archive -Path (Join-Path $out '*') -DestinationPath $zip -CompressionLevel Optimal -Force -ErrorAction Stop
+        $zipCheck = Test-YomiDiagnosticZip $zip
     } catch {
-        $zipError = (($zipError + "`r`n--- FALLBACK ---`r`n" + ($_ | Out-String))).Trim()
+        $zipError = ($zipError + "`r`n--- COMPRESS-ARCHIVE ---`r`n" + ($_ | Out-String)).Trim()
     }
 }
 
-$zipValid = $false
-$entryCount = 0
-if (Test-Path $zip) {
+if (-not $zipCheck.Valid) {
+    # Last resort: individual entries. A locked, oversized or badly named
+    # optional log should not prevent sending the critical update evidence.
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    $omitted = New-Object System.Collections.Generic.List[string]
+    $archive = $null
     try {
-        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
-        $z = [System.IO.Compression.ZipFile]::OpenRead($zip)
-        $entryCount = $z.Entries.Count
-        $z.Dispose()
-        if ($entryCount -gt 0 -and (Get-Item -LiteralPath $zip).Length -gt 100) {
-            $zipValid = $true
+        Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop
+        $archive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
+        foreach ($file in @(Get-ChildItem -LiteralPath $out -File -Force -Recurse -ErrorAction SilentlyContinue)) {
+            try {
+                $relative = $file.FullName.Substring($out.Length).TrimStart('\').Replace('\','/')
+                if ($relative.Length -eq 0) { continue }
+                [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                    $archive, $file.FullName, $relative,
+                    [System.IO.Compression.CompressionLevel]::Optimal)
+            } catch {
+                $omitted.Add(($file.FullName + ': ' + $_.Exception.Message))
+            }
+        }
+        if ($omitted.Count -gt 0) {
+            $entry = $archive.CreateEntry('ZIP-OMITTED-FILES.txt')
+            $stream = $entry.Open()
+            try {
+                $writer = New-Object System.IO.StreamWriter($stream)
+                try {
+                    $writer.WriteLine('Some optional diagnostics could not be archived:')
+                    foreach ($item in $omitted) { $writer.WriteLine($item) }
+                    $writer.Flush()
+                } finally {
+                    $writer.Dispose()
+                }
+            } finally {
+                $stream.Dispose()
+            }
         }
     } catch {
-        $zipError = (($zipError + "`r`n--- VALIDATION ---`r`n" + ($_ | Out-String))).Trim()
+        $zipError = ($zipError + "`r`n--- PER-FILE FALLBACK ---`r`n" + ($_ | Out-String)).Trim()
+    } finally {
+        if ($null -ne $archive) { $archive.Dispose() }
     }
+    $zipCheck = Test-YomiDiagnosticZip $zip
+}
+
+$zipValid = [bool]$zipCheck.Valid
+$entryCount = [int]$zipCheck.Entries
+if (-not $zipValid -and $zipCheck.Error) {
+    $zipError = ($zipError + "`r`n--- FINAL VALIDATION ---`r`n" + $zipCheck.Error).Trim()
 }
 
 if ($zipValid) {
