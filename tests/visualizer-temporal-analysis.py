@@ -45,7 +45,7 @@ assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse 
 assert lua.globals().visualizer_color() == "0xFFFFFF", "Every cached clip must use a neutral color"
 assert "255,0" in lua.globals().visualizer_binary_filter(), "Cached FFmpeg frames must contain neutral white occupancy"
 profile_before = str(lua.globals().visualizer_profile())
-assert profile_before.startswith("r61106541-floor-corrected-dynamic-bars|"), "Old pre-rendered clips must not bypass the repaired spectrum"
+assert profile_before.startswith("r61106542-self-adapting-fine-spectrum|"), "Old pre-rendered clips must not bypass finer frequency preparation"
 lua.globals().cfg.visualizer_color_mode = "Gradient"
 lua.globals().cfg.visualizer_gradient_preset = "Rainbow"
 lua.globals().cfg.visualizer_solid_color = "#AABBCC"
@@ -119,7 +119,10 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     # Silence must generate zero visualizer occupancy; a normal nonzero signal
     # must be lively without a full-width compulsory lower band.
     expr = call_filter(60, shape="Spectrum", activity="Active")
-    assert "crop=192:6:0:0,pad=192:8:0:2:color=black" in expr
+    assert "showfreqs=s=192x16" in expr, "Analyze double the visible vertical resolution"
+    assert "crop=192:14:0:0,scale=192:8:flags=area" in expr, "Preserve sub-pixel spectral peaks without lit silence floor"
+    assert "dynaudnorm=f=700:g=15:p=0.95:m=16" in expr, "Bound auto-level adaptation during offline preparation"
+    assert "ascale=cbrt" in expr, "Use full activity range with adaptive fill disabled"
     for source, definition in (
         ("silence", "anullsrc=channel_layout=stereo:sample_rate=48000"),
         ("music", "anoisesrc=color=pink:sample_rate=48000:amplitude=0.25"),
@@ -143,4 +146,26 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
             assert 0 < low_row < frames * 192, "Permanent lower spectrum row returned"
         print(f"PASS {source}: {occupied} lit frequency cells across {frames} FFmpeg frames")
 
-print("PASS: guarded standard mode, untouched oscilloscope, real silence floor and living spectrum")
+    # One Normal activity choice must cover different master-volume levels.
+    # This test exercises the real filter on identical frequency content at
+    # radically different levels. No per-song gain/preference is passed.
+    lua.globals().cfg.visualizer_activity = "Normal"
+    lua.globals().cfg.visualizer_shape = "Spectrum"
+    stable = str(lua.globals().viz_filter())
+    assert "dynaudnorm=f=700:g=15:p=0.85:m=16" in stable
+    assert "volume=" not in stable, "No fixed post-normalizer gain or output clipping"
+    assert "highpass=f=30" in stable
+    for amplitude in (0.002, 0.02, 0.2):
+        target = tmp / ("normal-" + str(amplitude) + ".rgb")
+        source = "anoisesrc=color=pink:sample_rate=48000:amplitude=" + str(amplitude)
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+             "-f", "lavfi", "-i", source, "-t", "3",
+             "-filter_complex", stable, "-map", "[v]", "-an",
+             "-pix_fmt", "rgb24", "-f", "rawvideo", str(target)])
+        rgb = target.read_bytes()
+        assert len(rgb) % (192 * 8 * 3) == 0
+        occupied = sum(rgb[n] > 128 for n in range(0, len(rgb), 3))
+        assert occupied > 0, ("Normal activity should reveal actual quiet audio", amplitude)
+        print(f"PASS single Normal activity at source amplitude {amplitude}: {occupied} spectral cells")
+
+print("PASS: bounded one-setting activity, 2x source detail, no forced silence floor, untouched oscilloscope and 30/60 CFR")
