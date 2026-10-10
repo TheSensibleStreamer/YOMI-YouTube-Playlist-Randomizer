@@ -42,6 +42,9 @@ jobs:
           $v = (Get-Content (Join-Path $extracted 'payload/VERSION.txt') -Raw).Trim()
           if($c.version -ne $v -or $v -ne $manifest.version){throw "Release identity mismatch."}
           Write-Host "PASS: actual updater verified candidate and version."
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
       - name: Revalidate filter OR semantics and OBS visualizer JavaScript before publication
         shell: pwsh
         run: |
