@@ -2531,7 +2531,10 @@ end
 
 function visualizer_audio_prefix()
     local activity=tostring(cfg.visualizer_activity or "Active")
-    local gain=activity=="Subtle" and 1 or (activity=="Normal" and 5 or 9)
+    -- Visualizer-only analysis gain. The previous range barely cleared the
+    -- two low raster rows occupied for virtually any nonzero audio.
+    -- mpv output volume, ReplayGain and stream gain are untouched.
+    local gain=activity=="Subtle" and 7 or (activity=="Normal" and 14 or 20)
     local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
     if fill=="Aggressive" then gain=gain+3 elseif fill=="Off" then gain=math.max(0,gain-2) end
     local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 4))
@@ -2563,6 +2566,18 @@ end
 function visualizer_color() return '0xFFFFFF' end
 function visualizer_binary_filter()
     return ",format=rgb24,lutrgb=r='if(gt(val,3),255,0)':g='if(gt(val,3),255,0)':b='if(gt(val,3),255,0)'"
+end
+
+-- FFmpeg showfreqs paints a full-width bottom scanline even for complete
+-- digital silence; typical audio paints an additional near-constant low row.
+-- Remove those two analyzer raster rows BEFORE palette quantization, then
+-- bottom-anchor the actual moving bars without resizing their square cells.
+-- The correction is confined to the ordinary Spectrum shape: mirrored and
+-- alternative shapes retain their distinct geometry.
+function visualizer_spectrum_floor_filter(shape,w,h)
+    if shape~="Spectrum" or h<6 then return "" end
+    local rows=2
+    return ",crop="..w..":"..(h-rows)..":0:0,pad="..w..":"..h..":0:"..rows..":color=black"
 end
 
 function visualizer_frequency_trim_filter(w,h)
@@ -2640,6 +2655,7 @@ function viz_filter()
     local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..h..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..analysis_fps..":colors="..color..":averaging="..averaging..":win_size="..win..overlap_option..temporal_downsample
     if render_w~=w then out=out..",scale="..w..":"..h..":flags=neighbor" end
     out=out..visualizer_frequency_trim_filter(w,h)
+    out=out..visualizer_spectrum_floor_filter(shape,w,h)
     if anchor=="Top" then out=out..",vflip" end
     if direction=="Mirrored" then out=out..",hflip" end
     out=out..visualizer_spacing_filter(shape,spacing,w)
