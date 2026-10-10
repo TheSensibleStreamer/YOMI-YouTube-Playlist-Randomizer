@@ -1,9 +1,9 @@
 {
   "schema": 1,
   "product": "YOMI",
-  "version": "420.69.9043",
+  "version": "420.69.9044",
   "seal": "DEV13.59",
-  "generated_utc": "2026-10-10T21:00:26.445965Z",
+  "generated_utc": "2026-10-10T22:36:05.683837Z",
   "file_count": 98,
   "files": [
     {
@@ -53,8 +53,8 @@
     },
     {
       "path": "app/default-config.json",
-      "bytes": 7295,
-      "sha256": "28d8f3100c0d408d0967a207aec187a2c1eb884391666754aeba57a0dea5ab2d"
+      "bytes": 7298,
+      "sha256": "bfde55bda9b0b11aa3f617561d5ddc441ce6d1a9785b3890937c57e5c4b5967f"
     },
     {
       "path": "app/diagnostics.ps1",
@@ -79,7 +79,7 @@
     {
       "path": "app/INSTALLATION-RECEIPT.json",
       "bytes": 4267,
-      "sha256": "3afed6a6438e5a8775f04704d76c63088221164ebf0f0658028da3dc49969905"
+      "sha256": "836d4ad01865e566d5c17ba4f6535c48caaa28264ee4b0eedb054f937295a9d9"
     },
     {
       "path": "app/lineage-registry.json",
@@ -88,8 +88,8 @@
     },
     {
       "path": "app/music.lua",
-      "bytes": 185496,
-      "sha256": "b88d0665957eda8c1459db027f328dd3657431282c7601b3b215a855fb9b58f9"
+      "bytes": 183921,
+      "sha256": "bbb946b918162659e942c7f029f13b5653953f47d3d0ec37c146aaa3f1c85d3b"
     },
     {
       "path": "app/NO-GAPS-CONSOLIDATION-LEDGER.json",
@@ -239,7 +239,7 @@
     {
       "path": "app/YOMI-CAPABILITY-CONTRACT.json",
       "bytes": 15537,
-      "sha256": "3c8c8725efbab9f2a14a156f83e77578223aa7b6d568f5be77a783af1c79d32b"
+      "sha256": "a171463c26ae4e5355ef2064a7e7bc09f5525f9da12d8030cca78a486761cd8e"
     },
     {
       "path": "app/YomiCausalGraphLab.cs",
@@ -273,8 +273,8 @@
     },
     {
       "path": "app/YomiControllerWpf.cs",
-      "bytes": 1798468,
-      "sha256": "5d838e37d60321fa75d088cd53bd2d43dda24ca705e471ea1177ddf94d74fc28"
+      "bytes": 1802910,
+      "sha256": "0f28dfecb77c63ad725fcb0d9fa63541ed192c7bd9973c14a4a32b79140ee7ef"
     },
     {
       "path": "app/YomiControllerWpf.exe.config",
@@ -288,8 +288,8 @@
     },
     {
       "path": "app/YomiControllerWpf.xaml",
-      "bytes": 226945,
-      "sha256": "32b67e626864339cd3abf07b712c675500c7f11847cb3c7ba9ed293af9a47bcc"
+      "bytes": 227219,
+      "sha256": "b718182c65e193d8f942f1d6691f9f1e2b0703fbef2cffc0ef57870661683332"
     },
     {
       "path": "app/YomiCounterfactualStrategyKernel.cs",
@@ -494,7 +494,7 @@
     {
       "path": "VERSION.txt",
       "bytes": 12,
-      "sha256": "bd2984c6ad587860e9c0aec963c843bfb877c5f74af9429be0bea9ddc1c98132"
+      "sha256": "66487e77faa3ef316f4ff0ab43902a001719884c4199038e45b916fbed297a83"
     }
   ]
 }
