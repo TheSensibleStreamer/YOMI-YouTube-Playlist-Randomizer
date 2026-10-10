@@ -1,0 +1,1 @@
+Publish 420.69.9041 to public main only after signed manifest checks, the 9041 Windows candidate success (run 38019071291), queue/OBS/FFmpeg validations and the compact no-update dialog contract. Preserve existing preferences, do not alter the installation release during verification.
