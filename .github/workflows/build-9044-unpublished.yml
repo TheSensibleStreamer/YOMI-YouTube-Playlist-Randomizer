@@ -1,0 +1,127 @@
+name: Validate unpublished YOMI 9044 Windows candidate
+on:
+  push:
+    paths:
+      - "staging/release-candidate-9044.trigger"
+permissions:
+  contents: read
+
+jobs:
+  windows-candidate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Validate the actual Queue and OBS source contracts
+        shell: pwsh
+        run: |
+          python tests/compact-update-dialog-contract.py
+          if($LASTEXITCODE -ne 0){throw "No-update dialog still uses oversized geometry"}
+          python tests/queue-readiness-contract.py
+          if($LASTEXITCODE -ne 0){throw "Queue display contract failed"}
+          python tests/queue-search-or-contract.py
+          if($LASTEXITCODE -ne 0){throw "Queue comma-OR behavior failed"}
+          node tests/obs-av-sync-contract.cjs
+          if($LASTEXITCODE -ne 0){throw "OBS visualizer startup, square pixels, or A/V sync failed"}
+      - name: Compile real .NET Framework WPF controller and OBS server
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          [xml](Get-Content 'payload/app/YomiControllerWpf.xaml' -Raw) | Out-Null
+          [xml](Get-Content 'payload/app/YomiDesign.xaml' -Raw) | Out-Null
+          foreach($s in @('installer/install.ps1','payload/app/update-deployment.ps1','payload/app/YomiPublicUpdateHost.ps1')){
+            $tok=$null;$errs=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $s),[ref]$tok,[ref]$errs)
+            if($errs.Count){throw ($s+': '+$errs[0].Message)}
+          }
+          function Find-FrameworkRef([string]$Name) {
+            $dirs=@()
+            $runtime=[Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+            if($runtime){$dirs+=$runtime;$dirs+=(Join-Path $runtime 'WPF')}
+            foreach($root in @((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319'))){
+              $dirs+=$root;$dirs+=(Join-Path $root 'WPF')
+            }
+            $pf86=[Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+            if($pf86){
+              $refRoot=Join-Path $pf86 'Reference Assemblies\Microsoft\Framework\.NETFramework'
+              if(Test-Path $refRoot){
+                foreach($v in @(Get-ChildItem $refRoot -Directory | Where-Object {$_.Name -like 'v4*'} | Sort-Object Name -Descending)){
+                  $dirs+=$v.FullName;$dirs+=(Join-Path $v.FullName 'Facades')
+                }
+              }
+            }
+            foreach($dir in @($dirs | Where-Object {$_} | Select-Object -Unique)){
+              $candidate=Join-Path $dir ($Name+'.dll')
+              if(Test-Path $candidate){return $candidate}
+            }
+            throw ('Required .NET Framework assembly unavailable: '+$Name)
+          }
+          $csc=@((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'))|Where-Object {Test-Path $_}|Select-Object -First 1
+          if(-not $csc){throw 'No Windows .NET Framework compiler'}
+          $app=(Resolve-Path 'payload/app').Path
+          $exe=Join-Path $env:RUNNER_TEMP 'YomiControllerWpf.exe'
+          $refs=@('PresentationFramework','PresentationCore','WindowsBase','System.Xaml','WindowsFormsIntegration','System.Windows.Forms','System.Drawing','System.Web.Extensions','System.Xml','System','System.Core')
+          $args=@('/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',('/win32manifest:"'+(Join-Path $app 'YomiControllerWpf.manifest')+'"'),('/out:"'+$exe+'"'))
+          foreach($name in $refs){$args+=('/reference:"'+(Find-FrameworkRef $name)+'"')}
+          $args+=('"'+(Join-Path $app 'YomiControllerWpf.cs')+'"')
+          $compile=& $csc @args 2>&1
+          if($LASTEXITCODE -ne 0){throw ('Controller compile failed: '+($compile -join [Environment]::NewLine))}
+          if(-not(Test-Path $exe)){throw 'Missing compiled WPF controller'}
+          $obsOut=Join-Path $env:RUNNER_TEMP 'YomiObsServer.exe'
+          $obsArgs=@('/nologo','/noconfig','/codepage:65001','/target:exe','/platform:anycpu','/optimize+','/debug-',('/out:"'+$obsOut+'"'),('/reference:"'+(Find-FrameworkRef 'System')+'"'),('/reference:"'+(Find-FrameworkRef 'System.Core')+'"'),('"'+(Join-Path $app 'YomiObsServerHost.cs')+'"'))
+          $compile=& $csc @obsArgs 2>&1
+          if($LASTEXITCODE -ne 0){throw ('OBS C# compile failed: '+($compile -join [Environment]::NewLine))}
+          Write-Host 'PASS: WPF, XAML, updater parser and OBS host compile'
+      - name: Assert 9044 one-activity spectral fidelity and bounded offline analysis
+        shell: pwsh
+        run: |
+          node tests/obs-av-sync-contract.cjs
+          if($LASTEXITCODE -ne 0){throw "Dynamic width and font-reflow contract failed"}
+          $music=Get-Content 'payload/app/music.lua' -Raw
+          foreach($required in @('dynaudnorm=f=700:g=15:p=','spectrum_height=shape=="Spectrum" and h*2 or h','flags=area','r61106544-automatic-musical-detail')){
+            if(-not $music.Contains($required)){throw ('9044 spectral contract missing: '+$required)}
+          }
+          if($music.Contains('if gain>0 then table.insert(chain,"volume="')){throw 'Old blunt visualizer gain returned'}
+          Write-Host 'PASS: Normal activity now self-adapts during optional offline preparation only'
+      - name: Verify Automatic-only visualizer controls and untouched presentation geometry
+        shell: pwsh
+        run: |
+          $controller=Get-Content 'payload/app/YomiControllerWpf.cs' -Raw
+          $xaml=Get-Content 'payload/app/YomiControllerWpf.xaml' -Raw
+          $engine=Get-Content 'payload/app/music.lua' -Raw
+          if(-not $controller.Contains('FillCombo(_settingsVisualizerActivity, "Automatic");')){throw "Automatic-only Activity Combo missing"}
+          if(-not $controller.Contains('c["visualizer_activity"] = "Automatic";')){throw "Automatic settings save path missing"}
+          if(-not $controller.Contains('config["visualizer_activity"] = "Automatic";')){throw "Automatic OBS preview path missing"}
+          if(-not $xaml.Contains('x:Name="SettingsVisualizerActivity" Visibility="Collapsed"')){throw "Redundant activity setting still visible"}
+          if(-not $engine.Contains('r61106544-automatic-musical-detail')){throw "New cache profile not installed"}
+          foreach($old in @('addTextChoices("Activity", "visualizer_activity"', 'addTextChoices("Frequency scale", "visualizer_frequency_scale"')){
+            if($controller.Contains($old)){throw ('Legacy quick-tuning control survived: '+$old)}
+          }
+          Write-Host 'PASS: real Automatic-only controller, OBS preview, Lua cache profile and preserved XAML named controls'
+      - name: Create hash-verified 9044 ZIP without changing the public updater
+        shell: pwsh
+        run: |
+          python tools/build_release_candidate_9044.py --version 420.69.9044 --output dist/9044
+          if($LASTEXITCODE -ne 0){throw "9044 candidate failed to build"}
+          $m=Get-Content 'dist/9044/update.json' -Raw|ConvertFrom-Json
+          if($m.version -ne '420.69.9044'){throw "Wrong candidate version"}
+          $zip=Join-Path (Resolve-Path 'dist/9044').Path $m.package_name
+          $sha=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne $m.sha256){throw "Bad package hash"}
+          $dest=Join-Path $env:RUNNER_TEMP 'YOMI-9044-staged'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $zip -ExtractRoot $dest -ExpectedVersion '420.69.9044' -ExpectedPackageHash $sha -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot (Join-Path $env:RUNNER_TEMP 'YOMI-9044-dryrun')
+          if($LASTEXITCODE -ne 0){throw "Actual updater rejected 9044"}
+          Write-Host 'PASS: 9044 ZIP, identity and updater dry-run verified; not published'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YOMI-420.69.9044-UNPUBLISHED-WINDOWS-CANDIDATE
+          path: |
+            dist/9044/YOMI-v420.69.9044.zip
+            dist/9044/update.json
+          if-no-files-found: error
+          retention-days: 7
