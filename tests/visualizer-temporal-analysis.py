@@ -41,7 +41,7 @@ assert tuple(lua.globals().visualizer_render_dimensions()) == (192, 8), "Coarse 
 assert lua.globals().visualizer_color() == "0xFFFFFF", "Every cached clip must use a neutral color"
 assert "255,0" in lua.globals().visualizer_binary_filter(), "Cached FFmpeg frames must contain neutral white occupancy"
 profile_before = str(lua.globals().visualizer_profile())
-assert profile_before.startswith("r61106543-musically-expressive-amplitude|"), "Old pre-rendered clips must not bypass finer frequency preparation"
+assert profile_before.startswith("r61106544-automatic-musical-detail|"), "Old pre-rendered clips must not bypass finer frequency preparation"
 lua.globals().cfg.visualizer_color_mode = "Gradient"
 lua.globals().cfg.visualizer_gradient_preset = "Rainbow"
 lua.globals().cfg.visualizer_solid_color = "#AABBCC"
@@ -116,10 +116,10 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     # not fabricate a full-width bottom row. Broadband noise is intentionally
     # NOT used here: it genuinely contains energy across the entire spectrum.
     expr = call_filter(60, shape="Spectrum", activity="Active")
-    assert "showfreqs=s=192x16" in expr, "Analyze double the visible vertical resolution"
-    assert "crop=192:14:0:0,scale=192:8:flags=area" in expr, "Preserve sub-pixel spectral peaks without lit silence floor"
-    assert "dynaudnorm=f=700:g=15:p=0.95:m=16" in expr, "Bound auto-level adaptation during offline preparation"
-    assert "ascale=log" in expr, "Normal and Active must reveal spectral detail beyond the bottom cells"
+    assert "showfreqs=s=192x64" in expr, "Analyze eight times the visible vertical resolution"
+    assert "crop=192:16:0:46,scale=192:8:flags=area" in expr, "Preserve fine musical amplitude detail but remove FFmpeg's false silence floor"
+    assert "dynaudnorm=f=700:g=15:p=0.85:m=16" in expr, "One bounded analysis gain for every master volume"
+    assert "ascale=cbrt" in expr and "fscale=log" in expr, "Perceptual octaves and high-resolution cube-root musical dynamics are automatic"
     for source, definition in (
         ("silence", "anullsrc=channel_layout=stereo:sample_rate=48000"),
         ("music", "sine=frequency=440:sample_rate=48000:duration=1"),
@@ -150,9 +150,16 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
     lua.globals().cfg.visualizer_shape = "Spectrum"
     stable = str(lua.globals().viz_filter())
     assert "dynaudnorm=f=700:g=15:p=0.85:m=16" in stable
-    assert "ascale=log" in stable, "Normal activity reveals mids/highs with log amplitude mapping"
+    assert "ascale=cbrt" in stable and "fscale=log" in stable
+    # Old manual settings from 9043 are intentionally non-authoritative.
+    baseline=stable
+    lua.globals().cfg.visualizer_frequency_scale="Linear"
+    lua.globals().cfg.visualizer_adaptive_fill="Aggressive"
+    lua.globals().cfg.visualizer_high_frequency_lift_db=12
+    lua.globals().cfg.visualizer_high_frequency_trim=60
     subtle = call_filter(60, shape="Spectrum", activity="Subtle")
-    assert "ascale=cbrt" in subtle, "Subtle remains a genuinely calmer choice"
+    assert subtle==baseline, "Old linear / activity / fill / trim / lift cannot defeat the one Automatic response"
+    assert str(lua.globals().visualizer_profile()) != profile_before or baseline==subtle
     assert "volume=" not in stable, "No fixed post-normalizer gain or output clipping"
     assert "highpass=f=30" in stable
     for amplitude in (0.002, 0.02, 0.2):
@@ -168,4 +175,4 @@ with tempfile.TemporaryDirectory(prefix="yomi-temporal-") as tmpdir:
         assert occupied > 0, ("Normal activity should reveal actual quiet audio", amplitude)
         print(f"PASS single Normal activity at source amplitude {amplitude}: {occupied} spectral cells")
 
-print("PASS: bounded one-setting activity, 2x source detail, no forced silence floor, untouched oscilloscope and 30/60 CFR")
+print("PASS: one Automatic musical response, 8x source definition, real silence, unchanged oscilloscope and 30/60 CFR")
