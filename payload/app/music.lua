@@ -304,7 +304,7 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r6110622-neutral-mask-stable-colors-and-height8",
+        "r61106541-floor-corrected-dynamic-bars",
         tostring(visualizer_fps()),
         tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
