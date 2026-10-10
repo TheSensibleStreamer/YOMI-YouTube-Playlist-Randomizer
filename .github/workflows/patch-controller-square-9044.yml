@@ -1,0 +1,40 @@
+name: Patch YOMI 9044 local square-pixel controller on isolated branch
+on:
+  push:
+    paths:
+      - "staging/patch-controller-square-9044.trigger"
+permissions:
+  contents: write
+jobs:
+  controller-square:
+    if: github.ref == 'refs/heads/dev/9044-one-auto-activity-pixel-integrity'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev/9044-one-auto-activity-pixel-integrity
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply guarded local-controller square pixel patch
+        run: |
+          python tools/patch_controller_square_9044.py
+          python - <<'PY'
+          from pathlib import Path
+          c=Path('payload/app/YomiControllerWpf.cs').read_text()
+          assert 'private bool PaintSquareVisualizer()' in c
+          assert 'columns * physicalCell / sx' in c
+          assert 'Math.Max(0, (_squareViewport.ActualHeight - _squareBackdrop.Height) / 2)' in c
+          print('PASS local preview physically-square pixel pooling and centered height')
+          PY
+      - name: Commit only the C# preview repair to the isolated branch
+        run: |
+          git config user.name "YOMI Development Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add payload/app/YomiControllerWpf.cs
+          if ! git diff --cached --quiet; then
+            git commit -m "Render controller spectrum in true square pixels without distortion"
+            git push origin HEAD:refs/heads/dev/9044-one-auto-activity-pixel-integrity
+          fi
