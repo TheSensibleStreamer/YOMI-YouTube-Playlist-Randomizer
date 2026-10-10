@@ -201,7 +201,7 @@ context.layoutViz(true,true,'Behind text',true,1,false,true,true,false);
 assert.equal(context.viz.style.left,'320px','dynamic spectrum stays flush with last visible media pixel');
 assert.equal(context.vizAutoMatchText,true,'dynamic length is available after metadata finishes');
 const vizRight=320+parseFloat(context.viz.style.width);
-assert(Math.abs(vizRight-803)<=11,'dynamic size includes symmetrical 16px media-to-glyph overhang');
+assert(vizRight>=811 && vizRight<822,'dynamic width covers all text and symmetrical 16px margin, rounding outward by less than one 11px cell');
 context.vizLengthMultiplier=8;
 context.layoutViz(true,true,'Behind text',false,1,false,true,true,false);
 const manualRight=320+parseFloat(context.viz.style.width);
