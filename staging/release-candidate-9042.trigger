@@ -1,0 +1,1 @@
+YOMI 420.69.9042 unpublished qualification: bounded automatic visualizer analysis for one Normal activity setting; 2x vertical spectrum sampling -> native 8 square-cell rows; keep 60 FPS temporal blending, geometry, output audio volume, and cached media unaffected. Validate Windows compilation, source contract, and updater package hash.
