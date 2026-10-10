@@ -168,4 +168,27 @@ const faintAt=(3*sw+20)*4;raw[faintAt]=24;raw[faintAt+1]=24;raw[faintAt+2]=24;
 context.renderVizFrame();
 const faint=put[7].data.slice((3*80+8)*4,(3*80+8)*4+4);
 assert.equal(faint[3],0,'near-black codec residue must not light bottom rows');
+// Startup geometry regression: before a first track/font has measurable
+// text, the OBS visualizer may not sit beneath media. Once text becomes
+// measurable, the existing dynamic sizing rule must remain unchanged.
+vm.runInContext(section('function layoutViz(', 'function apply('), context);
+context.root={getBoundingClientRect:()=>({left:0,top:0,right:1400,bottom:90,width:1400,height:90})};
+context.artFrame={getBoundingClientRect:()=>({left:0,right:160,top:0,bottom:90})};
+context.vidFrame={getBoundingClientRect:()=>({left:160,right:320,top:0,bottom:90})};
+context.viz={style:{},classList:{contains:()=>false}};
+context.txt={style:{},getBoundingClientRect:()=>({left:328,right:1392,top:0,bottom:90,width:0,height:0})};
+context.vizManualBaseWidth=120;context.vizLengthMultiplier=4;
+context.layoutViz(true,true,'Behind text',true,1, false,true,true,false);
+assert.equal(context.viz.style.left,'320px','zero-sized text on OBS startup must not send viz behind media');
+assert.equal(context.viz.style.width,'0px','unmeasured startup text must not draw a stale full-width spectrum');
+context.txt.getBoundingClientRect=()=>({left:328,right:1392,top:0,bottom:90,width:1064,height:90});
+titleEl.classList.contains=()=>false;
+titleEl.glyph={left:336,right:795,width:459};
+channelEl.classList.contains=()=>false;
+channelEl.glyph={left:336,right:600,width:264};
+context.layoutViz(true,true,'Behind text',true,1,false,true,true,false);
+assert.equal(context.viz.style.left,'320px','dynamic spectrum stays flush with last visible media pixel');
+assert.equal(context.vizAutoMatchText,true,'dynamic length is available after metadata finishes');
+const vizRight=320+parseFloat(context.viz.style.width);
+assert(Math.abs(vizRight-803)<=11,'dynamic size includes symmetrical 16px media-to-glyph overhang');
 console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
