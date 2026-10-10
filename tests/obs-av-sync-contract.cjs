@@ -78,6 +78,17 @@ assert.equal(video.paused,false); assert.equal(visualizer.paused,false);
 assert.equal(video.currentTime, visualizer.currentTime, 'same clock after pause and resume');
 
 const fitTextGrid=context.fitVizTextGrid;
+// A source that's 135px high with 9 native rows has 15px square cells.
+// The glyph extends 557px past the media edge: 555px would clip the last
+// two pixels. Dynamic mode must round OUTWARD without breaking cell squares.
+assert.deepEqual(Array.from(fitTextGrid(557,135,192,9,2132)),[570,135,38]);
+assert.deepEqual(Array.from(fitTextGrid(557,135,192,9,555)),[555,135,37],
+  'At the viewport boundary, fit without extending under clipped right edge');
+assert(js.includes('document.fonts.ready.then(queueVizTextGeometryRefresh)'),
+  'Async font loading must refresh dynamic spectrum without waiting for a new track');
+assert(js.includes('new ResizeObserver(queueVizTextGeometryRefresh)'),
+  'Actual media/text resize must refresh dynamic spectrum without per-frame polling');
+const fitTextGrid=context.fitVizTextGrid;
 for(const [w,h,cols,rows,ew,eh,n] of [
  [720,90,192,8,715,88,65],
  [300,90,192,8,297,88,27],
