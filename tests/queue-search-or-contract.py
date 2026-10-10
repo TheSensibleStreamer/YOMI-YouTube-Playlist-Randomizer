@@ -61,6 +61,28 @@ public class Program {
         Check("midnite, dezarie", "Midnite - Love The Life You Live", true);
         Check("midnite, dezarie", "Dezarie - Gracious Mama", true);
         Check("midnite, dezarie", "Dezarie with Midnite band", true);
+        // Filtered Listen uses the WPF filtered row view in original queue order.
+        // The OR engine must produce the union once, not duplicate collaborations.
+        var rows = new[] {
+            "Midnite - Love The Life You Live | Midnite",
+            "Dezarie - Gracious Mama | Dezarie",
+            "Dezarie with Midnite band | Midnite",
+            "Steel Pulse - Your House | Steel Pulse",
+            "MIDNITE - studio dub | Midnite",
+            "Dezarie - Live recording | Dezarie"
+        };
+        var mixed = new SearchHarness();
+        mixed.SetQuery("midnite, dezarie");
+        var selected = rows.Where(mixed.Matches).ToArray();
+        if (selected.Length != 5 ||
+            !selected.SequenceEqual(new[] { rows[0], rows[1], rows[2], rows[4], rows[5] }))
+            throw new Exception("Failed OR union, stable order, or one-row-per-occurrence filtering");
+        checks++;
+        mixed.SetQuery("midnite, dezarie, -live");
+        selected = rows.Where(mixed.Matches).ToArray();
+        if (selected.Length != 4 || selected.Contains(rows[5]))
+            throw new Exception("Global negative clause incorrectly crossed OR groups");
+        checks++;
         Check("midnite, dezarie", "Steel Pulse - Your House", false);
         Check("MIDNITE, dezarie,", "dezarie - new track", true);
         Check("midnite, dezarie, -live", "Midnite - Studio", true);
