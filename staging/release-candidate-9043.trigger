@@ -1,0 +1,1 @@
+Unpublished YOMI 420.69.9043 verification: expanded real spectral activity for Normal, no new OBS GPU/CPU work, FFmpeg 60 FPS cached visualizer with silence preserved, font-ready and resize-ready dynamic text bounds, square pixel geometry and unaffected shared art/video borders. Windows WPF compilation, OBS contract, manifest/hash verification required.
