@@ -304,7 +304,7 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r61106542-self-adapting-fine-spectrum",
+        "r61106543-musically-expressive-amplitude",
         tostring(visualizer_fps()),
         tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
@@ -2553,7 +2553,13 @@ function visualizer_frequency_parameters()
     -- Cube-root is a perceptually useful mapping: weak but real musical
     -- frequencies survive 8-row quantization without inventing silent bars.
     -- Adaptive-fill Off still means no artificial minimum-frequency occupancy.
-    local ascale=fill=="Aggressive" and "log" or "cbrt"
+    -- "Normal" must show genuine mid/high-frequency structure even in an
+    -- eight-cell display. The previous cube-root mapping compressed almost
+    -- all actual sound into the bottom two rows. The built-in logarithmic
+    -- magnitude scale preserves dynamic differences and genuine silence,
+    -- with no fabricated baseline or browser-side animation.
+    -- Subtle keeps a deliberately reserved cube-root response.
+    local ascale=(activity=="Subtle" and fill~="Aggressive") and "cbrt" or "log"
     local fscale=tostring(cfg.visualizer_frequency_scale or "Logarithmic")=="Linear" and "lin" or "log"
     return averaging,win,ascale,fscale
 end
