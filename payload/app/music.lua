@@ -304,7 +304,7 @@ end
 function visualizer_profile()
     local w,h=visualizer_render_dimensions()
     return table.concat({
-        "r61106541-floor-corrected-dynamic-bars",
+        "r61106542-self-adapting-fine-spectrum",
         tostring(visualizer_fps()),
         tostring(cfg.visualizer_temporal_detail or "Enhanced"),
         tostring(w),tostring(h),
@@ -2530,17 +2530,18 @@ local function video_job(job)
 end
 
 function visualizer_audio_prefix()
+    -- Offline analysis only: one Normal activity setting now covers very different
+    -- master volumes. A bounded, slow 700ms/15-frame normalizer follows the
+    -- source's sustained energy instead of blindly adding 12/18dB of gain to
+    -- every song. The normalizer never touches mpv output, ReplayGain or OBS.
+    -- Target peak is below full scale, avoiding clipping-created fake harmonics.
+    -- Digital silence stays silent; smoothing prevents beat-to-beat pumping.
     local activity=tostring(cfg.visualizer_activity or "Active")
-    -- Visualizer-only analysis gain. The previous range barely cleared the
-    -- two low raster rows occupied for virtually any nonzero audio.
-    -- mpv output volume, ReplayGain and stream gain are untouched.
-    local gain=activity=="Subtle" and 7 or (activity=="Normal" and 14 or 20)
-    local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
-    if fill=="Aggressive" then gain=gain+3 elseif fill=="Off" then gain=math.max(0,gain-2) end
-    local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 4))
+    local target=activity=="Subtle" and 0.62 or (activity=="Normal" and 0.85 or 0.95)
+    local lift=math.max(0,math.min(12,tonumber(cfg.visualizer_high_frequency_lift_db) or 0))
     local chain={"highpass=f=30"}
     if lift>0 then table.insert(chain,"highshelf=f=4200:g="..tostring(lift)) end
-    if gain>0 then table.insert(chain,"volume="..tostring(gain).."dB") end
+    table.insert(chain,"dynaudnorm=f=700:g=15:p="..string.format("%.2f",target)..":m=16")
     return table.concat(chain,",")
 end
 
@@ -2549,7 +2550,10 @@ function visualizer_frequency_parameters()
     local averaging,win=1,1024
     if activity=="Subtle" then averaging,win=4,2048 elseif activity=="Normal" then averaging,win=2,1024 end
     local fill=tostring(cfg.visualizer_adaptive_fill or "Off")
-    local ascale=fill=="Off" and "sqrt" or (fill=="Aggressive" and "log" or "cbrt")
+    -- Cube-root is a perceptually useful mapping: weak but real musical
+    -- frequencies survive 8-row quantization without inventing silent bars.
+    -- Adaptive-fill Off still means no artificial minimum-frequency occupancy.
+    local ascale=fill=="Aggressive" and "log" or "cbrt"
     local fscale=tostring(cfg.visualizer_frequency_scale or "Logarithmic")=="Linear" and "lin" or "log"
     return averaging,win,ascale,fscale
 end
@@ -2576,8 +2580,12 @@ end
 -- alternative shapes retain their distinct geometry.
 function visualizer_spectrum_floor_filter(shape,w,h)
     if shape~="Spectrum" or h<6 then return "" end
-    local rows=2
-    return ",crop="..w..":"..(h-rows)..":0:0,pad="..w..":"..h..":0:"..rows..":color=black"
+    -- Spectrum is analyzed at twice the visible VERTICAL resolution. Remove
+    -- the two FFmpeg showfreqs baseline scanlines there, then area-resample
+    -- to all 8/16/24/36 output rows. This eliminates the always-on floor while
+    -- recovering sub-row peaks lost by early 8-row thresholding.
+    -- The published MP4 remains identical in dimensions and frame rate.
+    return ",crop="..w..":"..(h*2-2)..":0:0,scale="..w..":"..h..":flags=area"
 end
 
 function visualizer_frequency_trim_filter(w,h)
@@ -2621,6 +2629,7 @@ function viz_filter()
     local averaging,win,ascale,fscale=visualizer_frequency_parameters()
     local color=visualizer_color()
     local analysis_fps,overlap_option,temporal_downsample=visualizer_temporal_rate(fps,win)
+    local spectrum_height=shape=="Spectrum" and h*2 or h
     local render_w=w
     if spacing=="Light" then render_w=math.max(8,math.floor(w/1.5)) elseif spacing=="Wide" then render_w=math.max(8,math.floor(w/2.5)) end
     if render_w%2==1 then render_w=render_w+1 end
@@ -2652,10 +2661,10 @@ function viz_filter()
         return base..post..visualizer_binary_filter()..",format=yuv420p[v]"
     end
 
-    local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..h..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..analysis_fps..":colors="..color..":averaging="..averaging..":win_size="..win..overlap_option..temporal_downsample
-    if render_w~=w then out=out..",scale="..w..":"..h..":flags=neighbor" end
-    out=out..visualizer_frequency_trim_filter(w,h)
+    local out="[0:a]"..audio..",showfreqs=s="..render_w.."x"..spectrum_height..":mode="..mode..":ascale="..ascale..":fscale="..fscale..":cmode=combined:rate="..analysis_fps..":colors="..color..":averaging="..averaging..":win_size="..win..overlap_option..temporal_downsample
+    if render_w~=w then out=out..",scale="..w..":"..spectrum_height..":flags=neighbor" end
     out=out..visualizer_spectrum_floor_filter(shape,w,h)
+    out=out..visualizer_frequency_trim_filter(w,h)
     if anchor=="Top" then out=out..",vflip" end
     if direction=="Mirrored" then out=out..",hflip" end
     out=out..visualizer_spacing_filter(shape,spacing,w)
