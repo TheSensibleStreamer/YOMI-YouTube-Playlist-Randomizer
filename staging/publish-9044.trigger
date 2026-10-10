@@ -1,0 +1,1 @@
+Publish YOMI 420.69.9044 ONLY after PASS of isolated Windows candidate run 38091749789 and REAL Chrome raster screenshot run 38091933002; preserve media borders, OBS cadence, queue, output volume and user's color settings. Release through signed/verified manifest and in-app updater.
