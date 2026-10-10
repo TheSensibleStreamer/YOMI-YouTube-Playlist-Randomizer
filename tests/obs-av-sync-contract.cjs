@@ -134,7 +134,7 @@ let brightAt=(2*sw+13)*4;raw[brightAt]=180;raw[brightAt+1]=110;raw[brightAt+2]=6
 const put=[];
 context.vizCtx={createImageData:(w,h)=>({width:w,height:h,data:new Uint8ClampedArray(w*h*4)}),putImageData:(frame)=>{put.push(frame)}};
 context.vizSourceCtx={imageSmoothingEnabled:false,drawImage:()=>{},getImageData:()=>({data:raw})};
-context.vizCanvas={width:0,height:0};
+context.vizCanvas={width:0,height:0,style:{}};
 context.vizSourceCanvas={width:0,height:0};
 context.vizEl={videoWidth:sw,videoHeight:sh};
 context.vizDisplayColumns=0;
@@ -197,7 +197,13 @@ titleEl.classList.contains=()=>false;
 titleEl.glyph={left:336,right:795,width:459};
 channelEl.classList.contains=()=>false;
 channelEl.glyph={left:336,right:600,width:264};
+const preDynamicFrames=put.length;
+context.vizEl.paused=true; // This was the real 9043 rectangular-pixel regression.
 context.layoutViz(true,true,'Behind text',true,1,false,true,true,false);
+assert(put.length>preDynamicFrames,'paused Dynamic width must redraw raster without new video frames');
+assert.equal(context.vizCanvas.width,context.vizDisplayColumns,'Dynamic width and native canvas column count must match in the same pass');
+assert.equal(parseFloat(context.vizCanvas.style.width),parseFloat(context.viz.style.width),'display canvas and pixel geometry use the exact same width');
+assert.equal(parseFloat(context.vizCanvas.style.height),parseFloat(context.viz.style.height),'display canvas and pixel geometry use the exact same height');
 assert.equal(context.viz.style.left,'320px','dynamic spectrum stays flush with last visible media pixel');
 assert.equal(context.vizAutoMatchText,true,'dynamic length is available after metadata finishes');
 const vizRight=320+parseFloat(context.viz.style.width);
@@ -208,4 +214,17 @@ const manualRight=320+parseFloat(context.viz.style.width);
 assert(manualRight>1350 && manualRight<=1392,
   'manual 8.0 should span nearly the full usable OBS overlay with square frequency pixels');
 
-console.log('PASS OBS shared clock, 1-8 visualizer width, coarser square Extra Chunky grid, peak pooling and full 60 FPS frame shape');
+// Windows scaling at 125%, 150% and 200% cannot turn frequency pixels into rectangles.
+for (const dpr of [1,1.25,1.5,2]) {
+ context.devicePixelRatio=dpr;
+ const [width,height,cols]=context.fitVizPixelGrid(890,135,192,9,576);
+ assert(Math.abs((width*dpr/cols)-(height*dpr/9))<1e-8,
+   'Each OBS pixel must be physically square at DPI '+dpr);
+ assert(Math.abs(height*dpr/9-Math.round(height*dpr/9))<1e-8,
+   'Physical pixel edge must align to device raster at DPI '+dpr);
+ const [dw,dh,dc]=context.fitVizTextGrid(557,135,192,9,1440);
+ assert(Math.abs(dw*dpr/dc-dh*dpr/9)<1e-8,
+   'Dynamic size must use the same square physical pixel pitch at DPI '+dpr);
+}
+context.devicePixelRatio=1;
+console.log('PASS OBS shared clock, 1-8 visualizer width, immediate paused redraw, DPI-square pixels, peak pooling and full 60 FPS frame shape');
