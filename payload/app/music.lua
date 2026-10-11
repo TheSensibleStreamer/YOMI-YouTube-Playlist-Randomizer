@@ -566,7 +566,47 @@ function audio_object_signature()
 end
 function audio_object_path(i) return object_audio_dir.."\\"..source_cache_key(urls[i]).."-audio-"..audio_object_signature()..".audio" end
 function meta_object_path(i) return object_meta_dir.."\\"..source_cache_key(urls[i]).."-meta.info.json" end
-function gain_object_path(i) return object_gain_dir.."\\"..source_cache_key(urls[i]).."-gain.gain" end
+function gain_object_path(i) return object_gain_dir.."\\"..source_cache_key(urls[i]).."-gain-"..audio_object_signature()..".gain" end
+
+-- Old 0-dB placeholders are NOT a measured loudness result. A usable record
+-- must match both audio quality and cached file size, so it cannot silently
+-- normalize a replaced source or a different encoding.
+function measured_loudness_gain(i)
+    local function parse(raw)
+        local sig,bytes,db=tostring(raw or ""):match("^r128%-v1|([^|]+)|(%d+)|([%+%-]?%d+%.?%d*)$")
+        if not sig or sig~=audio_object_signature() or tonumber(bytes)~=fsize(audio_path(i)) then return nil end
+        local value=tonumber(db)
+        if not value or value~=value or value < -60 or value > 20 then return nil end
+        return value
+    end
+    local gain=parse(read_all(gain_path(i)))
+    if gain~=nil then return gain end
+    gain=parse(read_all(gain_object_path(i)))
+    if gain~=nil then
+        os.remove(gain_path(i))
+        hydrate_position(gain_object_path(i),gain_path(i))
+    end
+    return gain
+end
+
+-- EBU R128 integrated loudness, with a true-peak ceiling. This is a simple
+-- static per-track gain: no dynamic compression or always-running audio filter.
+function calculate_loudness_gain(integrated_lufs,true_peak_dbfs)
+    local lufs=tonumber(integrated_lufs)
+    local peak=tonumber(true_peak_dbfs)
+    if not lufs or not peak or lufs~=lufs or peak~=peak or lufs < -90 or lufs > 6 or peak < -90 or peak > 12 then return nil end
+    local gain=math.max(-16,math.min(12,-16-lufs))
+    return math.min(gain,-2-peak)
+end
+
+function apply_measured_loudness(i)
+    local gain=0
+    if cfg.loudness_normalization==true and ffmpeg_available then
+        gain=measured_loudness_gain(i) or 0
+    end
+    pcall(mp.set_property_number,"volume-gain",gain)
+    return gain
+end
 
 function ensure_dir(path)
     if utils.readdir(path,"files")~=nil then return true end
@@ -624,7 +664,7 @@ function promote_position_objects(i)
     if i<1 or i>#urls then return end
     if exists(audio_path(i)) and fsize(audio_path(i))>0 then promote_object(audio_path(i),audio_object_path(i)) end
     if exists(meta_path(i)) and fsize(meta_path(i))>0 then promote_object(meta_path(i),meta_object_path(i)) end
-    if exists(gain_path(i)) and fsize(gain_path(i))>0 then promote_object(gain_path(i),gain_object_path(i)) end
+    if measured_loudness_gain(i)~=nil then promote_object(gain_path(i),gain_object_path(i)) end
 end
 
 function artwork_path(i)
@@ -1591,6 +1631,7 @@ function stream_route_order()
     return {"no-js"}
 end
 local playing_from_cache=true
+loudness_failed={}
 -- Intentionally global: music.lua already sits at LuaJIT's top-level local-variable ceiling.
 local pump
 local request_bundle
@@ -1981,10 +2022,16 @@ local function audio_job(job)
         if success and tonumber(result.status or 0)==0 and media then
             os.remove(audio_path(i));os.rename(media,audio_path(i))
             if exists(info) then os.remove(meta_path(i));os.rename(info,meta_path(i)) end
-            if not exists(gain_path(i)) then write_all(gain_path(i),"0") end
+            -- Do not create a fake 0-dB "normalized" cache record. The R128
+            -- measurement is scheduled separately after the audio becomes ready.
             promote_object(audio_path(i),audio_object_path(i))
             if exists(meta_path(i)) then promote_object(meta_path(i),meta_object_path(i)) end
-            if exists(gain_path(i)) then promote_object(gain_path(i),gain_object_path(i)) end
+            if measured_loudness_gain(i)~=nil then promote_object(gain_path(i),gain_object_path(i)) end
+            if cfg.loudness_normalization==true and ffmpeg_available and
+                (i==desired_index or i==playing_index or (tonumber(job.priority) or 999)<=100) and
+                measured_loudness_gain(i)==nil and not loudness_failed[i] then
+                enqueue("gain",i,(tonumber(job.priority) or 0)+5)
+            end
             audio_failures[i]=nil
             -- A valid downloaded recording confirms that Music's replacement
             -- actually resolves, so cache that mapping for future launches.
@@ -2718,6 +2765,43 @@ local function viz_job(job)
     end)
 end
 
+-- Offline R128 analysis runs at configured cache priority and never blocks audio.
+-- Decode one current/next track at a time; store a reusable gain, not altered audio.
+function gain_job(job)
+    local i=job.i
+    if cfg.loudness_normalization~=true or not ffmpeg_available or
+        not audio_ready(i) or measured_loudness_gain(i)~=nil or loudness_failed[i] then job_done(job);return end
+    local source_bytes=fsize(audio_path(i))
+    local source_sig=audio_object_signature()
+    log("LOUDNESS ANALYSIS START track "..i)
+    job.request_id=run_bounded(cache_priority,ffmpeg,{
+        "-hide_banner","-nostats","-loglevel","info","-threads","1",
+        "-i",audio_path(i),"-vn","-af","ebur128=peak=true:framelog=quiet",
+        "-f","null","NUL"
+    },240,false,function(success,result,error_text,timed_out)
+        if cfg.loudness_normalization~=true then job_done(job);return end
+        local output=tostring((result or {}).stderr or "")
+        local integrated=output:match("Integrated loudness:%s*I:%s*([%+%-]?[%d%.]+)%s*LUFS")
+        local true_peak=output:match("True peak:%s*Peak:%s*([%+%-]?[%d%.]+)%s*dBFS")
+        local gain=calculate_loudness_gain(integrated,true_peak)
+        if success and tonumber((result or {}).status or -1)==0 and gain and
+            source_sig==audio_object_signature() and source_bytes>0 and source_bytes==fsize(audio_path(i)) then
+            local record="r128-v1|"..source_sig.."|"..source_bytes.."|"..string.format("%.2f",gain)
+            if write_all(gain_path(i),record) then
+                os.remove(gain_object_path(i))
+                promote_object(gain_path(i),gain_object_path(i))
+                log("LOUDNESS ANALYSIS READY track "..i.." LUFS="..integrated.." peak="..true_peak.." gain_db="..string.format("%.2f",gain))
+                -- Avoid an abrupt volume jump partway through a song. The measured
+                -- gain takes effect at its next load; forthcoming tracks use it now.
+            else loudness_failed[i]=true;log("LOUDNESS RECORD WRITE FAIL track "..i) end
+        else
+            loudness_failed[i]=true
+            log("LOUDNESS ANALYSIS FAIL track "..i.." "..media_error_summary(result,error_text,timed_out))
+        end
+        job_done(job)
+    end)
+end
+
 local function start_job(job)
     queued[job.key]=nil;active[job.key]=job;active_count=active_count+1
     if job.kind~="audio" then
@@ -2726,6 +2810,7 @@ local function start_job(job)
     end
     write_queue_runtime()
     if job.kind=="audio" then audio_job(job)
+    elseif job.kind=="gain" then gain_job(job)
     elseif job.kind=="art" then art_job(job)
     elseif job.kind=="video" then video_job(job)
     elseif job.kind=="viz" then viz_job(job)
@@ -2752,8 +2837,15 @@ request_bundle=function(i,priority)
     if known_bad(i) then return end
     local p=tonumber(priority) or 10
     if configured_art or configured_video or configured_viz or controller_want_art or controller_want_video or controller_want_viz then touch_optional_occurrence(i) end
-    if not audio_ready(i) and not audio_prefetch_backoff(i) then enqueue("audio",i,p) end
+    local ready=audio_ready(i)
+    if not ready and not audio_prefetch_backoff(i) then enqueue("audio",i,p) end
     local is_current=(i==playing_index or i==desired_index)
+    -- Limit full-track loudness scans to the playing song and immediately next
+    -- song. The rest of the queue stays lightweight until it approaches playback.
+    if ready and cfg.loudness_normalization==true and ffmpeg_available and
+        (is_current or p<=100) and measured_loudness_gain(i)==nil and not loudness_failed[i] then
+        enqueue("gain",i,p+5)
+    end
     if (configured_art or controller_want_art or configured_video or controller_want_video) and not optional_ready("art",i) and not optional_failure_blocked("art",i) then enqueue("art",i,p+10) end
     local video_profile_current=video_profile_ready(i)
     local video_migrate_ahead=(not is_current) and legacy_video_validation_ready(i) and video_profile_current
@@ -2796,7 +2888,7 @@ function clear_stale_queued_prefetch()
     local kept={}
     local dropped=0
     for _,job in ipairs(jobs) do
-        local lane_disabled=(job.kind=="video" and not (configured_video or controller_want_video)) or (job.kind=="art" and not (configured_art or controller_want_art or configured_video or controller_want_video)) or (job.kind=="viz" and not (configured_viz or controller_want_viz))
+        local lane_disabled=(job.kind=="gain" and cfg.loudness_normalization~=true) or (job.kind=="video" and not (configured_video or controller_want_video)) or (job.kind=="art" and not (configured_art or controller_want_art or configured_video or controller_want_video)) or (job.kind=="viz" and not (configured_viz or controller_want_viz))
         local pin=(job.i==desired_index or job.i==playing_index or job.i==requested_index or (tonumber(job.priority) or 100)<=0)
         if lane_disabled then
             queued[job.key]=nil
@@ -3252,6 +3344,11 @@ safe_register_script_message("yomi-reload-config",function()
     local before_profile=visualizer_profile()
     local before_video_profile=video_profile()
     apply_config(next_cfg)
+    if cfg.loudness_normalization~=true then
+        for _,job in pairs(active) do
+            if job.kind=="gain" and job.request_id then pcall(mp.abort_async_command,job.request_id) end
+        end
+    end
     if not cfg._video_master_enabled then
         controller_want_video=false
         for _,job in pairs(active) do
@@ -3267,7 +3364,10 @@ safe_register_script_message("yomi-reload-config",function()
     if before_video_profile~=after_video_profile and i>0 then
         clear_optional_failure("video",i)
     end
-    if i>0 then replan_cache_horizon("config-reload",true);write_current(i) end
+    if i>0 then
+        apply_measured_loudness(i)
+        replan_cache_horizon("config-reload",true);write_current(i)
+    end
     write_queue_runtime()
     log("CONFIG RELOADED workers="..workers.." prefetch="..prefetch_ahead.." obs_cache="..tostring(cfg.obs_media_cache_enabled ~= false).." video="..after_video_profile.." viz="..after_profile.." optional_budget_mb="..optional_cache_budget_mb)
 end)
@@ -3422,8 +3522,8 @@ safe_register_event("file-loaded",function()
         slot_bookmark_pending=false
     end
     hydrate_supporting_objects(current_index)
-    local gain=tonumber((read_all(gain_path(current_index)) or "0"):match("[%+%-]?[%d%.]+")) or 0
-    mp.set_property_number("volume-gain",gain)
+    local gain=apply_measured_loudness(current_index)
+    log("LOUDNESS PLAY track "..current_index.." enabled="..tostring(cfg.loudness_normalization==true).." measured_gain_db="..string.format("%.2f",gain))
     local m=meta_for(current_index)
     local paused=mp.get_property_native("pause") == true
     set_engine_status(paused and "paused" or "starting",(paused and "Paused, ready: " or "Loaded; starting: ")..m.title,current_index)
