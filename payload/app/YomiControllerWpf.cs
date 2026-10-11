@@ -17618,7 +17618,11 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
             // visible until a multi-slice metadata projection finishes.
             int nowIndex = -1;
             if (_currentOccurrence > 0)
-                _orderIndexByOccurrence.TryGetValue(_currentOccurrence, out nowIndex);
+            {
+                int mappedNow;
+                if (_orderIndexByOccurrence.TryGetValue(_currentOccurrence, out mappedNow))
+                    nowIndex = mappedNow;
+            }
             for (int i = 0; i < _queueRows.Count; i++)
             {
                 QueueRow row = _queueRows[i];
