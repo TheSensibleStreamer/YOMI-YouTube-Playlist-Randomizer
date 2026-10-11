@@ -1,0 +1,202 @@
+name: Publish YOMI 9046 visible Queue reorder after Windows QA
+on:
+  push:
+    paths:
+      - "staging/publish-9046.trigger"
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify staged branch descends from live release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git fetch origin main
+          git merge-base --is-ancestor origin/main HEAD
+          if($LASTEXITCODE -ne 0){throw "Main has changed. Refusing non-fast-forward release."}
+      - name: Build and audit exact 9046 update package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python tools/build_release_candidate_9046.py --version 420.69.9046 --output dist/9046
+          if($LASTEXITCODE -ne 0){throw "Candidate build failed."}
+          $manifest = Get-Content 'dist/9046/update.json' -Raw | ConvertFrom-Json
+          $package = Join-Path (Resolve-Path 'dist/9046').Path $manifest.package_name
+          $sha = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($sha -ne $manifest.sha256){throw "Outer package SHA-256 mismatch."}
+          $extracted = Join-Path $env:RUNNER_TEMP 'YOMI-9046-publish-verify'
+          $data = Join-Path $env:RUNNER_TEMP 'YOMI-9046-verify-data'
+          & 'payload/app/update-deployment.ps1' -Prepare -PackagePath $package -ExtractRoot $extracted -ExpectedVersion '420.69.9046' -ExpectedPackageHash $sha -InstallRoot (Join-Path $env:RUNNER_TEMP 'YOMI-NOT-INSTALLED') -DataRoot $data
+          if($LASTEXITCODE -ne 0){throw "Updater verification failed."}
+          $c = Get-Content (Join-Path $extracted 'payload/app/YOMI-CAPABILITY-CONTRACT.json') -Raw | ConvertFrom-Json
+          $v = (Get-Content (Join-Path $extracted 'payload/VERSION.txt') -Raw).Trim()
+          if($c.version -ne $v -or $v -ne $manifest.version){throw "Release identity mismatch."}
+          Write-Host "PASS: actual updater verified candidate and version."
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test real controller Queue reorder algorithm on 2802 items
+        shell: pwsh
+        run: |
+          python tests/queue-reorder-visibility.py
+          if($LASTEXITCODE -ne 0){throw "Move-to-end still produces stale or costly Queue row notifications"}
+      - name: Revalidate 60 FPS renderer, single-setting activity, startup, playback and updater contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $controller=Get-Content 'payload/app/YomiControllerWpf.cs' -Raw
+          $xaml=Get-Content 'payload/app/YomiControllerWpf.xaml' -Raw
+          foreach($proof in @('private bool PaintSquareVisualizer()', 'columns * physicalCell / sx', 'bool squareRendered = PaintSquareVisualizer();', 'c["visualizer_activity"] = "Automatic";', 'config["visualizer_activity"] = "Automatic";')){
+            if(-not $controller.Contains($proof)){throw ('9046 controller visualizer quality gate missing: '+$proof)}
+          }
+          if(-not $xaml.Contains('x:Name="SettingsVisualizerActivity" Visibility="Collapsed"')){throw "Old manual activity control still visible"}
+          $music=Get-Content 'payload/app/music.lua' -Raw
+          foreach($required in @('dynaudnorm=f=700:g=15:p=','spectrum_height=shape=="Spectrum" and math.max(64,math.min(144,h*4)) or h','r61106544-automatic-musical-detail')){
+            if(-not $music.Contains($required)){throw ('9046 visualizer enhancement missing: '+$required)}
+          }
+          if($music.Contains('if gain>0 then table.insert(chain,"volume="')){throw 'Old fixed-visualizer-gain implementation returned'}
+          node tests/obs-av-sync-contract.cjs
+          if($LASTEXITCODE -ne 0){throw "9046 dynamic spectrum width and square-pixel OBS geometry failed"}
+          python tests/compact-update-dialog-contract.py
+          if($LASTEXITCODE -ne 0){throw "Oversized no-update popup regression"}
+          python tests/queue-readiness-contract.py
+          if($LASTEXITCODE -ne 0){throw "Previous-song READY or media status regression"}
+          python tests/queue-search-or-contract.py
+          if($LASTEXITCODE -ne 0){throw "Queue OR grammar regression"}
+          node tests/obs-av-sync-contract.cjs
+          if($LASTEXITCODE -ne 0){throw "OBS visualizer A/V or geometry regression"}
+          $music=Get-Content 'payload/app/music.lua' -Raw
+          if(-not $music.Contains('if volume==nil then volume=50 end')){throw "Default volume regression"}
+          $controller=Get-Content 'payload/app/YomiControllerWpf.cs' -Raw
+          if(-not $controller.Contains('_volume = 50.0;')){throw "Controller default volume regression"}
+          Write-Host "PASS: short update-status dialog, Queue semantics, OBS browser, and saved-volume defaults"
+      - name: Compile real .NET Framework WPF controller and OBS server
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          [xml](Get-Content 'payload/app/YomiControllerWpf.xaml' -Raw) | Out-Null
+          [xml](Get-Content 'payload/app/YomiDesign.xaml' -Raw) | Out-Null
+          foreach($s in @('installer/install.ps1','payload/app/update-deployment.ps1','payload/app/YomiPublicUpdateHost.ps1')){
+            $tok=$null;$errs=$null
+            [void][Management.Automation.Language.Parser]::ParseFile((Resolve-Path $s),[ref]$tok,[ref]$errs)
+            if($errs.Count){throw ($s+': '+$errs[0].Message)}
+          }
+          function Find-FrameworkRef([string]$Name) {
+            $dirs=@()
+            $runtime=[Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()
+            if($runtime){$dirs+=$runtime;$dirs+=(Join-Path $runtime 'WPF')}
+            foreach($root in @((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319'))){
+              $dirs+=$root;$dirs+=(Join-Path $root 'WPF')
+            }
+            $pf86=[Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)
+            if($pf86){
+              $refRoot=Join-Path $pf86 'Reference Assemblies\Microsoft\Framework\.NETFramework'
+              if(Test-Path $refRoot){
+                foreach($v in @(Get-ChildItem $refRoot -Directory | Where-Object {$_.Name -like 'v4*'} | Sort-Object Name -Descending)){
+                  $dirs+=$v.FullName;$dirs+=(Join-Path $v.FullName 'Facades')
+                }
+              }
+            }
+            foreach($dir in @($dirs | Where-Object {$_} | Select-Object -Unique)){
+              $candidate=Join-Path $dir ($Name+'.dll')
+              if(Test-Path $candidate){return $candidate}
+            }
+            throw ('Required .NET Framework assembly unavailable: '+$Name)
+          }
+          $csc=@((Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'),(Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'))|Where-Object {Test-Path $_}|Select-Object -First 1
+          if(-not $csc){throw 'No Windows .NET Framework compiler'}
+          $app=(Resolve-Path 'payload/app').Path
+          $exe=Join-Path $env:RUNNER_TEMP 'YomiControllerWpf.exe'
+          $refs=@('PresentationFramework','PresentationCore','WindowsBase','System.Xaml','WindowsFormsIntegration','System.Windows.Forms','System.Drawing','System.Web.Extensions','System.Xml','System','System.Core')
+          $args=@('/nologo','/noconfig','/codepage:65001','/target:winexe','/platform:anycpu','/optimize+','/debug-',('/win32manifest:"'+(Join-Path $app 'YomiControllerWpf.manifest')+'"'),('/out:"'+$exe+'"'))
+          foreach($name in $refs){$args+=('/reference:"'+(Find-FrameworkRef $name)+'"')}
+          $args+=('"'+(Join-Path $app 'YomiControllerWpf.cs')+'"')
+          $compile=& $csc @args 2>&1
+          if($LASTEXITCODE -ne 0){throw ('Controller compile failed: '+($compile -join [Environment]::NewLine))}
+          if(-not(Test-Path $exe)){throw 'Missing compiled WPF controller'}
+          $obsOut=Join-Path $env:RUNNER_TEMP 'YomiObsServer.exe'
+          $obsArgs=@('/nologo','/noconfig','/codepage:65001','/target:exe','/platform:anycpu','/optimize+','/debug-',('/out:"'+$obsOut+'"'),('/reference:"'+(Find-FrameworkRef 'System')+'"'),('/reference:"'+(Find-FrameworkRef 'System.Core')+'"'),('"'+(Join-Path $app 'YomiObsServerHost.cs')+'"'))
+          $compile=& $csc @obsArgs 2>&1
+          if($LASTEXITCODE -ne 0){throw ('OBS C# compile failed: '+($compile -join [Environment]::NewLine))}
+          Write-Host 'PASS: WPF, XAML, updater parser and OBS host compile'
+      - name: Verify corrected Listen order and true measured leveling on mpv Lua
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          python -m pip install --quiet lupa
+          if($LASTEXITCODE -ne 0){throw "Lua test runtime setup failed"}
+          python tests/yomi-default-volume-contract.py
+          if($LASTEXITCODE -ne 0){throw "Volume and active Listen-reorder regression"}
+          python tests/exhausted-audio-next.py
+          if($LASTEXITCODE -ne 0){throw "Next/Previous playback regression"}
+          $candidate = 'dist/9046/YOMI-v420.69.9046.zip'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $candidate).Path)
+          try {
+            $lua = $zip.Entries | Where-Object FullName -eq 'payload/app/music.lua' | Select-Object -First 1
+            if(-not $lua){throw 'Packaged music.lua absent'}
+            $reader = New-Object IO.StreamReader($lua.Open())
+            try { $actual = $reader.ReadToEnd() } finally { $reader.Dispose() }
+            foreach($proof in @('function reconcile_playback_subset_order()', 'function gain_job(job)', 'ebur128=peak=true:framelog=quiet', 'function apply_measured_loudness(i)')){
+              if(-not $actual.Contains($proof)){throw ('Packaged fix missing: '+$proof)}
+            }
+          } finally { $zip.Dispose() }
+          Write-Host 'PASS: actual packaged 9046 retains Listen order and measured loudness fixes'
+      - name: Verify packaged 9046 controller contains the real visible-row move fix
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip=[IO.Compression.ZipFile]::OpenRead((Resolve-Path 'dist/9046/YOMI-v420.69.9046.zip').Path)
+          try {
+            $entry=$zip.Entries | Where-Object FullName -eq 'payload/app/YomiControllerWpf.cs' | Select-Object -First 1
+            if(-not $entry){throw 'Packaged WPF controller source missing'}
+            $reader=New-Object IO.StreamReader($entry.Open())
+            try {$source=$reader.ReadToEnd()} finally {$reader.Dispose()}
+            foreach($proof in @('bool oneMoveApplied = false;', '_queueRows.Move(movedLater ? first : last, movedLater ? last : first);', 'row.Slot = i + 1;', '_queueView.Refresh();')){
+              if(-not $source.Contains($proof)){throw ('Packaged visible reorder fix missing: '+$proof)}
+            }
+          } finally {$zip.Dispose()}
+          Write-Host 'PASS: released source contains one-move visible Queue reorder and filtered view refresh'
+      - name: Publish 9046 to main for one-click in-app updates
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'dist/9046/YOMI-v420.69.9046.zip'
+          $tmp = Join-Path $env:RUNNER_TEMP 'YOMI-9046-live-content'
+          Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+          if(-not (Test-Path (Join-Path $tmp 'payload/app/music.lua'))){throw "Missing release payload."}
+          Copy-Item -LiteralPath (Join-Path $tmp 'INSTALL YOMI.cmd') -Destination 'INSTALL YOMI.cmd' -Force
+          Copy-Item -Path (Join-Path $tmp 'installer/*') -Destination 'installer' -Recurse -Force
+          Copy-Item -Path (Join-Path $tmp 'payload/*') -Destination 'payload' -Recurse -Force
+          Copy-Item -LiteralPath $zip -Destination 'YOMI-v420.69.9046.zip' -Force
+          Copy-Item -LiteralPath $zip -Destination 'YOMI-Windows.zip' -Force
+          Copy-Item -LiteralPath 'dist/9046/update.json' -Destination 'update.json' -Force
+          if(Test-Path 'YOMI-v420.69.9045.zip'){Remove-Item 'YOMI-v420.69.9045.zip' -Force}
+          $readme = [IO.File]::ReadAllText((Resolve-Path 'README.md').Path)
+          if(-not $readme.Contains('Version: 420.69.9045')){throw "README version unexpected."}
+          [IO.File]::WriteAllText((Resolve-Path 'README.md').Path,$readme.Replace('Version: 420.69.9045','Version: 420.69.9046'),(New-Object System.Text.UTF8Encoding($false)))
+          $meta = Get-Content 'update.json' -Raw | ConvertFrom-Json
+          if($meta.version -ne '420.69.9046'){throw "Refusing to release bad update metadata."}
+          $hash = (Get-FileHash 'YOMI-v420.69.9046.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if($meta.sha256 -ne $hash){throw "Refusing to release mismatched update ZIP."}
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A INSTALL* README.md installer payload update.json YOMI-Windows.zip YOMI-v420.69.9045.zip YOMI-v420.69.9046.zip
+          git diff --cached --quiet
+          if($LASTEXITCODE -eq 0){throw "No release changes staged."}
+          git commit -m "Release YOMI 420.69.9046 with visible single-move Queue reorder fix"
+          if($LASTEXITCODE -ne 0){throw "Release commit failed."}
+          git push origin HEAD:main
+          if($LASTEXITCODE -ne 0){throw "Release push rejected; live update is unchanged."}
+          Write-Host "YOMI 420.69.9046 published to main."
