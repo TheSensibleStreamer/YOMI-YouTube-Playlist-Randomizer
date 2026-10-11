@@ -17560,6 +17560,36 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                 }
             }
 
+            // Reordering one occurrence (notably "To end") must be ONE WPF move.
+            // Previously a 2,800-row Queue did as many as 2,799 ObservableCollection
+            // moves to slide the intervening rows up by one. That notification storm
+            // left the filtered Listen table visually stale while mpv played the new order.
+            bool oneMoveApplied = false;
+            if (removedRows == 0 && _queueRows.Count == desired.Count && desired.Count > 1)
+            {
+                int first = 0;
+                while (first < desired.Count && _queueRows[first].OccurrenceId == desired[first]) first++;
+                if (first < desired.Count)
+                {
+                    int last = desired.Count - 1;
+                    while (last > first && _queueRows[last].OccurrenceId == desired[last]) last--;
+                    bool movedLater = _queueRows[first].OccurrenceId == desired[last];
+                    bool movedEarlier = _queueRows[last].OccurrenceId == desired[first];
+                    for (int scan = first; scan < last && movedLater; scan++)
+                        movedLater = _queueRows[scan + 1].OccurrenceId == desired[scan];
+                    for (int scan = first; scan < last && movedEarlier; scan++)
+                        movedEarlier = _queueRows[scan].OccurrenceId == desired[scan + 1];
+                    if (movedLater || movedEarlier)
+                    {
+                        _queueRows.Move(movedLater ? first : last, movedLater ? last : first);
+                        movedRows++;
+                        oneMoveApplied = true;
+                    }
+                }
+                else oneMoveApplied = true;
+            }
+
+            if (!oneMoveApplied)
             for (int target = 0; target < desired.Count; target++)
             {
                 int occ = desired[target];
@@ -17582,6 +17612,28 @@ addQueueScope("Next 10", QueueScope.NextTen); addQueueScope("Unready", QueueScop
                     }
                 }
             }
+
+            // The underlying rows are now in authoritative order. Update the cheap
+            // position labels immediately instead of leaving the old +N/slot numbers
+            // visible until a multi-slice metadata projection finishes.
+            int nowIndex = -1;
+            if (_currentOccurrence > 0)
+                _orderIndexByOccurrence.TryGetValue(_currentOccurrence, out nowIndex);
+            for (int i = 0; i < _queueRows.Count; i++)
+            {
+                QueueRow row = _queueRows[i];
+                row.Slot = i + 1;
+                int delta = nowIndex >= 0 ? i - nowIndex : 0;
+                row.PositionLabel = nowIndex < 0 ? (i + 1).ToString(CultureInfo.InvariantCulture)
+                    : delta == 0 ? "NOW"
+                    : delta > 0 ? "+" + delta.ToString(CultureInfo.InvariantCulture)
+                    : "-" + Math.Abs(delta).ToString(CultureInfo.InvariantCulture);
+            }
+            // A filtered ICollectionView needs its own re-evaluation after source
+            // collection moves. The expensive refresh happens only on an actual
+            // committed structural order change, never in routine status updates.
+            if (_queueView != null && (_queueQueryKind != QueueQueryKind.None || _queueScope != QueueScope.All))
+                _queueView.Refresh();
 
             _queueUiMaterialized = true;
             _queueUiOrderDirty = false;
