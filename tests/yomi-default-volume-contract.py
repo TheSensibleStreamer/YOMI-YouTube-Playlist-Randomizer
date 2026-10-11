@@ -128,4 +128,5 @@ assert "mp.set_property_number" not in analysis and "mp.set_property_native" not
 
 print("PASS: first launch and factory reset start at 50%")
 print("PASS: saved 0/27/50/100% and saved mute remain untouched")
-print("PASS: cached EBU R128 and true-peak leveling, OFF resets gain; visualizer remains separate")\nprint("PASS: filtered Listen order follows Queue moves and undo/redo without stale reassertion")
+print("PASS: cached EBU R128 and true-peak leveling, OFF resets gain; visualizer remains separate")
+print("PASS: filtered Listen order follows Queue moves and undo/redo without stale reassertion")
