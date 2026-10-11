@@ -91,7 +91,7 @@
                     <Image x:Name="TitleBarIcon" Stretch="Uniform" SnapsToDevicePixels="True"/>
                 </Border>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="7,0,0,0" SnapsToDevicePixels="True"><StackPanel.RenderTransform><TranslateTransform Y="1"/></StackPanel.RenderTransform>
-                    <TextBlock Text="YOMI 420.69.9045" FontSize="14" FontWeight="SemiBold"/>
+                    <TextBlock Text="YOMI 420.69.9046" FontSize="14" FontWeight="SemiBold"/>
                     <TextBlock x:Name="TitleTaglineText" Text="  YouTube OBS Music Interface" FontSize="14" Foreground="{DynamicResource TextMuted}"/>
                 </StackPanel>
                 <TextBlock Grid.Column="2" x:Name="AppearanceBadge" Text="" Visibility="Collapsed" Style="{StaticResource Text.Mono}" Opacity="0" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False"/>
