@@ -10,8 +10,8 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ORIGINAL_VERSION = "420.69.9044"
-ORIGINAL_BUILD = "R61.106.53.44.1"
+ORIGINAL_VERSION = "420.69.9045"
+ORIGINAL_BUILD = "R61.106.53.45.1"
 
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
