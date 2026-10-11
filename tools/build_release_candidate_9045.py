@@ -48,6 +48,7 @@ def create_candidate(version, output):
         replace_version(package / "payload" / "VERSION.txt", ORIGINAL_VERSION, version)
         replace_version(app / "FOCUSED-BUILD.txt", ORIGINAL_VERSION, version)
         replace_version(app / "FOCUSED-BUILD.txt", ORIGINAL_BUILD, build_name)
+        replace_version(app / "YomiControllerWpf.xaml", ORIGINAL_VERSION, version)
         replace_version(package / "installer" / "install.ps1", ORIGINAL_VERSION, version)
 
         contract_path = app / "YOMI-CAPABILITY-CONTRACT.json"
