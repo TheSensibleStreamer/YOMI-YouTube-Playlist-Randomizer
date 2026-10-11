@@ -878,6 +878,22 @@ function rebuild_playback_subset_position()
     if playback_subset_cursor>#playback_subset then playback_subset_cursor=#playback_subset end
 end
 
+-- The displayed Queue order remains authoritative while a filtered Listen lane is active.
+-- Reorder membership without changing what is playing (or a pending Next destination).
+function reconcile_playback_subset_order()
+    if not playback_subset_active then return end
+    local membership={}
+    for _,occ in ipairs(playback_subset) do membership[occ]=true end
+    local updated={}
+    for _,occ in ipairs(order) do if membership[occ] then table.insert(updated,occ) end end
+    local active_occ=(transport_pending_target>0 and transport_pending_target) or
+        (desired_index>0 and desired_index) or (playing_index>0 and playing_index) or current_index
+    playback_subset=updated
+    rebuild_playback_subset_position()
+    playback_subset_cursor=tonumber(playback_subset_position[active_occ]) or
+        math.min(playback_subset_cursor,#playback_subset)
+end
+
 function sync_playback_subset_cursor(i)
     if not playback_subset_active then return end
     local occurrence=math.floor(tonumber(i) or 0)
@@ -2949,6 +2965,7 @@ end
 
 local function write_order_projection(reason,status)
     rebuild_order_position()
+    reconcile_playback_subset_order()
     write_json(order_file,{
         schema=3,session_id=session_id,revision=order_revision,command_serial=order_command_serial,
         last_command_status=status or "committed",last_command_reason=reason or "focused-r19",
@@ -3078,6 +3095,11 @@ function ensure_playback_subset(raw,label)
         local n=math.floor(tonumber(token) or 0)
         if n>=1 and n<=#urls and not seen[n] then seen[n]=true;table.insert(subset,n) end
     end
+    -- A filter is a membership selection, not a second permanent order. The Queue's
+    -- committed order must also govern Listen, including after Move/Undo/Redo.
+    local sorted={}
+    for _,occ in ipairs(order) do if seen[occ] then table.insert(sorted,occ) end end
+    subset=sorted
     if #subset<1 then return false,false end
     local same=playback_subset_active and #subset==#playback_subset
     if same then for i=1,#subset do if subset[i]~=playback_subset[i] then same=false;break end end end
