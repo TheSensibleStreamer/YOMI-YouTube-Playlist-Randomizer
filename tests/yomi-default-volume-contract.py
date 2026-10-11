@@ -92,7 +92,7 @@ assert L.measured_loudness_gain(1) is None, "A replaced audio file must invalida
 # old membership CSV, even when the controller reasserts the filter after Next.
 lane=LuaRuntime(unpack_returned_tuples=True)
 lane.execute("""
-  order={1,2,3,4,5};playback_subset={1,2,3,5}
+  urls={"a","b","c","d","e"};order={1,2,3,4,5};playback_subset={1,2,3,5}
   playback_subset_active=true;playback_subset_cursor=1
   playback_subset_position={};transport_pending_target=0;desired_index=1;playing_index=1;current_index=1
   function rebuild_playback_subset_position()
